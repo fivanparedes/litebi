@@ -5,6 +5,10 @@ export const useSettingsStore = defineStore('settings', () => {
   // Themes: 'light', 'dark'
   const theme = ref('light')
   
+  // Collaboration
+  const username = ref('Usuario ' + Math.floor(Math.random() * 1000))
+  const roomName = ref('litebi-room-1')
+
   // Palettes
   const palettes = {
     corporate: {
@@ -55,12 +59,24 @@ export const useSettingsStore = defineStore('settings', () => {
     }
   }
 
+  const setUsername = (name) => {
+    username.value = name
+  }
+
+  const setRoomName = (room) => {
+    roomName.value = room
+  }
+
   return {
     theme,
+    username,
+    roomName,
     chartPaletteId,
     palettes,
     currentChartColors,
     setTheme,
-    setChartPalette
+    setChartPalette,
+    setUsername,
+    setRoomName
   }
 })

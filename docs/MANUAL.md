@@ -105,4 +105,15 @@ Una vez que tengas tu panel perfectamente acomodado:
 *   **Exportar como PDF:** El icono contiguo de "Hoja de Texto" genera un documento unificado PDF en formato paisajista (A4/16:9).
 *   **Exportar a PPTX (PowerPoint):** Usa el botón **"PPTX"** general del Dashboard para descargar una presentación. LiteBI no solo tomará tu hoja visual, sino que capturará el Dashboard entero en una lámina interactiva de alta definición que puedes presentar directamente en la reunión de junta.
 
-¡Disfruta analizando tus datos con LiteBI!
+---
+
+## 8. Colaboración Multijugador (WebRTC)
+
+LiteBI permite conectar a múltiples analistas en un mismo proyecto sin necesidad de subir los datos a un servidor externo gracias a la tecnología descentralizada Peer-to-Peer (WebRTC).
+
+1. **Configurar tu Identidad**: Ve a **Configuración** (icono de engranaje) en el menú lateral.
+2. Ingresa tu **Nombre de Usuario** y el **ID de la Sala**.
+3. **Colaborar**: Pídele a tu compañero que ingrese exactamente el mismo **ID de la Sala** en su programa. Inmediatamente verás aparecer su avatar circular en la barra superior derecha de tu ventana.
+4. Si ambos entran a la vista de **Reportes/Dashboard**, podrán mover gráficos y agregar filtros. Verás cómo el ratón fantasma de tu compañero se mueve por el lienzo en tiempo real y cómo los gráficos se acomodan por arte de magia cuando él los arrastra.
+
+¡Disfruta analizando tus datos en equipo con LiteBI!

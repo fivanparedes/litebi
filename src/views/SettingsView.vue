@@ -1,7 +1,8 @@
 <script setup>
 import { computed } from 'vue'
-import { Palette, Settings, Moon, Sun } from '@lucide/vue'
+import { Palette, Settings, Moon, Sun, Users } from '@lucide/vue'
 import { useSettingsStore } from '@/stores/settingsStore'
+import BaseInput from '@/components/ui/BaseInput.vue'
 
 const settingsStore = useSettingsStore()
 
@@ -26,6 +27,30 @@ const toggleTheme = () => {
   <div class="view-container">
     <div class="settings-header">
       <h2><Settings class="icon-h2" /> Configuración</h2>
+    </div>
+
+    <div class="settings-section">
+      <h3><Users class="icon-h3" /> Multijugador (WebRTC)</h3>
+      <p class="section-desc">Configura tu identidad y la sala de colaboración. Usuarios en la misma sala verán tus cambios en vivo.</p>
+
+      <div style="display: flex; gap: 16px; max-width: 500px; margin-bottom: 16px;">
+        <div style="flex: 1;">
+          <label style="display: block; margin-bottom: 4px; font-size: 14px; font-weight: 500;">Nombre de Usuario</label>
+          <BaseInput 
+            :modelValue="settingsStore.username" 
+            @update:modelValue="settingsStore.setUsername" 
+            placeholder="Ej: Ana Gómez" 
+          />
+        </div>
+        <div style="flex: 1;">
+          <label style="display: block; margin-bottom: 4px; font-size: 14px; font-weight: 500;">ID de la Sala</label>
+          <BaseInput 
+            :modelValue="settingsStore.roomName" 
+            @update:modelValue="settingsStore.setRoomName" 
+            placeholder="Ej: equipo-ventas-1" 
+          />
+        </div>
+      </div>
     </div>
 
     <div class="settings-section">

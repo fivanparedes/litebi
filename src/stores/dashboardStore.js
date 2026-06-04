@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
+import { useCollaborationStore } from './collaborationStore'
 
 export const useDashboardStore = defineStore('dashboard', () => {
   // Pestañas (Tabs)
@@ -129,6 +130,49 @@ export const useDashboardStore = defineStore('dashboard', () => {
   const clearFilters = () => {
     globalFilters.value = []
   }
+
+  // --- WebRTC Collaboration Sync ---
+  let isSyncingFromRemote = false
+
+  const initCollaborationSync = () => {
+    const collabStore = useCollaborationStore()
+    const yLayouts = collabStore.ydoc.getMap('layouts')
+    const yFilters = collabStore.ydoc.getArray('filters')
+
+    // Local -> Remote (Layouts)
+    watch(() => layouts.value, (newVal) => {
+      if (isSyncingFromRemote) return
+      Object.keys(newVal).forEach(tabId => {
+        yLayouts.set(tabId, newVal[tabId])
+      })
+    }, { deep: true })
+
+    // Remote -> Local (Layouts)
+    yLayouts.observe(event => {
+      isSyncingFromRemote = true
+      event.keysChanged.forEach(tabId => {
+        layouts.value[tabId] = yLayouts.get(tabId)
+      })
+      setTimeout(() => { isSyncingFromRemote = false }, 50)
+    })
+
+    // Local -> Remote (Filters)
+    watch(() => globalFilters.value, (newVal) => {
+      if (isSyncingFromRemote) return
+      yFilters.delete(0, yFilters.length)
+      yFilters.insert(0, newVal)
+    }, { deep: true })
+
+    // Remote -> Local (Filters)
+    yFilters.observe(event => {
+      isSyncingFromRemote = true
+      globalFilters.value = yFilters.toArray()
+      setTimeout(() => { isSyncingFromRemote = false }, 50)
+    })
+  }
+
+  // Initialize sync immediately
+  initCollaborationSync()
 
   return {
     tabs,

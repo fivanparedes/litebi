@@ -5,6 +5,7 @@ import { useRoute } from 'vue-router'
 import { useUiStore } from '@/stores/uiStore'
 import { useDashboardStore } from '@/stores/dashboardStore'
 import { useProjectStore } from '@/stores/projectStore'
+import { useCollaborationStore } from '@/stores/collaborationStore'
 import { Save, SaveAll, FolderOpen, FilePlus, Image, FileText, Pencil } from '@lucide/vue'
 import LanguageSwitch from '@/components/ui/LanguageSwitch.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
@@ -15,6 +16,7 @@ const route = useRoute()
 const uiStore = useUiStore()
 const dashboardStore = useDashboardStore()
 const projectStore = useProjectStore()
+const collabStore = useCollaborationStore()
 
 const isEditingName = ref(false)
 const tempName = ref('')
@@ -164,6 +166,28 @@ const handleExportPDF = async () => {
 
       <div class="divider"></div>
       
+      <!-- Collaboration Avatars -->
+      <div class="collab-avatars" v-if="collabStore.isConnected">
+        <div 
+          class="avatar local-avatar" 
+          :style="{ backgroundColor: collabStore.userColor }"
+          :title="collabStore.username + ' (Tú)'"
+        >
+          {{ collabStore.username?.charAt(0).toUpperCase() || 'U' }}
+        </div>
+        <div 
+          v-for="[id, user] in collabStore.collaborators" 
+          :key="id"
+          class="avatar remote-avatar"
+          :style="{ backgroundColor: user.color }"
+          :title="user.name"
+        >
+          {{ user.name?.charAt(0).toUpperCase() || '?' }}
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
       <LanguageSwitch />
     </div>
   </header>
@@ -264,5 +288,43 @@ const handleExportPDF = async () => {
   width: 1px;
   height: 24px;
   background-color: var(--color-border);
+  margin: 0 var(--space-2);
+}
+
+.collab-avatars {
+  display: flex;
+  align-items: center;
+  gap: -8px; /* overlap */
+}
+
+.avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: 600;
+  font-size: 14px;
+  border: 2px solid var(--color-bg-surface);
+  margin-left: -8px; /* overlapping effect */
+  box-shadow: var(--shadow-xs);
+  cursor: help;
+  transition: transform var(--transition-fast);
+}
+
+.avatar:hover {
+  transform: translateY(-2px);
+  z-index: 10;
+}
+
+.local-avatar {
+  margin-left: 0;
+  z-index: 5;
+}
+
+.remote-avatar {
+  z-index: 4;
 }
 </style>

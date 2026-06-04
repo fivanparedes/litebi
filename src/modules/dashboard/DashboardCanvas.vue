@@ -5,6 +5,8 @@ import { GridStack } from 'gridstack'
 import { X, Settings } from '@lucide/vue'
 import ChartRenderer from '@/modules/visualization/ChartRenderer.vue'
 import SlicerRenderer from '@/modules/visualization/SlicerRenderer.vue'
+import CollaboratorCursors from '@/components/collaboration/CollaboratorCursors.vue'
+import { useCollaborationStore } from '@/stores/collaborationStore'
 
 const props = defineProps({
   layout: {
@@ -19,7 +21,10 @@ const props = defineProps({
 
 const emit = defineEmits(['update:layout', 'remove-widget', 'edit-widget'])
 
+const collabStore = useCollaborationStore()
+
 const gridElement = ref(null)
+const canvasWrapperRef = ref(null)
 let grid = null
 let isSyncing = false
 
@@ -126,10 +131,19 @@ onUnmounted(() => {
     grid = null
   }
 })
+
+const handleMouseMove = (e) => {
+  if (!collabStore.isConnected || !canvasWrapperRef.value) return
+  const rect = canvasWrapperRef.value.getBoundingClientRect()
+  const x = e.clientX - rect.left
+  const y = e.clientY - rect.top
+  collabStore.updateCursor(x, y)
+}
 </script>
 
 <template>
-  <div class="canvas-wrapper">
+  <div class="canvas-wrapper" ref="canvasWrapperRef" @mousemove="handleMouseMove" style="position: relative;">
+    <CollaboratorCursors />
     <div ref="gridElement" class="grid-stack">
       <!-- GridStack handles DOM generation based on load() -->
       <!-- We render the initial items so they exist in the DOM for GridStack -->

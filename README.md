@@ -18,12 +18,14 @@ LiteBI es una herramienta ágil y moderna de Business Intelligence (BI) diseñad
     *   Filtros interactivos y Segmentadores de datos (Slicers tipo lista y tipo slider continuo).
 *   **Exportación Profesional:** Exporta tus cuadros de mando interactivos a PDF, PNG o directamente como presentaciones interactivas `.pptx` de alta calidad.
 *   **Proyectos Portables:** Guarda todo tu trabajo (datos, limpieza, modelos y gráficos) en un solo archivo `.litebi` que puedes compartir o continuar editando más tarde.
+*   **Colaboración en Tiempo Real (WebRTC):** Únete a una sala y edita el tablero simultáneamente con otros usuarios en red local o por internet (P2P descentralizado sin servidor). Observa los cursores de tus compañeros moviéndose en vivo por la pantalla.
 
 ## Tecnologías Utilizadas
 
 *   **Frontend:** Vue 3 (Composition API), Vite, Pinia.
 *   **Motor de Datos & SQL:** AlaSQL.
 *   **Gráficos & Visualizaciones:** Apache ECharts (`vue-echarts`).
+*   **Colaboración P2P:** Yjs, y-webrtc.
 *   **Análisis y Procesamiento:** PapaParse (CSV), SheetJS (Excel).
 *   **Exportación:** html2canvas, jsPDF, PptxGenJS.
 *   **Estilizado y UI:** CSS Variables (Vanilla), Lucide Icons, Gridstack.js.
