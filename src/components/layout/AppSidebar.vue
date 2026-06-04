@@ -13,7 +13,8 @@ import {
   Network,
   Presentation,
   HelpCircle,
-  Info
+  Info,
+  Settings
 } from '@lucide/vue'
 import BaseModal from '@/components/ui/BaseModal.vue'
 
@@ -60,6 +61,11 @@ const navItems = computed(() => [
     </nav>
 
     <div class="sidebar__bottom">
+      <router-link to="/settings" class="nav-item" :class="{ 'nav-item--active': route.name === 'settings' }" :title="uiStore.sidebarCollapsed ? 'Configuración' : ''">
+        <Settings class="nav-item__icon" />
+        <span v-if="!uiStore.sidebarCollapsed" class="nav-item__label">Configuración</span>
+      </router-link>
+
       <router-link to="/help" class="nav-item" :class="{ 'nav-item--active': route.name === 'help' }" :title="uiStore.sidebarCollapsed ? 'Manual de Usuario' : ''">
         <HelpCircle class="nav-item__icon" />
         <span v-if="!uiStore.sidebarCollapsed" class="nav-item__label">Manual de Usuario</span>

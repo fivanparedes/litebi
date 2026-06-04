@@ -30,7 +30,9 @@ const transformOptions = [
   { value: 'fill_nulls', label: 'Rellenar Faltantes', icon: Check },
   { value: 'text_transform', label: 'Transformar Texto', icon: Check },
   { value: 'remove_duplicates', label: 'Eliminar Duplicados', icon: Trash2 },
-  { value: 'extract_date', label: 'Extraer Fecha', icon: Check }
+  { value: 'extract_date', label: 'Extraer Fecha', icon: Check },
+  { value: 'date_diff', label: 'Diferencia de Fechas', icon: Check },
+  { value: 'date_add', label: 'Desplazar Fecha', icon: Check }
 ]
 
 const columnOptions = computed(() => {
@@ -48,7 +50,11 @@ const stepConfig = ref({
   fixedValue: '',
   operation: 'trim',
   component: 'year',
-  newColumnName: ''
+  newColumnName: '',
+  dateColumn2: '',
+  dateDiffUnit: 'days',
+  dateAddAmount: 1,
+  dateAddUnit: 'days'
 })
 
 const operatorOptions = [
@@ -102,7 +108,7 @@ const getStepDescription = (step) => {
         <BaseDropdown v-model="selectedTransform" :options="transformOptions" />
       </div>
       
-      <div class="form-group" v-if="selectedTransform !== 'remove_duplicates'">
+      <div class="form-group" v-if="selectedTransform !== 'remove_duplicates' && selectedTransform !== 'date_diff'">
         <label>Columna</label>
         <BaseDropdown v-model="stepConfig.column" :options="columnOptions" placeholder="Selecciona columna" />
       </div>
@@ -150,6 +156,30 @@ const getStepDescription = (step) => {
         <div class="form-row">
           <BaseDropdown v-model="stepConfig.component" :options="[{value: 'year', label: 'Año'}, {value: 'month', label: 'Mes'}, {value: 'day', label: 'Día'}, {value: 'quarter', label: 'Trimestre'}]" />
           <BaseInput v-model="stepConfig.newColumnName" placeholder="Nombre nueva columna" />
+        </div>
+      </template>
+      
+      <!-- Date Diff fields -->
+      <template v-if="selectedTransform === 'date_diff'">
+        <div class="form-row">
+          <BaseDropdown v-model="stepConfig.column" :options="columnOptions" placeholder="Fecha Inicial" />
+          <BaseDropdown v-model="stepConfig.dateColumn2" :options="columnOptions" placeholder="Fecha Final" />
+        </div>
+        <div class="form-row">
+          <BaseDropdown v-model="stepConfig.dateDiffUnit" :options="[{value: 'days', label: 'Días'}, {value: 'months', label: 'Meses'}, {value: 'years', label: 'Años'}]" />
+          <BaseInput v-model="stepConfig.newColumnName" placeholder="Nueva columna" />
+        </div>
+      </template>
+      
+      <!-- Date Add fields -->
+      <template v-if="selectedTransform === 'date_add'">
+        <div class="form-row">
+          <BaseDropdown v-model="stepConfig.column" :options="columnOptions" placeholder="Fecha Base" />
+          <BaseDropdown v-model="stepConfig.dateAddUnit" :options="[{value: 'days', label: 'Días'}, {value: 'months', label: 'Meses'}, {value: 'years', label: 'Años'}]" />
+          <BaseInput type="number" v-model="stepConfig.dateAddAmount" placeholder="Cantidad" />
+        </div>
+        <div class="form-row">
+          <BaseInput v-model="stepConfig.newColumnName" placeholder="Nueva columna" />
         </div>
       </template>
       

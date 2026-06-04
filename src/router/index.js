@@ -46,6 +46,12 @@ const routes = [
     name: 'help',
     component: () => import('@/views/HelpView.vue'),
     meta: { title: 'Manual de Usuario' }
+  },
+  {
+    path: '/settings',
+    name: 'settings',
+    component: () => import('@/views/SettingsView.vue'),
+    meta: { title: 'Configuración' }
   }
 ]
 

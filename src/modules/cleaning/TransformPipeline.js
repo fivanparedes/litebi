@@ -186,6 +186,50 @@ export class TransformPipeline {
             }
           })
         }
+        else if (step.transformId === 'date_diff') {
+          const { column, dateColumn2, dateDiffUnit, newColumnName } = step.config
+          const data = alasql.tables[this.tempTableName].data
+          const newCol = newColumnName || `diff_${column}_${dateColumn2}`
+          
+          if (!currentColumns.includes(newCol)) {
+            currentColumns.push(newCol)
+          }
+
+          data.forEach(row => {
+            const d1 = new Date(row[column])
+            const d2 = new Date(row[dateColumn2])
+            if (!isNaN(d1.getTime()) && !isNaN(d2.getTime())) {
+              const diffMs = d2 - d1
+              if (dateDiffUnit === 'days') row[newCol] = diffMs / (1000 * 60 * 60 * 24)
+              else if (dateDiffUnit === 'months') row[newCol] = (d2.getFullYear() - d1.getFullYear()) * 12 + (d2.getMonth() - d1.getMonth())
+              else if (dateDiffUnit === 'years') row[newCol] = d2.getFullYear() - d1.getFullYear()
+            } else {
+              row[newCol] = null
+            }
+          })
+        }
+        else if (step.transformId === 'date_add') {
+          const { column, dateAddUnit, dateAddAmount, newColumnName } = step.config
+          const data = alasql.tables[this.tempTableName].data
+          const newCol = newColumnName || `${column}_added`
+          
+          if (!currentColumns.includes(newCol)) {
+            currentColumns.push(newCol)
+          }
+
+          data.forEach(row => {
+            const d = new Date(row[column])
+            if (!isNaN(d.getTime())) {
+              const val = Number(dateAddAmount)
+              if (dateAddUnit === 'days') d.setDate(d.getDate() + val)
+              else if (dateAddUnit === 'months') d.setMonth(d.getMonth() + val)
+              else if (dateAddUnit === 'years') d.setFullYear(d.getFullYear() + val)
+              row[newCol] = d.toISOString().split('T')[0]
+            } else {
+              row[newCol] = null
+            }
+          })
+        }
       }
       
       // Update schema based on currentColumns

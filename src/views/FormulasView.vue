@@ -37,6 +37,10 @@ const handleInsertColumn = (colStr) => {
   expression.value = expression.value ? `${expression.value} ${colStr}` : colStr
 }
 
+const handleInsertSnippet = (snippet) => {
+  expression.value = expression.value ? `${expression.value} ${snippet}` : snippet
+}
+
 const handleEditColumn = (col) => {
   columnName.value = col.name
   columnType.value = col.type || 'number'
@@ -126,6 +130,14 @@ const handleSave = () => {
             />
           </div>
           <div class="editor-help">
+            <div class="snippets-bar">
+              <span class="snippets-label">Plantillas Temporales:</span>
+              <button class="snippet-btn" @click="handleInsertSnippet('YEAR([Fecha])')">YEAR()</button>
+              <button class="snippet-btn" @click="handleInsertSnippet('MONTH([Fecha])')">MONTH()</button>
+              <button class="snippet-btn" @click="handleInsertSnippet('DAY([Fecha])')">DAY()</button>
+              <button class="snippet-btn" @click="handleInsertSnippet('DATEDIFF(\'day\', [Fecha1], [Fecha2])')">DATEDIFF()</button>
+              <button class="snippet-btn" @click="handleInsertSnippet('DATE()')">DATE()</button>
+            </div>
             Ejemplos: <code>[Precio] * [Cantidad]</code>, <code>UPPER([Categoria])</code>, <code>CASE WHEN [Edad] > 18 THEN 'Mayor' ELSE 'Menor' END</code>
           </div>
         </div>
@@ -253,6 +265,38 @@ const handleSave = () => {
 .editor-help {
   font-size: var(--text-xs);
   color: var(--color-text-tertiary);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.snippets-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.snippets-label {
+  font-weight: var(--font-medium);
+  color: var(--color-text-secondary);
+}
+
+.snippet-btn {
+  background-color: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.snippet-btn:hover {
+  background-color: var(--color-border);
+  color: var(--color-text-primary);
 }
 
 .editor-help code {

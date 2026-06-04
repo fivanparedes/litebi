@@ -141,6 +141,51 @@ export const useDataStore = defineStore('data', () => {
     return joinClause
   }
   
+  // --- Calendar Generator ---
+  const generateCalendarTable = (startYear, endYear) => {
+    const data = []
+    const startDate = new Date(startYear, 0, 1)
+    const endDate = new Date(endYear, 11, 31)
+    
+    const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+    const dayNames = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
+
+    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+      const dateStr = d.toISOString().split('T')[0]
+      const year = d.getFullYear()
+      const month = d.getMonth() + 1
+      const day = d.getDate()
+      const dayOfWeek = d.getDay()
+      const quarter = Math.floor(d.getMonth() / 3) + 1
+      
+      data.push({
+        Fecha: dateStr,
+        Año: year,
+        Mes: month,
+        NombreMes: monthNames[d.getMonth()],
+        Trimestre: quarter,
+        Dia: day,
+        DiaSemana: dayOfWeek,
+        NombreDia: dayNames[dayOfWeek],
+        EsFinDeSemana: dayOfWeek === 0 || dayOfWeek === 6
+      })
+    }
+
+    const schema = [
+      { name: 'Fecha', type: 'date' },
+      { name: 'Año', type: 'number' },
+      { name: 'Mes', type: 'number' },
+      { name: 'NombreMes', type: 'string' },
+      { name: 'Trimestre', type: 'number' },
+      { name: 'Dia', type: 'number' },
+      { name: 'DiaSemana', type: 'number' },
+      { name: 'NombreDia', type: 'string' },
+      { name: 'EsFinDeSemana', type: 'boolean' }
+    ]
+
+    addDataset('Calendario', data, schema)
+  }
+
   // Getters
   const datasetNames = computed(() => Array.from(datasets.value.keys()))
   
@@ -166,6 +211,9 @@ export const useDataStore = defineStore('data', () => {
     addRelationship,
     removeRelationship,
     buildJoinQuery,
+    generateCalendarTable,
+    
+    // Getters exported via destructuring implicitly
     datasetList
   }
 })

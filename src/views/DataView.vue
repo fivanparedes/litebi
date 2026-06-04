@@ -1,10 +1,11 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Database, Upload, FileSpreadsheet, Plus } from '@lucide/vue'
+import { Database, Upload, FileSpreadsheet, Plus, CalendarDays } from '@lucide/vue'
 import { useDataStore } from '@/stores/dataStore'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseModal from '@/components/ui/BaseModal.vue'
+import BaseInput from '@/components/ui/BaseInput.vue'
 import ImportWizard from '@/modules/data/ImportWizard.vue'
 import DatasetList from '@/modules/data/DatasetList.vue'
 import DataPreview from '@/modules/data/DataPreview.vue'
@@ -13,6 +14,9 @@ const { t } = useI18n()
 const dataStore = useDataStore()
 
 const isImportModalOpen = ref(false)
+const isCalendarModalOpen = ref(false)
+const calendarStartYear = ref(new Date().getFullYear() - 3)
+const calendarEndYear = ref(new Date().getFullYear() + 2)
 
 const hasDatasets = computed(() => dataStore.datasetNames.length > 0)
 
@@ -28,6 +32,17 @@ const loadExampleData = async () => {
   // We can instantiate the component programmatically or just let ImportWizard handle it.
   // The easiest way is to open the modal and let the user click "Load Example".
   openImportModal()
+}
+
+const openCalendarModal = () => {
+  isCalendarModalOpen.value = true
+}
+
+const handleGenerateCalendar = () => {
+  if (!isNaN(calendarStartYear.value) && !isNaN(calendarEndYear.value)) {
+    dataStore.generateCalendarTable(parseInt(calendarStartYear.value), parseInt(calendarEndYear.value))
+    isCalendarModalOpen.value = false
+  }
 }
 </script>
 
@@ -63,6 +78,10 @@ const loadExampleData = async () => {
           <h2>{{ $t('data.datasets') }}</h2>
         </div>
         <div class="header-right">
+          <BaseButton variant="secondary" size="sm" @click="openCalendarModal" style="margin-right: 8px;">
+            <template #icon-left><CalendarDays /></template>
+            Crear Calendario
+          </BaseButton>
           <BaseButton variant="primary" size="sm" @click="openImportModal">
             <template #icon-left><Plus /></template>
             {{ $t('data.importFile') }}
@@ -87,6 +106,28 @@ const loadExampleData = async () => {
       size="md"
     >
       <ImportWizard @imported="onDatasetImported" />
+    </BaseModal>
+
+    <!-- Calendar Modal -->
+    <BaseModal 
+      v-model="isCalendarModalOpen" 
+      title="Generar Tabla Calendario"
+      size="sm"
+    >
+      <div style="display: flex; flex-direction: column; gap: 16px; padding: 8px 0;">
+        <div>
+          <label style="display: block; margin-bottom: 4px; font-size: 14px;">Año de inicio:</label>
+          <BaseInput type="number" v-model="calendarStartYear" />
+        </div>
+        <div>
+          <label style="display: block; margin-bottom: 4px; font-size: 14px;">Año de fin:</label>
+          <BaseInput type="number" v-model="calendarEndYear" />
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px;">
+          <BaseButton variant="ghost" @click="isCalendarModalOpen = false">Cancelar</BaseButton>
+          <BaseButton variant="primary" @click="handleGenerateCalendar">Generar</BaseButton>
+        </div>
+      </div>
     </BaseModal>
 
   </div>

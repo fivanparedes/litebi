@@ -3,6 +3,8 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Plus, X, ArrowDownToLine, Presentation, Settings } from '@lucide/vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
+import BaseModal from '@/components/ui/BaseModal.vue'
+import BaseInput from '@/components/ui/BaseInput.vue'
 import { useReportStore } from '@/stores/reportStore'
 import { useDataStore } from '@/stores/dataStore'
 import DashboardCanvas from '@/modules/dashboard/DashboardCanvas.vue'
@@ -56,10 +58,17 @@ const handleExportPDF = () => {
   exportToPDF('report-pages-container', 'litebi-report')
 }
 
+const isExportModalOpen = ref(false)
+const exportTitle = ref('LiteBI Report')
+
 const handleExportPPTX = () => {
-  const title = window.prompt("Ingresa el título de la presentación:", "LiteBI Report")
-  if (title !== null) {
-    exportToPPTX('report-pages-container', title, 'litebi-presentation')
+  isExportModalOpen.value = true
+}
+
+const confirmExportPPTX = () => {
+  if (exportTitle.value) {
+    exportToPPTX('report-pages-container', exportTitle.value, 'litebi-presentation')
+    isExportModalOpen.value = false
   }
 }
 </script>
@@ -125,6 +134,24 @@ const handleExportPPTX = () => {
         </div>
       </div>
     </div>
+
+    <!-- Export PPTX Modal -->
+    <BaseModal 
+      v-model="isExportModalOpen" 
+      title="Exportar a PowerPoint"
+      size="sm"
+    >
+      <div style="display: flex; flex-direction: column; gap: 16px; padding: 8px 0;">
+        <div>
+          <label style="display: block; margin-bottom: 4px; font-size: 14px;">Título de la presentación:</label>
+          <BaseInput v-model="exportTitle" placeholder="Ej: Reporte Trimestral" />
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px;">
+          <BaseButton variant="ghost" @click="isExportModalOpen = false">Cancelar</BaseButton>
+          <BaseButton variant="primary" @click="confirmExportPPTX">Exportar</BaseButton>
+        </div>
+      </div>
+    </BaseModal>
   </div>
 </template>
 

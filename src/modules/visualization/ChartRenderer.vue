@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import alasql from 'alasql'
 import { useDataStore } from '@/stores/dataStore'
 import { useDashboardStore } from '@/stores/dashboardStore'
+import { useSettingsStore } from '@/stores/settingsStore'
 import { use, registerTheme } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
 import { BarChart, LineChart, PieChart, ScatterChart, BoxplotChart, FunnelChart, GaugeChart } from 'echarts/charts'
@@ -45,6 +46,8 @@ const props = defineProps({
 })
 
 const dataStore = useDataStore()
+const dashboardStore = useDashboardStore()
+const settingsStore = useSettingsStore()
 
 const chartData = computed(() => {
   if (props.config.type === 'kpi') return [] // KPI no usa chartData
@@ -195,6 +198,7 @@ const echartOptions = computed(() => {
   const seriesData = data.map(d => d.value)
   
   const baseOption = {
+    color: settingsStore.currentChartColors,
     title: {
       text: props.config.title || '',
       left: 'left',
