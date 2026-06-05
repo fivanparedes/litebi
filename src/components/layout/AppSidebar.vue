@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { useUiStore } from '@/stores/uiStore'
+import { useSettingsStore } from '@/stores/settingsStore'
 import { 
   Database, 
   Sparkles, 
@@ -21,6 +22,7 @@ import BaseModal from '@/components/ui/BaseModal.vue'
 const { t } = useI18n()
 const route = useRoute()
 const uiStore = useUiStore()
+const settingsStore = useSettingsStore()
 
 const isAboutModalOpen = ref(false)
 
@@ -38,11 +40,12 @@ const navItems = computed(() => [
   <aside class="sidebar">
     <div class="sidebar__top">
       <div class="sidebar__logo">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" class="sidebar__logo-icon">
+        <img v-if="settingsStore.companyLogo" :src="settingsStore.companyLogo" class="sidebar__custom-logo" alt="Company Logo" />
+        <svg v-else xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" class="sidebar__logo-icon">
           <rect width="32" height="32" rx="6" fill="#2563EB"/>
           <path d="M8 22V14h4v8H8zm6 0V10h4v12h-4zm6 0V17h4v5h-4z" fill="white"/>
         </svg>
-        <span v-if="!uiStore.sidebarCollapsed" class="sidebar__logo-text">LiteBI</span>
+        <span v-if="!uiStore.sidebarCollapsed && !settingsStore.companyLogo" class="sidebar__logo-text">LiteBI</span>
       </div>
     </div>
 
@@ -134,6 +137,12 @@ const navItems = computed(() => [
   align-items: center;
   gap: var(--space-3);
   overflow: hidden;
+}
+
+.sidebar__custom-logo {
+  max-height: 32px;
+  max-width: 100%;
+  object-fit: contain;
 }
 
 .sidebar__logo-icon {

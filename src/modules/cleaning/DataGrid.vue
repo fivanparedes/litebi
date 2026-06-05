@@ -144,4 +144,13 @@ onUnmounted(() => {
 :deep(.tabulator-page.active) {
   color: var(--color-accent) !important;
 }
+
+:deep(.tabulator input),
+:deep(.tabulator select) {
+  background-color: var(--color-bg-surface);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 2px 4px;
+}
 </style>

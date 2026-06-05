@@ -16,6 +16,13 @@ const emit = defineEmits(['update:config', 'close'])
 
 const dataStore = useDataStore()
 
+const datasetOptions = computed(() => {
+  return dataStore.datasetNames.map(name => {
+    const meta = dataStore.datasets.get(name)
+    return { value: name, label: meta?.originalName || name }
+  })
+})
+
 const availableColumns = computed(() => {
   const baseName = props.config.dataset || dataStore.activeDatasetName
   if (!baseName) return []
@@ -100,6 +107,15 @@ const updateField = (field, value) => {
     
     <div class="config-body">
       <div class="form-group">
+        <label>Dataset Origen</label>
+        <BaseDropdown 
+          :modelValue="config.dataset || dataStore.activeDatasetName" 
+          @update:modelValue="val => updateField('dataset', val)"
+          :options="datasetOptions" 
+        />
+      </div>
+
+      <div class="form-group">
         <label>Título del Widget</label>
         <BaseInput 
           :modelValue="config.title || ''" 
@@ -137,37 +153,64 @@ const updateField = (field, value) => {
         />
       </div>
 
+      <div class="form-group" v-if="config.type === 'map'">
+        <label>Modo de Mapa</label>
+        <BaseDropdown 
+          :modelValue="config.mapMode || 'choropleth'" 
+          @update:modelValue="val => updateField('mapMode', val)"
+          :options="[{value:'choropleth', label:'Áreas Pintadas (Regiones)'}, {value:'scatter', label:'Puntos (Coordenadas)'}]" 
+        />
+      </div>
+
       <!-- Dimensión (X) -->
       <div class="form-group" v-if="config.type !== 'kpi' && config.type !== 'gauge'">
-        <label>{{ config.type === 'scatter' ? 'Eje X (Numérico)' : config.type === 'slicer' ? 'Campo a Filtrar' : config.type === 'map' ? 'Región (Nombre del País)' : 'Dimensión (Categoría)' }}</label>
+        <label>{{ config.type === 'scatter' ? 'Eje X (Numérico)' : config.type === 'slicer' ? 'Campo a Filtrar' : config.type === 'map' ? (config.mapMode === 'scatter' ? 'Longitud (X)' : 'Región (Nombre del País)') : 'Dimensión (Categoría)' }}</label>
         <BaseDropdown 
           :modelValue="config.xAxis || ''" 
           @update:modelValue="val => updateField('xAxis', val)"
-          :options="config.type === 'scatter' ? numericColumnOptions : columnOptions" 
+          :options="(config.type === 'scatter' || (config.type === 'map' && config.mapMode === 'scatter')) ? numericColumnOptions : columnOptions" 
           placeholder="Seleccionar columna..."
+        />
+        <BaseInput 
+          v-if="config.xAxis"
+          :modelValue="config.xAxisLabel || ''" 
+          @update:modelValue="val => updateField('xAxisLabel', val)"
+          placeholder="Etiqueta personalizada (Opcional)"
         />
       </div>
       
       <!-- Métrica (Y) -->
       <template v-if="config.type !== 'slicer'">
         <div class="form-group">
-          <label>{{ config.type === 'kpi' ? 'Métrica a Calcular' : config.type === 'scatter' ? 'Eje Y (Numérico)' : 'Métrica (Eje Y)' }}</label>
+          <label>{{ config.type === 'kpi' ? 'Métrica a Calcular' : config.type === 'scatter' ? 'Eje Y (Numérico)' : config.type === 'map' && config.mapMode === 'scatter' ? 'Latitud (Y)' : 'Métrica (Eje Y)' }}</label>
           <BaseDropdown 
             :modelValue="config.yAxis || ''" 
             @update:modelValue="val => updateField('yAxis', val)"
             :options="numericColumnOptions" 
             placeholder="Seleccionar métrica numérica..."
           />
+          <BaseInput 
+            v-if="config.yAxis"
+            :modelValue="config.yAxisLabel || ''" 
+            @update:modelValue="val => updateField('yAxisLabel', val)"
+            placeholder="Etiqueta personalizada (Opcional)"
+          />
         </div>
         
         <!-- Combo Chart Secondary Y Axis or Heatmap Y Axis -->
-        <div class="form-group" v-if="config.type === 'combo' || config.type === 'heatmap'">
-          <label>{{ config.type === 'heatmap' ? 'Eje Y (Categoría Secundaria)' : 'Métrica Secundaria (Eje Y2 - Línea)' }}</label>
+        <div class="form-group" v-if="config.type === 'combo' || config.type === 'line' || config.type === 'heatmap' || (config.type === 'map' && config.mapMode === 'scatter')">
+          <label>{{ config.type === 'heatmap' ? 'Eje Y (Categoría Secundaria)' : config.type === 'map' ? 'Métrica (Tamaño/Color)' : 'Métrica Secundaria (Opcional)' }}</label>
           <BaseDropdown 
             :modelValue="config.secondaryYAxis || ''" 
             @update:modelValue="val => updateField('secondaryYAxis', val)"
             :options="config.type === 'heatmap' ? columnOptions : numericColumnOptions" 
             placeholder="Seleccionar métrica secundaria..."
+          />
+          <BaseInput 
+            v-if="config.secondaryYAxis"
+            :modelValue="config.secondaryYAxisLabel || ''" 
+            @update:modelValue="val => updateField('secondaryYAxisLabel', val)"
+            placeholder="Etiqueta personalizada (Opcional)"
           />
         </div>
 
@@ -181,7 +224,7 @@ const updateField = (field, value) => {
           />
         </div>
         
-        <div class="form-group" v-if="config.type !== 'scatter'">
+        <div class="form-group" v-if="config.type !== 'scatter' && !(config.type === 'map' && config.mapMode === 'scatter')">
           <label>Agregación</label>
           <BaseDropdown 
             :modelValue="config.aggregation || 'SUM'" 
@@ -194,6 +237,14 @@ const updateField = (field, value) => {
       <hr class="divider" />
       
       <h4>Estilo y Diseño</h4>
+      <div class="form-group" v-if="config.type === 'line'">
+        <label>Rellenar Área bajo la Curva</label>
+        <BaseDropdown 
+          :modelValue="config.styles?.fillArea === true ? 'true' : 'false'" 
+          @update:modelValue="val => updateField('styles', { ...(config.styles || {}), fillArea: val === 'true' })"
+          :options="[{value:'true', label:'Sí'}, {value:'false', label:'No'}]" 
+        />
+      </div>
       <div class="form-group">
         <label>Mostrar Leyenda</label>
         <BaseDropdown 
@@ -234,6 +285,42 @@ const updateField = (field, value) => {
           placeholder="Ej: #ff0000,#00ff00"
         />
       </div>
+
+      <template v-if="config.type === 'scatter' || config.type === 'line' || config.type === 'bar'">
+        <hr class="divider" />
+        <h4>Machine Learning (Avanzado)</h4>
+        
+        <div class="form-group">
+          <label>Tendencia (Regresión)</label>
+          <BaseDropdown 
+            :modelValue="config.ml?.regressionType || 'none'" 
+            @update:modelValue="val => updateField('ml', { ...(config.ml || {}), regressionType: val })"
+            :options="[
+              {value: 'none', label: 'Ninguna'},
+              {value: 'linear', label: 'Lineal'},
+              {value: 'exponential', label: 'Exponencial'},
+              {value: 'polynomial', label: 'Polinómica'}
+            ]" 
+          />
+        </div>
+        
+        <div class="form-group" v-if="config.type === 'scatter'">
+          <label>Agrupamiento (K-Means Clustering)</label>
+          <BaseDropdown 
+            :modelValue="config.ml?.clusterCount || 'none'" 
+            @update:modelValue="val => updateField('ml', { ...(config.ml || {}), clusterCount: val })"
+            :options="[
+              {value: 'none', label: 'Ninguno'},
+              {value: '2', label: '2 Clusters'},
+              {value: '3', label: '3 Clusters'},
+              {value: '4', label: '4 Clusters'},
+              {value: '5', label: '5 Clusters'},
+              {value: '6', label: '6 Clusters'}
+            ]" 
+          />
+        </div>
+      </template>
+
     </div>
   </div>
 </template>

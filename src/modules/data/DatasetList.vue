@@ -1,11 +1,17 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { Database, Table, Calendar, CalendarClock, Hash, Type, Trash2, Edit2 } from '@lucide/vue'
 import { useDataStore } from '@/stores/dataStore'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseTooltip from '@/components/ui/BaseTooltip.vue'
 
 const dataStore = useDataStore()
+
+const expandedCards = ref({})
+
+const toggleExpand = (name) => {
+  expandedCards.value[name] = !expandedCards.value[name]
+}
 
 const formatNumber = (num) => {
   return new Intl.NumberFormat().format(num)
@@ -45,7 +51,13 @@ const getTypeIcon = (type) => {
           <h3>{{ dataset.originalName }}</h3>
         </div>
         
-        <div class="dataset-card__actions">
+        <div class="dataset-card__actions" :class="{ 'always-visible': true }">
+          <BaseTooltip :text="expandedCards[dataset.name] ? 'Colapsar Detalles' : 'Expandir Detalles'" position="top">
+            <button class="action-btn" @click.stop="toggleExpand(dataset.name)">
+              <svg v-if="!expandedCards[dataset.name]" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+              <svg v-else xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"></polyline></svg>
+            </button>
+          </BaseTooltip>
           <BaseTooltip :text="$t('data.delete')" position="top">
             <button class="action-btn action-btn--danger" @click.stop="dataStore.removeDataset(dataset.name)">
               <Trash2 />
@@ -54,34 +66,36 @@ const getTypeIcon = (type) => {
         </div>
       </div>
       
-      <div class="dataset-card__stats">
-        <div class="stat">
-          <span class="stat__value">{{ formatNumber(dataset.rowCount) }}</span>
-          <span class="stat__label">{{ $t('data.rows') }}</span>
+      <div class="dataset-card__body" v-if="expandedCards[dataset.name]">
+        <div class="dataset-card__stats">
+          <div class="stat">
+            <span class="stat__value">{{ formatNumber(dataset.rowCount) }}</span>
+            <span class="stat__label">{{ $t('data.rows') }}</span>
+          </div>
+          <div class="stat">
+            <span class="stat__value">{{ dataset.colCount }}</span>
+            <span class="stat__label">{{ $t('data.columns') }}</span>
+          </div>
         </div>
-        <div class="stat">
-          <span class="stat__value">{{ dataset.colCount }}</span>
-          <span class="stat__label">{{ $t('data.columns') }}</span>
+        
+        <div class="dataset-card__schema">
+          <div 
+            v-for="col in dataset.schema.slice(0, 5)" 
+            :key="col.name"
+            class="schema-col"
+          >
+            <component :is="getTypeIcon(col.type)" class="schema-col__icon" />
+            <span class="schema-col__name">{{ col.name }}</span>
+          </div>
+          <div v-if="dataset.schema.length > 5" class="schema-col schema-col--more">
+            + {{ dataset.schema.length - 5 }} más
+          </div>
         </div>
-      </div>
-      
-      <div class="dataset-card__schema">
-        <div 
-          v-for="col in dataset.schema.slice(0, 5)" 
-          :key="col.name"
-          class="schema-col"
-        >
-          <component :is="getTypeIcon(col.type)" class="schema-col__icon" />
-          <span class="schema-col__name">{{ col.name }}</span>
+        
+        <div class="dataset-card__footer">
+          <CalendarClock class="footer-icon" />
+          <span>Importado el {{ formatDate(dataset.importedAt) }}</span>
         </div>
-        <div v-if="dataset.schema.length > 5" class="schema-col schema-col--more">
-          + {{ dataset.schema.length - 5 }} más
-        </div>
-      </div>
-      
-      <div class="dataset-card__footer">
-        <CalendarClock class="footer-icon" />
-        <span>Importado el {{ formatDate(dataset.importedAt) }}</span>
       </div>
     </div>
   </div>
@@ -156,6 +170,16 @@ const getTypeIcon = (type) => {
 
 .dataset-card:hover .dataset-card__actions {
   opacity: 1;
+}
+
+.dataset-card__actions.always-visible {
+  opacity: 1;
+}
+
+.dataset-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
 }
 
 .action-btn {

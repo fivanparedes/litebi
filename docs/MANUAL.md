@@ -4,17 +4,6 @@
 
 ---
 
-## Índice
-1. [Primeros Pasos y Gestión de Proyectos](#1-primeros-pasos-y-gestión-de-proyectos)
-2. [Carga de Datos](#2-carga-de-datos)
-3. [Limpieza y Transformación (ETL)](#3-limpieza-y-transformación-etl)
-4. [Creación de Fórmulas y Nuevas Columnas](#4-creación-de-fórmulas-y-nuevas-columnas)
-5. [Modelado de Datos (Relaciones)](#5-modelado-de-datos-relaciones)
-6. [Creación del Dashboard](#6-creación-del-dashboard)
-7. [Exportación y Presentaciones](#7-exportación-y-presentaciones)
-
----
-
 ## 1. Primeros Pasos y Gestión de Proyectos
 
 LiteBI maneja todo tu trabajo dentro de un **Proyecto**. En la barra superior (cabecera) de la aplicación, encontrarás controles útiles:
@@ -34,7 +23,7 @@ El primer paso para usar LiteBI es traer tu información a la herramienta. En la
 1. Haz clic en el botón **"Importar Archivo"**.
 2. Arrastra o selecciona tu archivo Excel (`.xlsx`) o CSV (`.csv`).
 3. El sistema reconocerá automáticamente los delimitadores y los tipos de columna. Confirma la importación.
-4. *Opcional:* Si solo deseas probar el programa, puedes hacer clic en **"Cargar Datos de Ejemplo"** para generar rápidamente un dataset ficticio de ventas.
+4. *Opcional:* Si solo deseas probar el programa, puedes importar los datos de ejemplo que vienen en la carpeta `examples/`.
 5. Usa la sección **Preview** (Vista previa) para explorar las primeras 100 líneas de tu tabla importada.
 
 ---
@@ -54,13 +43,42 @@ A menudo, los datos crudos traen imperfecciones. Ve a la vista **Preparación** 
 
 Cuando necesitas cruzar métricas o calcular márgenes, dirígete a la vista **Fórmulas** (icono de la calculadora). LiteBI utiliza un motor SQL avanzado bajo el capó.
 
+### Guía de Creación
 1.  **Ingresa un Nombre** para tu nueva columna (Ejemplo: `Impuestos`).
 2.  **Elige el Tipo de Dato** esperado (Número, Texto, Booleano).
 3.  **Escribe la Expresión:** Usa la sintaxis SQL tradicional y los nombres de las columnas en el lado izquierdo.
-    *   *Suma de dos columnas:* `[Precio] + [Descuento]`
-    *   *Condicional booleano:* `CASE WHEN [Cantidad] > 3 THEN true ELSE false END`
-    *   *Ojo:* ¡El motor es estricto matemáticamente! Si el programa te arroja puros valores `false` en comparaciones, puedes forzar el motor agregando un casting explícito así: `([Cantidad]*1) > 3`.
 4.  Presiona **"Probar Fórmula"** para ver qué ocurre con la primera fila del archivo, y presiona **"Guardar Columna"** para efectuar los cambios.
+
+### Ejemplos Prácticos de SQL
+
+**Operaciones Matemáticas Básicas:**
+```sql
+-- Calcular un margen de ganancia
+([Ingresos] - [Costos]) / [Ingresos]
+```
+
+**Condicionales Lógicos (CASE WHEN):**
+```sql
+-- Clasificar a los clientes en rangos
+CASE 
+  WHEN [Edad] < 18 THEN 'Menor'
+  WHEN [Edad] >= 18 AND [Edad] < 65 THEN 'Adulto'
+  ELSE 'Mayor'
+END
+```
+
+**Manejo de Textos (Cadenas):**
+```sql
+-- Concatenar nombre y apellido
+[Nombre] || ' ' || [Apellido]
+```
+
+**Forzar Operaciones de Tipos:**
+Si el programa te arroja valores `false` en comparaciones, puedes forzar el motor agregando un casting implícito:
+```sql
+-- Forzar numérico multiplicando por 1
+([Cantidad]*1) > 3
+```
 
 ---
 
@@ -77,37 +95,64 @@ Si importaste múltiples tablas (por ejemplo, *Ventas* y *Clientes*), puedes uni
 
 ## 6. Creación del Dashboard
 
-¡La mejor parte! Dirígete al apartado **Reportes** (icono del tablero visual). Aquí diseñarás tu cuadro de mando.
+¡La mejor parte! Dirígete al apartado **Reportes** (icono del tablero visual). Aquí diseñarás tu cuadro de mando interactivo.
 
-1. **Añadir Widgets:** Usa los botones en la parte inferior o flotantes para añadir un gráfico.
-2. **Configurar el Gráfico:** 
-    *   En la esquina del cuadro recién agregado haz clic en el engranaje (**Configurar**).
-    *   **Dataset:** Selecciona de qué tabla sacarás la información.
-    *   **Eje X (Dimensión):** La categoría que divide tus datos (ej. *Categoría*, *País*, *Año*).
-    *   **Eje Y (Métrica):** La columna de valores (ej. *Ingresos*, *Cantidad*).
+### Pasos Generales
+1. **Añadir Widgets:** Usa los botones en la barra de herramientas para añadir un gráfico nuevo.
+2. **Configurar el Gráfico:** En la esquina del cuadro recién agregado haz clic en el engranaje (**Configurar**).
+3. **Seleccionar Datos:** 
+    *   **Dataset:** Selecciona la tabla de origen.
+    *   **Eje X / Eje Y:** Configura la dimensión (categoría) y la métrica numérica a graficar.
     *   **Agrupación:** Elige la operación que se realizará (Suma, Promedio, Conteo).
-3. **Tipos de Gráficos:** LiteBI dispone de Múltiples visualizaciones:
-    *   *Tarjetas KPI:* Muestra el número total (Suma, Promedio) central.
-    *   *Líneas, Barras y Circulares:* Los clásicos para visualizar distribución y tendencias.
-    *   *Gauge:* Muestra el alcance hacia una Meta objetiva.
-    *   *Embudos (Funnel)* y *Boxplots (Estadística).*
-    *   *Combo Chart:* Selecciona una columna secundaria de Eje Y para superponer barras y líneas.
-    *   *Grid:* Para mostrar una mini tabla de datos filtrada.
-4. **Filtros / Segmentadores:** Escoge agregar un "Slicer". En el configurador podrás decirle si es de tipo *Lista* (para filtrar textos como Países) o de tipo *Rango* (un Slider para deslizar rangos continuos de números y precios).
+4. **Etiquetas Personalizadas:** Puedes darle un *Alias* a los nombres de tus ejes llenando el campo "Etiqueta personalizada". Esto limpiará automáticamente las leyendas visuales (ej. convirtiendo `[tabla].[columna]` en `Ventas Totales`).
+
+### Catálogo de Visualizaciones Implementadas
+
+LiteBI dispone de un amplio abanico de gráficos profesionales:
+
+*   **Tarjetas KPI / Gauge:** Muestran un número agregado central. El *Gauge* (medidor) permite definir un "Target" (valor meta) para ver el progreso.
+*   **Barras, Líneas y Torta:** Clásicos para visualizar distribución y tendencias a lo largo del tiempo o por categoría.
+*   **Combo Chart:** Combina barras y líneas usando un *Eje Y Secundario*. Ideal para comparar Valores Absolutos (Barras) vs Porcentajes (Líneas).
+*   **Dispersión (Scatter):** Compara la correlación entre dos variables numéricas en el Eje X y Eje Y.
+*   **Heatmap (Mapa de Calor):** Muestra la densidad y magnitud de datos mediante el color, cruzando dos dimensiones categóricas (Eje X y Eje Y) con una métrica numérica.
+*   **Mapa de Árbol (Treemap):** Ideal para desglosar jerarquías visualizando cajas proporcionales al tamaño de la métrica.
+*   **Radar:** Muestra variables múltiples distribuidas radialmente. Muy útil para puntajes de perfiles (ej. habilidades de Recursos Humanos).
+*   **Cascada (Waterfall):** Demuestra cómo un valor inicial se ve afectado positiva o negativamente por diferentes conceptos hasta llegar a un valor final. Utilizado ampliamente en balances financieros.
+*   **Embudo (Funnel):** Ilustra etapas de un proceso y la tasa de retención (ej. Embudo de ventas: Visitas -> Registros -> Compras).
+*   **Cajas y Bigotes (Boxplot):** Gráfico estadístico para representar la distribución de datos en cuartiles e identificar valores atípicos.
+*   **Mapas (Coropléticos y Dispersión):** 
+    *   *Mapa Político (Coroplético)*: Pinta regiones y países enteros basándose en una métrica (ej. Continentes o nombres de países en inglés).
+    *   *Mapa de Coordenadas (Scatter Map)*: Ubica puntos mediante Latitud y Longitud, definiendo el tamaño y calor de la burbuja según una métrica secundaria.
 
 ---
 
-## 7. Exportación y Presentaciones
+## 7. Analítica Avanzada y Machine Learning
+
+LiteBI te permite superponer análisis probabilístico y estadístico a tus reportes sin necesidad de programación compleja. Dentro del panel de configuración de gráficos como Scatter, Líneas o Barras, encontrarás la sección **Machine Learning (Avanzado)**.
+
+### Modelos de Regresión Rápidos
+Predice la línea de tendencia de tu serie temporal o dispersión de datos. Los resultados se dibujan automáticamente como una línea extra sobre tu gráfico, incluyendo una tooltip con la fórmula matemática y el r-cuadrado (r²).
+*   **Lineal:** Busca el mejor ajuste recto.
+*   **Exponencial:** Ideal para datos que crecen o decrecen a ritmo acelerado (ej. crecimiento viral).
+*   **Polinómica:** Se curva para ajustarse a fluctuaciones estacionales o de mayor complejidad geométrica.
+
+### Agrupamiento (Clustering K-Means)
+Disponible para los gráficos de **Dispersión (Scatter)**. LiteBI procesará tus datos y agrupará tus puntos numéricos en conjuntos estadísticamente similares.
+*   **Uso:** Selecciona 2, 3 o hasta 6 Clusters. LiteBI coloreará y delimitará los grupos automáticamente, siendo ideal para segmentar arquetipos de clientes basados en sus comportamientos (ej. Recencia vs Frecuencia de Compra).
+
+---
+
+## 8. Exportación y Presentaciones
 
 Una vez que tengas tu panel perfectamente acomodado:
 
-*   **Exportar como Imagen:** En la parte superior derecha de tu Dashboard (solo cuando estás en la vista de Reportes), encontrarás el icono de Exportar a PNG (`Image`). Obtendrás una captura en altísima resolución perfecta para enviar en correos.
+*   **Exportar como Imagen:** En la parte superior derecha de tu Dashboard (solo cuando estás en la vista de Reportes), encontrarás el icono de Exportar a PNG (`Image`). Obtendrás una captura en altísima resolución.
 *   **Exportar como PDF:** El icono contiguo de "Hoja de Texto" genera un documento unificado PDF en formato paisajista (A4/16:9).
 *   **Exportar a PPTX (PowerPoint):** Usa el botón **"PPTX"** general del Dashboard para descargar una presentación. LiteBI no solo tomará tu hoja visual, sino que capturará el Dashboard entero en una lámina interactiva de alta definición que puedes presentar directamente en la reunión de junta.
 
 ---
 
-## 8. Colaboración Multijugador (WebRTC)
+## 9. Colaboración Multijugador (WebRTC)
 
 LiteBI permite conectar a múltiples analistas en un mismo proyecto sin necesidad de subir los datos a un servidor externo gracias a la tecnología descentralizada Peer-to-Peer (WebRTC).
 
@@ -115,5 +160,3 @@ LiteBI permite conectar a múltiples analistas en un mismo proyecto sin necesida
 2. Ingresa tu **Nombre de Usuario** y el **ID de la Sala**.
 3. **Colaborar**: Pídele a tu compañero que ingrese exactamente el mismo **ID de la Sala** en su programa. Inmediatamente verás aparecer su avatar circular en la barra superior derecha de tu ventana.
 4. Si ambos entran a la vista de **Reportes/Dashboard**, podrán mover gráficos y agregar filtros. Verás cómo el ratón fantasma de tu compañero se mueve por el lienzo en tiempo real y cómo los gráficos se acomodan por arte de magia cuando él los arrastra.
-
-¡Disfruta analizando tus datos en equipo con LiteBI!

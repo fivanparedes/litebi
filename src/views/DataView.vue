@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Database, Upload, FileSpreadsheet, Plus, CalendarDays } from '@lucide/vue'
+import { Database, Upload, FileSpreadsheet, Plus, CalendarDays, Server, Globe, Box, DatabaseZap } from '@lucide/vue'
 import { useDataStore } from '@/stores/dataStore'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseModal from '@/components/ui/BaseModal.vue'
@@ -9,11 +9,15 @@ import BaseInput from '@/components/ui/BaseInput.vue'
 import ImportWizard from '@/modules/data/ImportWizard.vue'
 import DatasetList from '@/modules/data/DatasetList.vue'
 import DataPreview from '@/modules/data/DataPreview.vue'
+import LiveConnectorModal from '@/modules/data/LiveConnectorModal.vue'
 
 const { t } = useI18n()
 const dataStore = useDataStore()
 
 const isImportModalOpen = ref(false)
+const isLiveConnectorOpen = ref(false)
+const activeConnectorType = ref('postgres')
+const isAddingSource = ref(false)
 const isCalendarModalOpen = ref(false)
 const calendarStartYear = ref(new Date().getFullYear() - 3)
 const calendarEndYear = ref(new Date().getFullYear() + 2)
@@ -24,8 +28,15 @@ const openImportModal = () => {
   isImportModalOpen.value = true
 }
 
+const openLiveConnector = (type) => {
+  activeConnectorType.value = type
+  isLiveConnectorOpen.value = true
+}
+
 const onDatasetImported = (name) => {
   isImportModalOpen.value = false
+  isLiveConnectorOpen.value = false
+  isAddingSource.value = false
 }
 
 const loadExampleData = async () => {
@@ -49,24 +60,66 @@ const handleGenerateCalendar = () => {
 <template>
   <div class="view-container">
     
-    <!-- Empty State -->
-    <div v-if="!hasDatasets" class="empty-state-wrapper">
-      <div class="empty-state">
-        <div class="empty-state__icon-wrapper">
-          <Database class="empty-state__icon" />
+    <!-- Connectors Grid (Empty State or Adding Mode) -->
+    <div v-if="!hasDatasets || isAddingSource" class="connectors-wrapper">
+      <div class="connectors-header">
+        <div class="connectors-header-text">
+          <h2>Conectar Origen de Datos</h2>
+          <p>Seleccione el tipo de fuente de datos que desea importar.</p>
         </div>
-        <h2 class="empty-state__title">{{ $t('data.noDatasets') }}</h2>
-        <p class="empty-state__desc">{{ $t('data.noDataDesc') }}</p>
+        <BaseButton v-if="hasDatasets" variant="ghost" @click="isAddingSource = false">Cancelar</BaseButton>
+      </div>
+
+      <div class="connectors-grid">
+        <!-- Local Files -->
+        <div class="connector-card" @click="openImportModal">
+          <div class="connector-icon-wrapper"><Upload class="connector-icon" /></div>
+          <h3>Archivos Locales</h3>
+          <p>Importar CSV o Excel (XLSX)</p>
+        </div>
         
-        <div class="empty-state__actions">
-          <BaseButton variant="primary" @click="openImportModal">
-            <template #icon-left><Upload /></template>
-            {{ $t('data.importFile') }}
-          </BaseButton>
-          <BaseButton variant="ghost" @click="loadExampleData">
-            <template #icon-left><FileSpreadsheet /></template>
-            {{ $t('data.loadExample') }}
-          </BaseButton>
+        <div class="connector-card" @click="loadExampleData">
+          <div class="connector-icon-wrapper"><FileSpreadsheet class="connector-icon" /></div>
+          <h3>Datos de Ejemplo</h3>
+          <p>Cargar dataset de prueba</p>
+        </div>
+
+        <!-- SQL Databases -->
+        <div class="connector-card" @click="openLiveConnector('postgres')">
+          <div class="connector-icon-wrapper"><Database class="connector-icon" style="color: #336791" /></div>
+          <h3>PostgreSQL</h3>
+          <p>Conexión a servidor remoto</p>
+        </div>
+
+        <div class="connector-card" @click="openLiveConnector('mysql')">
+          <div class="connector-icon-wrapper"><DatabaseZap class="connector-icon" style="color: #E48E00" /></div>
+          <h3>MySQL</h3>
+          <p>Conexión a base de datos MySQL</p>
+        </div>
+
+        <div class="connector-card" @click="openLiveConnector('sqlserver')">
+          <div class="connector-icon-wrapper"><Server class="connector-icon" style="color: #CC292B" /></div>
+          <h3>SQL Server</h3>
+          <p>Microsoft SQL Server</p>
+        </div>
+
+        <!-- APIs -->
+        <div class="connector-card" @click="openLiveConnector('api')">
+          <div class="connector-icon-wrapper"><Globe class="connector-icon" style="color: var(--color-success)" /></div>
+          <h3>API REST</h3>
+          <p>Extraer desde endpoint JSON</p>
+        </div>
+
+        <div class="connector-card" @click="openLiveConnector('salesforce')">
+          <div class="connector-icon-wrapper"><Box class="connector-icon" style="color: #00A1E0" /></div>
+          <h3>Salesforce</h3>
+          <p>Importar CRM empresarial</p>
+        </div>
+
+        <div class="connector-card" @click="openLiveConnector('google-analytics')">
+          <div class="connector-icon-wrapper"><Globe class="connector-icon" style="color: #E37400" /></div>
+          <h3>Google Analytics</h3>
+          <p>Métricas de tráfico web</p>
         </div>
       </div>
     </div>
@@ -82,9 +135,9 @@ const handleGenerateCalendar = () => {
             <template #icon-left><CalendarDays /></template>
             Crear Calendario
           </BaseButton>
-          <BaseButton variant="primary" size="sm" @click="openImportModal">
+          <BaseButton variant="primary" size="sm" @click="isAddingSource = true">
             <template #icon-left><Plus /></template>
-            {{ $t('data.importFile') }}
+            Nuevo Origen
           </BaseButton>
         </div>
       </div>
@@ -107,6 +160,13 @@ const handleGenerateCalendar = () => {
     >
       <ImportWizard @imported="onDatasetImported" />
     </BaseModal>
+
+    <!-- Live Connector Modal -->
+    <LiveConnectorModal 
+      v-model="isLiveConnectorOpen"
+      :connector-type="activeConnectorType"
+      @imported="onDatasetImported"
+    />
 
     <!-- Calendar Modal -->
     <BaseModal 
@@ -140,61 +200,90 @@ const handleGenerateCalendar = () => {
   flex-direction: column;
 }
 
-/* Empty State Styles */
-.empty-state-wrapper {
+/* Connectors Grid Styles */
+.connectors-wrapper {
   flex-grow: 1;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: var(--space-6);
+  flex-direction: column;
+  padding: var(--space-8);
+  gap: var(--space-6);
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
 }
 
-.empty-state {
-  max-width: 480px;
+.connectors-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.connectors-header h2 {
+  font-size: var(--text-2xl);
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin-bottom: var(--space-1);
+}
+
+.connectors-header p {
+  color: var(--color-text-secondary);
+  margin: 0;
+}
+
+.connectors-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--space-4);
+  animation: slideUpFade 0.4s ease-out forwards;
+}
+
+.connector-card {
+  background-color: var(--color-bg-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-6);
   display: flex;
   flex-direction: column;
-  align-items: center;
-  text-align: center;
-  animation: slideUpFade 0.5s ease-out forwards;
+  align-items: flex-start;
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
 
-.empty-state__icon-wrapper {
-  width: 80px;
-  height: 80px;
-  border-radius: 50%;
-  background-color: var(--color-accent-light);
+.connector-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--color-accent);
+  box-shadow: var(--shadow-md);
+}
+
+.connector-icon-wrapper {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-md);
+  background-color: var(--color-bg-secondary);
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: var(--space-6);
+  margin-bottom: var(--space-4);
 }
 
-.empty-state__icon {
-  width: 40px;
-  height: 40px;
-  color: var(--color-accent);
-}
-
-.empty-state__title {
-  font-size: var(--text-xl);
-  font-weight: var(--font-semibold);
+.connector-icon {
+  width: 24px;
+  height: 24px;
   color: var(--color-text-primary);
-  margin-bottom: var(--space-3);
 }
 
-.empty-state__desc {
+.connector-card h3 {
+  font-size: var(--text-base);
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin: 0 0 var(--space-1) 0;
+}
+
+.connector-card p {
   font-size: var(--text-sm);
   color: var(--color-text-secondary);
-  margin-bottom: var(--space-8);
-  line-height: var(--leading-relaxed);
-}
-
-.empty-state__actions {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  width: 100%;
-  max-width: 240px;
+  margin: 0;
+  line-height: 1.4;
 }
 
 /* Dashboard Styles */

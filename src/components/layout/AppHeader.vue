@@ -6,7 +6,7 @@ import { useUiStore } from '@/stores/uiStore'
 import { useDashboardStore } from '@/stores/dashboardStore'
 import { useProjectStore } from '@/stores/projectStore'
 import { useCollaborationStore } from '@/stores/collaborationStore'
-import { Save, SaveAll, FolderOpen, FilePlus, Image, FileText, Pencil } from '@lucide/vue'
+import { Save, SaveAll, FolderOpen, FilePlus, Image, FileText, Pencil, RefreshCw, Share2, LayoutTemplate } from '@lucide/vue'
 import LanguageSwitch from '@/components/ui/LanguageSwitch.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import { exportToPNG, exportToPDF } from '@/modules/project/ExportManager'
@@ -54,8 +54,9 @@ const handleSaveAs = () => {
   projectStore.saveProject(true)
 }
 
-const handleNewProject = () => {
+const handleNewProject = async () => {
   if (confirm('¿Estás seguro de crear un nuevo proyecto? Los cambios no guardados se perderán.')) {
+    await projectStore.clearAutoSave()
     window.location.reload()
   }
 }
@@ -71,13 +72,23 @@ const handleOpenProject = async (e) => {
   const file = e.target?.files?.[0]
   if (!file) return
   const reader = new FileReader()
-  reader.onload = (evt) => {
+  reader.onload = async (evt) => {
     try {
       // Need imports for fallback, but ideally we rely on Native File System API in Electron/Chrome
-      const { deserializeProject } = require('@/modules/project/Serializer')
-      const { useDataStore } = require('@/stores/dataStore')
-      const { useFormulaStore } = require('@/stores/formulaStore')
-      deserializeProject(evt.target.result, useDataStore(), useFormulaStore(), dashboardStore)
+      const { deserializeProject } = await import('@/modules/project/Serializer')
+      const { useDataStore } = await import('@/stores/dataStore')
+      const { useFormulaStore } = await import('@/stores/formulaStore')
+      await deserializeProject(evt.target.result, useDataStore(), useFormulaStore(), dashboardStore)
+      
+      if (file.name.endsWith('.litebi-template')) {
+        projectStore.projectName = "Nuevo desde Plantilla"
+        projectStore.isDirty = true
+        uiStore.setViewerMode(false)
+      } else {
+        const isViewer = file.name.endsWith('.litebi-view') || file.name.endsWith('.litebiview')
+        uiStore.setViewerMode(isViewer)
+      }
+      
       uiStore.addToast({ message: 'Proyecto cargado correctamente', type: 'success' })
       if(fileInputRef.value) fileInputRef.value.value = ''
     } catch(err) {
@@ -92,6 +103,80 @@ const triggerOpen = () => {
     handleOpenProject({})
   } else {
     fileInputRef.value?.click()
+  }
+}
+
+const handleExportViewer = async () => {
+  try {
+    uiStore.addToast({ message: 'Exportando a Visor...', type: 'info' })
+    const { serializeProject } = await import('@/modules/project/Serializer')
+    const { useDataStore } = await import('@/stores/dataStore')
+    const { useFormulaStore } = await import('@/stores/formulaStore')
+    const json = await serializeProject(useDataStore(), useFormulaStore(), dashboardStore)
+    
+    if ('showSaveFilePicker' in window) {
+      const handle = await window.showSaveFilePicker({
+        suggestedName: `${projectStore.projectName || 'proyecto'}-viewer.litebiview`,
+        types: [{
+          description: 'Archivo LiteBI Viewer',
+          accept: { 'application/json': ['.litebiview'] },
+        }],
+      })
+      const writable = await handle.createWritable()
+      await writable.write(json)
+      await writable.close()
+    } else {
+      // Fallback
+      const blob = new Blob([json], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${projectStore.projectName || 'proyecto'}-viewer.litebiview`
+      a.click()
+      URL.revokeObjectURL(url)
+    }
+    uiStore.addToast({ message: 'Proyecto exportado como Visor', type: 'success' })
+  } catch (e) {
+    if (e.name !== 'AbortError') {
+      uiStore.addToast({ message: 'Error exportando a Visor', type: 'error' })
+    }
+  }
+}
+
+const handleExportTemplate = async () => {
+  try {
+    uiStore.addToast({ message: 'Generando Plantilla...', type: 'info' })
+    const { serializeProject } = await import('@/modules/project/Serializer')
+    const { useDataStore } = await import('@/stores/dataStore')
+    const { useFormulaStore } = await import('@/stores/formulaStore')
+    const json = await serializeProject(useDataStore(), useFormulaStore(), dashboardStore)
+    
+    if ('showSaveFilePicker' in window) {
+      const handle = await window.showSaveFilePicker({
+        suggestedName: `${projectStore.projectName || 'proyecto'}-template.litebi-template`,
+        types: [{
+          description: 'Plantilla de Proyecto LiteBI',
+          accept: { 'application/json': ['.litebi-template'] },
+        }],
+      })
+      const writable = await handle.createWritable()
+      await writable.write(json)
+      await writable.close()
+    } else {
+      // Fallback
+      const blob = new Blob([json], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${projectStore.projectName || 'proyecto'}-template.litebi-template`
+      a.click()
+      URL.revokeObjectURL(url)
+    }
+    uiStore.addToast({ message: 'Plantilla exportada exitosamente', type: 'success' })
+  } catch (e) {
+    if (e.name !== 'AbortError') {
+      uiStore.addToast({ message: 'Error exportando Plantilla', type: 'error' })
+    }
   }
 }
 
@@ -121,37 +206,44 @@ const handleExportPDF = async () => {
     <div class="app-header__left">
       <div class="project-name-container">
         <input 
-          v-if="isEditingName"
+          v-if="isEditingName && !uiStore.isViewerMode"
           ref="nameInputRef"
           v-model="tempName"
           @blur="saveName"
           @keyup.enter="saveName"
           class="project-name-input"
         />
-        <div v-else class="project-name-display" @click="startEditingName" title="Renombrar proyecto">
-          <h1 class="app-header__title">{{ projectStore.projectName }}</h1>
-          <span class="dirty-indicator" v-if="projectStore.isDirty">*</span>
-          <Pencil class="edit-icon" size="14" />
+        <div v-else class="project-name-display" @click="!uiStore.isViewerMode && startEditingName()" title="Renombrar proyecto">
+          <h1 class="app-header__title">{{ projectStore.projectName }} <span v-if="uiStore.isViewerMode" style="font-size: 0.8rem; background: var(--color-bg-secondary); padding: 2px 6px; border-radius: 4px; margin-left: 8px;">Visor</span></h1>
+          <span class="saving-indicator" v-if="projectStore.isSaving" title="Guardando..."><RefreshCw class="spin-icon" size="14" /></span>
+          <span class="dirty-indicator" v-else-if="projectStore.isDirty">*</span>
+          <Pencil v-if="!uiStore.isViewerMode" class="edit-icon" size="14" />
         </div>
       </div>
       <div class="view-subtitle" v-if="viewTitle">/ {{ viewTitle }}</div>
     </div>
 
     <div class="app-header__right">
-      <input type="file" accept=".litebi,.json" style="display: none" ref="fileInputRef" @change="handleOpenProject" />
+      <input type="file" accept=".litebi,.litebiview,.litebitemplate,.json" style="display: none" ref="fileInputRef" @change="handleOpenProject" />
       
       <div class="action-group">
-        <BaseButton variant="ghost" size="sm" @click="handleNewProject" title="Nuevo Proyecto">
+        <BaseButton v-if="!uiStore.isViewerMode" variant="ghost" size="sm" @click="handleNewProject" title="Nuevo Proyecto">
           <FilePlus />
         </BaseButton>
         <BaseButton variant="ghost" size="sm" @click="triggerOpen" title="Abrir Proyecto (.litebi)">
           <FolderOpen />
         </BaseButton>
-        <BaseButton variant="ghost" size="sm" @click="handleSaveProject" title="Guardar Proyecto">
+        <BaseButton v-if="!uiStore.isViewerMode" variant="ghost" size="sm" @click="handleSaveProject" title="Guardar Proyecto">
           <Save />
         </BaseButton>
-        <BaseButton variant="ghost" size="sm" @click="handleSaveAs" title="Guardar como...">
+        <BaseButton v-if="!uiStore.isViewerMode" variant="ghost" size="sm" @click="handleSaveAs" title="Guardar como...">
           <SaveAll />
+        </BaseButton>
+        <BaseButton v-if="!uiStore.isViewerMode" variant="ghost" size="sm" @click="handleExportViewer" title="Compartir a Visor">
+          <Share2 />
+        </BaseButton>
+        <BaseButton v-if="!uiStore.isViewerMode" variant="ghost" size="sm" @click="handleExportTemplate" title="Guardar como Plantilla">
+          <LayoutTemplate />
         </BaseButton>
       </div>
       
@@ -256,6 +348,23 @@ const handleExportPDF = async () => {
 .dirty-indicator {
   color: var(--color-warning);
   font-weight: bold;
+}
+
+.saving-indicator {
+  display: flex;
+  align-items: center;
+  color: var(--color-text-secondary);
+}
+
+.spin-icon {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  100% { transform: rotate(360deg); }
+}
+
+.edit-icon {
   font-size: 1.2rem;
 }
 

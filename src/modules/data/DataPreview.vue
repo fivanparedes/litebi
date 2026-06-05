@@ -1,13 +1,18 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref, watchEffect } from 'vue'
 import { useDataStore } from '@/stores/dataStore'
 
 const dataStore = useDataStore()
 
 const activeDataset = computed(() => dataStore.activeDatasetMeta)
-const previewData = computed(() => {
-  if (!activeDataset.value) return []
-  return dataStore.getPreviewData(activeDataset.value.name, 100)
+const previewData = ref([])
+
+watchEffect(async () => {
+  if (!activeDataset.value) {
+    previewData.value = []
+    return
+  }
+  previewData.value = await dataStore.getPreviewData(activeDataset.value.name, 100)
 })
 
 const formatValue = (val) => {

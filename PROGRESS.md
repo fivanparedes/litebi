@@ -101,73 +101,73 @@
 - **Criterio de completitud**: Guardar/cargar proyectos en un solo archivo JSON, exportar dashboard a PDF/PNG./PDF, undo/redo, autosave
 
 ### Etapa 8: Polish y Electron
-- **Estado**: ⬜ No iniciada
+- **Estado**: ✅ Completada
 - **Archivos clave**: `electron/main.js`, `electron/preload.js`, tests
 - **Dependencias npm**: `electron`, `electron-builder`, `vitest`, `@vue/test-utils`
 - **Criterio de completitud**: Tests passing, Electron build funcional, UX pulida
 
 ### Etapa 9: Relaciones y Modelado de Datos (Data Modeling & JOINs)
-- **Estado**: ⬜ No iniciada
+- **Estado**: ✅ Completada
 - **Descripción**: Permitir importar múltiples tablas independientes (ej. Ventas, Clientes, Productos) y establecer relaciones (1:N, N:M) entre ellas mediante una interfaz visual de diagramas de entidad-relación (ER).
 - **Criterio de completitud**: Interfaz visual de conexiones tipo "nodos", generación automática de JOINs en el motor `AlaSQL` por debajo al generar gráficos.
 
 ### Etapa 10: Filtros Cruzados y Tableros Dinámicos (Cross-filtering)
-- **Estado**: ⬜ No iniciada
+- **Estado**: ✅ Completada
 - **Descripción**: Al hacer clic en una barra de un gráfico, automáticamente se filtra la información en todos los demás gráficos del dashboard. Se añadirán también widgets tipo "Segmentador de Datos" (Slicers) para fechas y categorías.
 - **Criterio de completitud**: Sistema de estado de filtros global en `dashboardStore` y recálculo reactivo en tiempo real de los gráficos.
 
 ### Etapa 11: Exportación Avanzada y Paginación (Advanced Reports)
-- **Estado**: ⬜ No iniciada
+- **Estado**: ✅ Completada
 - **Descripción**: Expansión del ExportManager actual. Creación de una vista de "Reporte" tipo A4 para maquetar documentos estáticos multipágina de alta calidad, combinando gráficos y narrativa.
 - **Criterio de completitud**: Exportación a PDF multipágina sin cortes de gráficos, generación de presentaciones (.pptx).
 
 ### Etapa 12: Inteligencia de Tiempo y Funciones Analíticas (Time Intelligence)
-- **Estado**: ⬜ No iniciada
+- **Estado**: ✅ Completada
 - **Descripción**: Librería de funciones pre-cargadas en el editor para cálculos comunes de negocios como: Acumulados Anuales (YTD), Comparativas de mes anterior (MoM) y Promedios móviles.
 - **Criterio de completitud**: Botones de "Quick Measure" para inyectar plantillas de SQL complejas al editor de forma guiada.
 
 ### Etapa 13: Temas Personalizados y Modo Oscuro (Theming)
-- **Estado**: ⬜ No iniciada
+- **Estado**: ✅ Completada
 - **Descripción**: Implementar soporte total para el Modo Oscuro del sistema operativo y permitir a los usuarios crear "Paletas de Colores" corporativas (Subir su propio logo y configurar los colores de los gráficos).
 - **Criterio de completitud**: Variables CSS reactivas gestionadas en el store y sincronizadas con los temas de ECharts.
 
 ### Etapa 14: Colaboración Peer-to-Peer (WebRTC)
-- **Estado**: ⬜ No iniciada
+- **Estado**: ✅ Completada
 - **Descripción**: Ya que los datos viven en el navegador, implementar WebRTC (Yjs) para que dos personas puedan editar un mismo proyecto `.litebi` a la vez en la misma red o mediante enlaces temporales sin servidor central.
 - **Criterio de completitud**: Cursores múltiples en pantalla y cambios sincronizados en vivo usando CRDTs.
 
 ### Etapa 15: Persistencia Local Avanzada (IndexedDB)
-- **Estado**: ⬜ No iniciada
+- **Estado**: ✅ Completada
 - **Descripción**: Transicionar el guardado de estado en memoria (RAM) a IndexedDB utilizando librerías como `localForage`. Esto permitirá a los usuarios trabajar con archivos pesados sin perder sus avances si el navegador se refresca inesperadamente.
 - **Criterio de completitud**: Al recargar la pestaña (F5), el dashboard y los datos importados permanecen intactos sin necesidad de guardar en `.litebi` manualmente.
 
 ### Etapa 16: Multithreading con Web Workers
-- **Estado**: ⬜ No iniciada
+- **Estado**: ✅ Completada
 - **Descripción**: Mover el motor de procesamiento de AlaSQL, parseo de CSV/XLSX y cálculos matemáticos pesados a Web Workers. Esto evitará que la UI se congele (UI Blocking) mientras se procesan datasets masivos o consultas complejas.
 - **Criterio de completitud**: Importación de archivos >50MB y agrupación (GROUP BY) sin trabar las animaciones de la UI.
 
 ### Etapa 17: Query Caching y Lazy Loading
-- **Estado**: ⬜ No iniciada
+- **Estado**: ✅ Completada
 - **Descripción**: Implementar un sistema de caché de consultas para los widgets (si la data y los filtros no cambiaron, usar el caché) y garantizar que librerías pesadas (ej: exportadores PDF, mapas detallados) se carguen dinámicamente (`import()`) solo cuando sean requeridas. Además de añadir *Error Boundaries* en los componentes de Vue para contener fallos.
 - **Criterio de completitud**: Reducción del tamaño inicial del bundle y navegación instantánea entre pestañas de dashboards complejos.
 
 ### Etapa 18: Conectores a Bases de Datos Externas (Live Data)
-- **Estado**: ⬜ No iniciada
-- **Descripción**: Ampliar LiteBI para que no solo dependa de archivos locales. Desarrollar conectores API (o un micro-backend puente) para traer datos en vivo desde fuentes SQL (PostgreSQL, MySQL, SQL Server) y APIs empresariales (Salesforce, Google Analytics).
+- **Estado**: ✅ Completada
+- **Descripción**: Ampliar LiteBI para que no solo dependa de archivos locales. Desarrollar conectores API (o un micro-backend puente) para traer datos en vivo desde fuentes SQL (PostgreSQL, MySQL, SQL Server) y APIs empresariales (Salesforce, Google Analytics). Se ha rediseñado la interfaz de Data con una Grid de Conectores.
 - **Criterio de completitud**: Componente de nueva conexión ("Conectar a BDD") permitiendo queries directas o programadas.
 
-### Etapa 19: Asistente IA (Natural Language to Chart)
-- **Estado**: ⬜ No iniciada
-- **Descripción**: Integrar soporte con LLMs (como Gemini) para que el usuario pueda escribir: *"Muéstrame las ventas de 2025 agrupadas por país"* y LiteBI genere automáticamente la consulta AlaSQL y el widget visual adecuado.
-- **Criterio de completitud**: Un chatbot o barra de búsqueda en el Dashboard que renderice gráficos dinámicamente según lenguaje natural.
+### Etapa 19: Quick Machine Learning (Regresión y Clustering)
+- **Estado**: ✅ Completada
+- **Descripción**: Añadir capacidades analíticas avanzadas sin depender de lenguajes o servidores externos. Integración de la librería `echarts-stat` para calcular algoritmos matemáticos en tiempo real sobre el navegador.
+- **Criterio de completitud**: Botones/Selectores en el panel de configuración de widgets que habiliten el cálculo de K-Means (Agrupación) y Regresión (Lineal, Polinómica, etc.) directamente sobre los gráficos de dispersión o líneas.
 
 ### Etapa 20: Modo de Solo-Lectura y Compartir (Viewer Mode)
-- **Estado**: ⬜ No iniciada
-- **Descripción**: Crear una vista especial donde la barra lateral y opciones de configuración estén bloqueadas. Permite empaquetar el dashboard actual en un enlace o archivo `.html` para compartirlo con gerentes/stakeholders, dándoles capacidad de filtrar, pero no de editar/romper el modelo de datos.
-- **Criterio de completitud**: Nuevo botón "Share / Export to Viewer", generando un layout simplificado.
+- **Estado**: ✅ Completada
+- **Descripción**: Crear una vista especial donde la barra lateral y opciones de configuración estén bloqueadas. Permite empaquetar el dashboard actual en un enlace o archivo `.litebi-view` para compartirlo con gerentes/stakeholders, dándoles capacidad de filtrar, pero no de editar/romper el modelo de datos.
+- **Criterio de completitud**: Nuevo botón "Share a Visor", generando un layout simplificado que bloquea los menús al cargarlo.
 
 ### Etapa 21: Plantillas y Temas Corporativos
-- **Estado**: ⬜ No iniciada
+- **Estado**: ✅ Completada
 - **Descripción**: Poder guardar un dashboard como "Template" para futuros proyectos y establecer un "Brand Kit" (subir Logo de la empresa, paleta de colores corporativa obligatoria) que todos los gráficos heredarán por defecto.
 - **Criterio de completitud**: Editor de temas globales y capacidad de guardar un `.litebi-template`.
 

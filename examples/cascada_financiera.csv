@@ -1,0 +1,85 @@
+mes,categoria,subcategoria,departamento,monto,tipo_flujo
+2023-01,Ingresos,Venta Directa,Ventas,105162,Positivo
+2023-01,Ingresos,Suscripciones,Ventas,60900,Positivo
+2023-01,Costos,Costo de Bienes,Operaciones,-31367,Negativo
+2023-01,Gastos,Salarios,RRHH,-40125,Negativo
+2023-01,Gastos,Publicidad,Marketing,-13611,Negativo
+2023-01,Gastos,Software,IT,-6655,Negativo
+2023-01,Impuestos,IVA,Finanzas,-10942,Negativo
+2023-02,Ingresos,Venta Directa,Ventas,126262,Positivo
+2023-02,Ingresos,Suscripciones,Ventas,61900,Positivo
+2023-02,Costos,Costo de Bienes,Operaciones,-43890,Negativo
+2023-02,Gastos,Salarios,RRHH,-41559,Negativo
+2023-02,Gastos,Publicidad,Marketing,-10963,Negativo
+2023-02,Gastos,Software,IT,-6161,Negativo
+2023-02,Impuestos,IVA,Finanzas,-9390,Negativo
+2023-03,Ingresos,Venta Directa,Ventas,126075,Positivo
+2023-03,Ingresos,Suscripciones,Ventas,52125,Positivo
+2023-03,Costos,Costo de Bienes,Operaciones,-40510,Negativo
+2023-03,Gastos,Salarios,RRHH,-44791,Negativo
+2023-03,Gastos,Publicidad,Marketing,-14441,Negativo
+2023-03,Gastos,Software,IT,-6771,Negativo
+2023-03,Impuestos,IVA,Finanzas,-11809,Negativo
+2023-04,Ingresos,Venta Directa,Ventas,143687,Positivo
+2023-04,Ingresos,Suscripciones,Ventas,57374,Positivo
+2023-04,Costos,Costo de Bienes,Operaciones,-37351,Negativo
+2023-04,Gastos,Salarios,RRHH,-44413,Negativo
+2023-04,Gastos,Publicidad,Marketing,-12384,Negativo
+2023-04,Gastos,Software,IT,-6599,Negativo
+2023-04,Impuestos,IVA,Finanzas,-8702,Negativo
+2023-05,Ingresos,Venta Directa,Ventas,116160,Positivo
+2023-05,Ingresos,Suscripciones,Ventas,67162,Positivo
+2023-05,Costos,Costo de Bienes,Operaciones,-33126,Negativo
+2023-05,Gastos,Salarios,RRHH,-41020,Negativo
+2023-05,Gastos,Publicidad,Marketing,-15064,Negativo
+2023-05,Gastos,Software,IT,-6741,Negativo
+2023-05,Impuestos,IVA,Finanzas,-9887,Negativo
+2023-06,Ingresos,Venta Directa,Ventas,125459,Positivo
+2023-06,Ingresos,Suscripciones,Ventas,58418,Positivo
+2023-06,Costos,Costo de Bienes,Operaciones,-37029,Negativo
+2023-06,Gastos,Salarios,RRHH,-43859,Negativo
+2023-06,Gastos,Publicidad,Marketing,-12439,Negativo
+2023-06,Gastos,Software,IT,-6240,Negativo
+2023-06,Impuestos,IVA,Finanzas,-10116,Negativo
+2023-07,Ingresos,Venta Directa,Ventas,141956,Positivo
+2023-07,Ingresos,Suscripciones,Ventas,68934,Positivo
+2023-07,Costos,Costo de Bienes,Operaciones,-40053,Negativo
+2023-07,Gastos,Salarios,RRHH,-41405,Negativo
+2023-07,Gastos,Publicidad,Marketing,-12953,Negativo
+2023-07,Gastos,Software,IT,-5582,Negativo
+2023-07,Impuestos,IVA,Finanzas,-8384,Negativo
+2023-08,Ingresos,Venta Directa,Ventas,118083,Positivo
+2023-08,Ingresos,Suscripciones,Ventas,65607,Positivo
+2023-08,Costos,Costo de Bienes,Operaciones,-34570,Negativo
+2023-08,Gastos,Salarios,RRHH,-44774,Negativo
+2023-08,Gastos,Publicidad,Marketing,-14347,Negativo
+2023-08,Gastos,Software,IT,-5609,Negativo
+2023-08,Impuestos,IVA,Finanzas,-8331,Negativo
+2023-09,Ingresos,Venta Directa,Ventas,144937,Positivo
+2023-09,Ingresos,Suscripciones,Ventas,51873,Positivo
+2023-09,Costos,Costo de Bienes,Operaciones,-43004,Negativo
+2023-09,Gastos,Salarios,RRHH,-43721,Negativo
+2023-09,Gastos,Publicidad,Marketing,-16567,Negativo
+2023-09,Gastos,Software,IT,-6393,Negativo
+2023-09,Impuestos,IVA,Finanzas,-8537,Negativo
+2023-10,Ingresos,Venta Directa,Ventas,137636,Positivo
+2023-10,Ingresos,Suscripciones,Ventas,56904,Positivo
+2023-10,Costos,Costo de Bienes,Operaciones,-44305,Negativo
+2023-10,Gastos,Salarios,RRHH,-44659,Negativo
+2023-10,Gastos,Publicidad,Marketing,-10413,Negativo
+2023-10,Gastos,Software,IT,-5405,Negativo
+2023-10,Impuestos,IVA,Finanzas,-9608,Negativo
+2023-11,Ingresos,Venta Directa,Ventas,109437,Positivo
+2023-11,Ingresos,Suscripciones,Ventas,51411,Positivo
+2023-11,Costos,Costo de Bienes,Operaciones,-32885,Negativo
+2023-11,Gastos,Salarios,RRHH,-42448,Negativo
+2023-11,Gastos,Publicidad,Marketing,-17126,Negativo
+2023-11,Gastos,Software,IT,-6141,Negativo
+2023-11,Impuestos,IVA,Finanzas,-8110,Negativo
+2023-12,Ingresos,Venta Directa,Ventas,127125,Positivo
+2023-12,Ingresos,Suscripciones,Ventas,61261,Positivo
+2023-12,Costos,Costo de Bienes,Operaciones,-32329,Negativo
+2023-12,Gastos,Salarios,RRHH,-44707,Negativo
+2023-12,Gastos,Publicidad,Marketing,-13903,Negativo
+2023-12,Gastos,Software,IT,-5918,Negativo
+2023-12,Impuestos,IVA,Finanzas,-11231,Negativo

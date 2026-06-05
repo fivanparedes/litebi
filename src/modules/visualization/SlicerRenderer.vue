@@ -1,9 +1,9 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
-import alasql from 'alasql'
+import { sqlClient } from '@/modules/data/SqlWorkerClient'
 import { useDataStore } from '@/stores/dataStore'
 import { useDashboardStore } from '@/stores/dashboardStore'
-import { Check, Filter } from '@lucide/vue'
+import { Check, Filter, Loader } from '@lucide/vue'
 
 const props = defineProps({
   config: {
@@ -15,43 +15,23 @@ const props = defineProps({
 const dataStore = useDataStore()
 const dashboardStore = useDashboardStore()
 
-const items = computed(() => {
-  if (!props.config.dataset || !props.config.xAxis || props.config.slicerType === 'slider') return []
-  
-  const dsName = props.config.dataset
-  const rawX = props.config.xAxis
-  
-  const parseCol = (colStr) => {
-    if (colStr.includes('].[')) return colStr
-    return `[${dsName}].[${colStr}]`
-  }
-  
-  const extractTable = (colStr) => {
-    if (colStr.includes('].[')) {
-      return colStr.split('].[')[0].replace('[', '')
-    }
-    return dsName
-  }
+const items = ref([])
+const rangeBounds = ref({ min: 0, max: 100 })
+const isLoading = ref(false)
 
-  try {
-    const xSafe = parseCol(rawX)
-    const requiredTables = [...new Set([dsName, extractTable(rawX)])]
-    const fromClause = dataStore.buildJoinQuery(dsName, requiredTables)
-    
-    const q = `SELECT DISTINCT ${xSafe} as [value] FROM ${fromClause} WHERE ${xSafe} IS NOT NULL ORDER BY [value] ASC LIMIT 500`
-    const res = alasql(q)
-    return res.map(r => r.value)
-  } catch (e) {
-    console.error("Error generating slicer data:", e)
-    return []
+watch(() => [props.config, dataStore.dataVersion], async () => {
+  const config = props.config
+  if (!config.dataset || !config.xAxis) {
+    items.value = []
+    rangeBounds.value = { min: 0, max: 100 }
+    return
   }
-})
-
-// Slider Range calculation
-const rangeBounds = computed(() => {
-  if (!props.config.dataset || !props.config.xAxis || props.config.slicerType !== 'slider') return { min: 0, max: 100 }
-  const dsName = props.config.dataset
-  const rawX = props.config.xAxis
+  
+  isLoading.value = true
+  
+  const dsName = config.dataset
+  const rawX = config.xAxis
+  
   const parseCol = (colStr) => colStr.includes('].[') ? colStr : `[${dsName}].[${colStr}]`
   const extractTable = (colStr) => colStr.includes('].[') ? colStr.split('].[')[0].replace('[', '') : dsName
 
@@ -60,16 +40,26 @@ const rangeBounds = computed(() => {
     const requiredTables = [...new Set([dsName, extractTable(rawX)])]
     const fromClause = dataStore.buildJoinQuery(dsName, requiredTables)
     
-    const q = `SELECT MIN(${xSafe}) as [minVal], MAX(${xSafe}) as [maxVal] FROM ${fromClause} WHERE ${xSafe} IS NOT NULL`
-    const res = alasql(q)[0]
-    return { 
-      min: typeof res.minVal === 'number' ? res.minVal : 0, 
-      max: typeof res.maxVal === 'number' ? res.maxVal : 100 
+    if (config.slicerType !== 'slider') {
+      const q = `SELECT DISTINCT ${xSafe} as [value] FROM ${fromClause} WHERE ${xSafe} IS NOT NULL ORDER BY [value] ASC LIMIT 500`
+      const res = await sqlClient.query(q)
+      items.value = res.map(r => r.value)
+    } else {
+      const q = `SELECT MIN(${xSafe}) as [minVal], MAX(${xSafe}) as [maxVal] FROM ${fromClause} WHERE ${xSafe} IS NOT NULL`
+      const res = await sqlClient.query(q)
+      if (res && res.length > 0) {
+        rangeBounds.value = { 
+          min: typeof res[0].minVal === 'number' ? res[0].minVal : 0, 
+          max: typeof res[0].maxVal === 'number' ? res[0].maxVal : 100 
+        }
+      }
     }
   } catch (e) {
-    return { min: 0, max: 100 }
+    console.error("Error generating slicer data:", e)
   }
-})
+  
+  isLoading.value = false
+}, { immediate: true, deep: true })
 
 const dsName = computed(() => props.config.dataset)
 const rawX = computed(() => props.config.xAxis)
@@ -125,9 +115,12 @@ const clearFilter = () => {
     <div v-else class="slicer-content">
       <div class="slicer-header">
         <h4 class="slicer-title">{{ config.title || config.xAxis }}</h4>
-        <button v-if="activeFilter" class="clear-btn" @click="clearFilter" title="Limpiar Filtro">
-          <Filter size="14" />
-        </button>
+        <div class="header-actions">
+          <Loader v-if="isLoading" class="spin-icon" size="14" />
+          <button v-if="activeFilter && !isLoading" class="clear-btn" @click="clearFilter" title="Limpiar Filtro">
+            <Filter size="14" />
+          </button>
+        </div>
       </div>
 
       <!-- Modo Slider -->
@@ -267,6 +260,21 @@ const clearFilter = () => {
   cursor: pointer;
   padding: 4px;
   border-radius: var(--radius-sm);
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.spin-icon {
+  color: var(--color-text-tertiary);
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  100% { transform: rotate(360deg); }
 }
 
 .clear-btn:hover {

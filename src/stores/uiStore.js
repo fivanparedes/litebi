@@ -17,6 +17,13 @@ export const useUiStore = defineStore('ui', () => {
     document.documentElement.lang = newLocale
   }
 
+  // Viewer Mode
+  const isViewerMode = ref(false)
+  
+  function setViewerMode(val) {
+    isViewerMode.value = val
+  }
+
   // Toasts
   const toasts = ref([])
   let toastId = 0
@@ -60,6 +67,9 @@ export const useUiStore = defineStore('ui', () => {
     // Locale
     locale,
     setLocale,
+    // Viewer
+    isViewerMode,
+    setViewerMode,
     // Toasts
     toasts,
     addToast,

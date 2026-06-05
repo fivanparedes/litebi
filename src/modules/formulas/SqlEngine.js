@@ -1,29 +1,23 @@
-import alasql from 'alasql'
+import { sqlClient } from '@/modules/data/SqlWorkerClient'
 
 /**
  * Validates a SQL expression against a dataset without committing changes
  */
-export const testSqlExpression = (datasetName, expression) => {
+export const testSqlExpression = async (datasetName, expression) => {
   try {
-    // Take a small sample to validate the expression syntax and logic
     const tempTableName = `${datasetName}_test`
     const tempTable = `[${tempTableName}]`
     
-    alasql(`DROP TABLE IF EXISTS ${tempTable}`)
-    alasql(`CREATE TABLE ${tempTable}`)
+    // Take a small sample to validate the expression syntax and logic
+    const sourceData = await sqlClient.query(`SELECT TOP 1 * FROM [${datasetName}]`)
     
-    const sourceData = alasql.tables[datasetName]?.data || []
-    if (sourceData.length > 0) {
-      alasql.tables[tempTableName].data = [JSON.parse(JSON.stringify(sourceData[0]))]
-    } else {
-      alasql.tables[tempTableName].data = []
-    }
+    await sqlClient.createTable(tempTableName, sourceData)
     
     // Try to execute the expression
     const sql = `SELECT ${expression} AS _test_result FROM ${tempTable}`
-    const result = alasql(sql)
+    const result = await sqlClient.query(sql)
     
-    alasql(`DROP TABLE IF EXISTS ${tempTable}`)
+    await sqlClient.dropTable(tempTableName)
     
     if (result && result.length > 0) {
       return {

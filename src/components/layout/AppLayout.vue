@@ -7,8 +7,8 @@ const uiStore = useUiStore()
 </script>
 
 <template>
-  <div class="app-layout" :class="{ 'app-layout--collapsed': uiStore.sidebarCollapsed }">
-    <AppSidebar class="app-layout__sidebar" />
+  <div class="app-layout" :class="{ 'app-layout--collapsed': uiStore.sidebarCollapsed && !uiStore.isViewerMode, 'app-layout--viewer': uiStore.isViewerMode }">
+    <AppSidebar v-if="!uiStore.isViewerMode" class="app-layout__sidebar" />
     <div class="app-layout__main">
       <AppHeader class="app-layout__header" />
       <main class="app-layout__content">
@@ -33,6 +33,10 @@ const uiStore = useUiStore()
 
 .app-layout--collapsed {
   grid-template-columns: var(--sidebar-collapsed-width) 1fr;
+}
+
+.app-layout--viewer {
+  grid-template-columns: 0 1fr;
 }
 
 .app-layout__sidebar {

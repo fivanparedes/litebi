@@ -1,8 +1,11 @@
 <script setup>
 import { computed } from 'vue'
-import { Palette, Settings, Moon, Sun, Users } from '@lucide/vue'
+import { Palette, Settings, Moon, Sun, Users, Image as ImageIcon } from '@lucide/vue'
 import { useSettingsStore } from '@/stores/settingsStore'
 import BaseInput from '@/components/ui/BaseInput.vue'
+import BaseButton from '@/components/ui/BaseButton.vue'
+import { Logger } from '@/utils/Logger'
+import { FileText } from '@lucide/vue'
 
 const settingsStore = useSettingsStore()
 
@@ -21,6 +24,18 @@ const selectPalette = (id) => {
 const toggleTheme = () => {
   settingsStore.setTheme(settingsStore.theme === 'light' ? 'dark' : 'light')
 }
+
+const handleLogoUpload = (e) => {
+  const file = e.target.files[0]
+  if (!file) return
+  const reader = new FileReader()
+  reader.onload = (evt) => {
+    settingsStore.setCompanyLogo(evt.target.result)
+  }
+  reader.readAsDataURL(file)
+}
+
+const removeLogo = () => settingsStore.setCompanyLogo(null)
 </script>
 
 <template>
@@ -76,6 +91,24 @@ const toggleTheme = () => {
     </div>
 
     <div class="settings-section">
+      <h3><ImageIcon class="icon-h3" /> Brand Kit (Identidad Corporativa)</h3>
+      <p class="section-desc">Sube el logotipo de tu empresa. Este reemplazará al logotipo de LiteBI en la barra lateral y en los reportes exportados.</p>
+
+      <div class="brand-kit-container">
+        <div v-if="settingsStore.companyLogo" class="logo-preview">
+          <img :src="settingsStore.companyLogo" alt="Logo de Empresa" />
+          <BaseButton variant="danger" size="sm" @click="removeLogo">Eliminar Logo</BaseButton>
+        </div>
+        <div v-else class="logo-upload">
+          <label class="upload-btn">
+            Subir Logotipo (PNG/JPG)
+            <input type="file" accept="image/*" @change="handleLogoUpload" style="display: none;" />
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-section">
       <h3><Palette class="icon-h3" /> Paleta de Gráficos</h3>
       <p class="section-desc">Selecciona la paleta de colores por defecto que utilizarán los gráficos de tus tableros y reportes.</p>
 
@@ -97,6 +130,19 @@ const toggleTheme = () => {
             ></div>
           </div>
         </div>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <h3><FileText class="icon-h3" /> Registro del Sistema (Logs)</h3>
+      <p class="section-desc">Descarga un registro detallado de los errores y eventos del sistema para enviarlo a soporte técnico en caso de problemas.</p>
+      
+      <div style="display: flex; gap: 16px;">
+        <BaseButton variant="secondary" @click="Logger.downloadLogs()">
+          <template #icon-left><FileText /></template>
+          Descargar Registro de Errores
+        </BaseButton>
+        <BaseButton variant="ghost" @click="Logger.clear()">Limpiar Registro</BaseButton>
       </div>
     </div>
   </div>
@@ -171,6 +217,44 @@ const toggleTheme = () => {
   border-radius: var(--radius-lg);
   padding: var(--space-6);
   margin-bottom: var(--space-6);
+}
+
+.brand-kit-container {
+  margin-bottom: var(--space-4);
+}
+
+.logo-preview {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.logo-preview img {
+  max-height: 60px;
+  max-width: 200px;
+  object-fit: contain;
+  background: var(--color-bg-secondary);
+  padding: var(--space-2);
+  border-radius: var(--radius-md);
+  border: 1px dashed var(--color-border);
+}
+
+.upload-btn {
+  display: inline-block;
+  padding: var(--space-2) var(--space-4);
+  background-color: var(--color-bg-secondary);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-weight: var(--font-medium);
+  font-size: var(--text-sm);
+  transition: all var(--transition-fast);
+}
+
+.upload-btn:hover {
+  background-color: var(--color-bg-primary);
+  border-color: var(--color-accent);
 }
 
 .settings-section h3 {

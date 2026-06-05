@@ -7,6 +7,7 @@ import ChartRenderer from '@/modules/visualization/ChartRenderer.vue'
 import SlicerRenderer from '@/modules/visualization/SlicerRenderer.vue'
 import CollaboratorCursors from '@/components/collaboration/CollaboratorCursors.vue'
 import { useCollaborationStore } from '@/stores/collaborationStore'
+import { useUiStore } from '@/stores/uiStore'
 
 const props = defineProps({
   layout: {
@@ -22,6 +23,7 @@ const props = defineProps({
 const emit = defineEmits(['update:layout', 'remove-widget', 'edit-widget'])
 
 const collabStore = useCollaborationStore()
+const uiStore = useUiStore()
 
 const gridElement = ref(null)
 const canvasWrapperRef = ref(null)
@@ -39,6 +41,7 @@ const initGrid = () => {
       animate: true,
       float: true, // Allow items to be placed anywhere without packing to top
       resizable: { handles: 'e, se, s, sw, w' },
+      staticGrid: uiStore.isViewerMode
     }, gridElement.value)
 
     // Load initial data
@@ -77,6 +80,12 @@ onMounted(() => {
 watch(() => props.tabId, async () => {
   await nextTick()
   initGrid()
+})
+
+watch(() => uiStore.isViewerMode, (newVal) => {
+  if (grid) {
+    grid.setStatic(newVal)
+  }
 })
 
 watch(() => props.layout, async (newLayout) => {
@@ -120,7 +129,14 @@ watch(() => props.layout, async (newLayout) => {
       }
     }).filter(n => n.id)
     
-    emit('update:layout', updatedLayout)
+    const hasChanges = updatedLayout.length !== props.layout.length || updatedLayout.some(n => {
+      const oldNode = props.layout.find(w => w.id === n.id)
+      return !oldNode || oldNode.x !== n.x || oldNode.y !== n.y || oldNode.w !== n.w || oldNode.h !== n.h
+    })
+    
+    if (hasChanges) {
+      emit('update:layout', updatedLayout)
+    }
     isSyncing = false
   }, 150)
   
@@ -162,9 +178,9 @@ const handleMouseMove = (e) => {
           widget.config?.styles?.backgroundColor ? { backgroundColor: widget.config.styles.backgroundColor } : {},
           widget.config?.styles?.borderRadius ? { borderRadius: widget.config.styles.borderRadius + 'px' } : {}
         ]">
-          <div class="widget-header">
+          <div class="widget-header" :style="uiStore.isViewerMode ? { cursor: 'default' } : {}">
             <span class="widget-title">{{ widget.config?.title || (widget.config?.type === 'slicer' ? 'Segmentador' : 'Gráfico') }}</span>
-            <div class="widget-actions">
+            <div class="widget-actions" v-if="!uiStore.isViewerMode">
               <button class="w-btn" @click.stop="emit('edit-widget', widget.id)"><Settings /></button>
               <button class="w-btn w-btn-danger" @click.stop="emit('remove-widget', widget.id)"><X /></button>
             </div>
@@ -182,7 +198,7 @@ const handleMouseMove = (e) => {
 <style scoped>
 .canvas-wrapper {
   flex-grow: 1;
-  background-color: var(--color-bg-secondary);
+  background-color: transparent;
   overflow-y: auto;
   padding: var(--space-4);
 }

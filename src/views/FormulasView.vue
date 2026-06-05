@@ -47,9 +47,9 @@ const handleEditColumn = (col) => {
   expression.value = col.expression || ''
 }
 
-const handleTest = () => {
+const handleTest = async () => {
   if (!expression.value || !dataStore.activeDatasetName) return
-  testResult.value = testSqlExpression(dataStore.activeDatasetName, expression.value)
+  testResult.value = await testSqlExpression(dataStore.activeDatasetName, expression.value)
 }
 
 const handleSave = () => {
@@ -95,7 +95,7 @@ const handleSave = () => {
       <!-- Left Panel: Columns -->
       <aside class="formulas-sidebar">
         <ColumnList 
-          :schema="activeDatasetMeta?.schema || []"
+          :datasets="Array.from(dataStore.datasets.values())"
           @insert-column="handleInsertColumn"
           @edit-column="handleEditColumn"
         />

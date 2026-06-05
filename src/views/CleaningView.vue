@@ -23,11 +23,11 @@ const previewData = ref([])
 const currentSchema = ref([])
 const pipelineSteps = ref([])
 
-const updatePreview = () => {
+const updatePreview = async () => {
   if (pipeline.value) {
     // For large datasets, Tabulator pagination + getPreviewData is safer
     // In MVP, we pass the full transformed dataset to Tabulator since AlaSQL is fast
-    const result = pipeline.value.executePipeline()
+    const result = await pipeline.value.executePipeline()
     previewData.value = result.data
     currentSchema.value = result.schema
     pipelineSteps.value = [...pipeline.value.steps]
@@ -42,14 +42,14 @@ const updatePreview = () => {
 }
 
 // Initialize pipeline when dataset changes
-watch(() => dataStore.activeDatasetName, (newName) => {
+watch(() => dataStore.activeDatasetName, async (newName) => {
   if (newName) {
     const meta = dataStore.activeDatasetMeta
     pipeline.value = new TransformPipeline(newName, meta.schema)
     if (meta.transformations && meta.transformations.length > 0) {
       pipeline.value.steps = JSON.parse(JSON.stringify(meta.transformations))
     }
-    updatePreview()
+    await updatePreview()
   } else {
     pipeline.value = null
     previewData.value = []
@@ -58,19 +58,19 @@ watch(() => dataStore.activeDatasetName, (newName) => {
   }
 }, { immediate: true })
 
-const handleAddStep = (transformId, config) => {
-  pipeline.value.addStep(transformId, config)
-  updatePreview()
+const handleAddStep = async (transformId, config) => {
+  await pipeline.value.addStep(transformId, config)
+  await updatePreview()
 }
 
-const handleRemoveStep = (stepId) => {
-  pipeline.value.removeStep(stepId)
-  updatePreview()
+const handleRemoveStep = async (stepId) => {
+  await pipeline.value.removeStep(stepId)
+  await updatePreview()
 }
 
-const handleToggleStep = (stepId) => {
-  pipeline.value.toggleStep(stepId)
-  updatePreview()
+const handleToggleStep = async (stepId) => {
+  await pipeline.value.toggleStep(stepId)
+  await updatePreview()
 }
 
 // TODO: In a real app, there would be a 'Save' button to persist the transformed

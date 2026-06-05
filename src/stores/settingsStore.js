@@ -9,6 +9,9 @@ export const useSettingsStore = defineStore('settings', () => {
   const username = ref('Usuario ' + Math.floor(Math.random() * 1000))
   const roomName = ref('litebi-room-1')
 
+  // Brand Kit
+  const companyLogo = ref(null)
+
   // Palettes
   const palettes = {
     corporate: {
@@ -67,16 +70,22 @@ export const useSettingsStore = defineStore('settings', () => {
     roomName.value = room
   }
 
+  const setCompanyLogo = (base64) => {
+    companyLogo.value = base64
+  }
+
   return {
     theme,
     username,
     roomName,
+    companyLogo,
     chartPaletteId,
     palettes,
     currentChartColors,
     setTheme,
     setChartPalette,
     setUsername,
-    setRoomName
+    setRoomName,
+    setCompanyLogo
   }
 })

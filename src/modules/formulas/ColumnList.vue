@@ -1,15 +1,21 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { Database, Calendar, Hash, Type, Table, Calculator, Pencil } from '@lucide/vue'
 
 const props = defineProps({
-  schema: {
+  datasets: {
     type: Array,
     required: true
   }
 })
 
 const emit = defineEmits(['insert-column', 'edit-column'])
+
+
+const expandedDatasets = ref({})
+const toggleDataset = (name) => {
+  expandedDatasets.value[name] = !expandedDatasets.value[name]
+}
 
 const getTypeIcon = (type) => {
   switch (type) {
@@ -29,23 +35,36 @@ const getTypeIcon = (type) => {
     </div>
     
     <div class="columns-scroll">
-      <div 
-        v-for="col in schema" 
-        :key="col.name"
-        class="column-item"
-        @click="emit('insert-column', `[${col.name}]`)"
-      >
-        <div class="column-item__left">
-          <div class="column-item__icon-wrapper">
-            <Calculator v-if="col.isCalculated" class="calc-icon" />
-            <component :is="getTypeIcon(col.type)" class="type-icon" />
-          </div>
-          <span class="column-item__name">{{ col.name }}</span>
+      <div v-for="dataset in datasets" :key="dataset.name" class="dataset-group">
+        <div class="dataset-group__header" @click="toggleDataset(dataset.name)">
+          <span class="dataset-group__icon">
+            <svg v-if="!expandedDatasets[dataset.name]" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+            <svg v-else xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          </span>
+          <Database class="dataset-group__db-icon" />
+          <span class="dataset-group__name">{{ dataset.originalName }}</span>
         </div>
         
-        <button v-if="col.isCalculated" class="edit-btn" @click.stop="emit('edit-column', col)" title="Editar Fórmula">
-          <Pencil />
-        </button>
+        <div v-if="expandedDatasets[dataset.name]" class="dataset-group__columns">
+          <div 
+            v-for="col in dataset.schema" 
+            :key="col.name"
+            class="column-item"
+            @click="emit('insert-column', `[${dataset.name}].[${col.name}]`)"
+          >
+            <div class="column-item__left">
+              <div class="column-item__icon-wrapper">
+                <Calculator v-if="col.isCalculated" class="calc-icon" />
+                <component :is="getTypeIcon(col.type)" class="type-icon" />
+              </div>
+              <span class="column-item__name">{{ col.name }}</span>
+            </div>
+            
+            <button v-if="col.isCalculated" class="edit-btn" @click.stop="emit('edit-column', { ...col, datasetName: dataset.name })" title="Editar Fórmula">
+              <Pencil />
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -83,11 +102,44 @@ const getTypeIcon = (type) => {
   padding: var(--space-2);
 }
 
+.dataset-group {
+  margin-bottom: var(--space-2);
+}
+
+.dataset-group__header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  background-color: var(--color-bg-secondary);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-weight: var(--font-medium);
+  font-size: var(--text-sm);
+}
+
+.dataset-group__header:hover {
+  background-color: var(--color-border);
+}
+
+.dataset-group__icon, .dataset-group__db-icon {
+  width: 14px;
+  height: 14px;
+  color: var(--color-text-secondary);
+}
+
+.dataset-group__columns {
+  display: flex;
+  flex-direction: column;
+  padding-left: var(--space-4);
+  margin-top: var(--space-1);
+}
+
 .column-item {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  padding: var(--space-2) var(--space-3);
+  padding: 4px var(--space-2);
   border-radius: var(--radius-md);
   cursor: pointer;
   transition: background-color var(--transition-fast);
@@ -110,22 +162,26 @@ const getTypeIcon = (type) => {
 }
 
 .type-icon {
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
   color: var(--color-text-tertiary);
 }
 
 .column-item__name {
-  font-size: var(--text-sm);
+  font-size: 13px;
   color: var(--color-text-primary);
   font-family: var(--font-mono);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .column-item__left {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-2);
   flex-grow: 1;
+  overflow: hidden;
 }
 
 .edit-btn {
@@ -133,7 +189,7 @@ const getTypeIcon = (type) => {
   border: none;
   color: var(--color-text-tertiary);
   cursor: pointer;
-  padding: 4px;
+  padding: 2px;
   border-radius: var(--radius-sm);
   display: flex;
   align-items: center;
@@ -143,5 +199,5 @@ const getTypeIcon = (type) => {
 
 .column-item:hover .edit-btn { opacity: 1; }
 .edit-btn:hover { background-color: var(--color-bg-surface); color: var(--color-accent); }
-.edit-btn svg { width: 14px; height: 14px; }
+.edit-btn svg { width: 12px; height: 12px; }
 </style>

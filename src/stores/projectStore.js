@@ -5,6 +5,7 @@ import { useDataStore } from './dataStore'
 import { useFormulaStore } from './formulaStore'
 import { useDashboardStore } from './dashboardStore'
 import { serializeProject, deserializeProject } from '@/modules/project/Serializer'
+import localforage from 'localforage'
 
 export const useProjectStore = defineStore('project', () => {
   const uiStore = useUiStore()
@@ -15,19 +16,71 @@ export const useProjectStore = defineStore('project', () => {
   const projectName = ref('Proyecto sin título')
   const fileHandle = ref(null)
   const isDirty = ref(false)
+  const isSaving = ref(false)
+
+  let autosaveTimer = null
 
   const setProjectName = (name) => {
     projectName.value = name || 'Proyecto sin título'
     isDirty.value = true
+    triggerAutoSave()
   }
 
   const markDirty = () => {
     isDirty.value = true
+    triggerAutoSave()
+  }
+
+  const triggerAutoSave = () => {
+    if (autosaveTimer) clearTimeout(autosaveTimer)
+    // Wait 2 seconds of inactivity before saving to avoid blocking UI
+    autosaveTimer = setTimeout(() => {
+      autoSave()
+    }, 2000)
+  }
+
+  const autoSave = async () => {
+    try {
+      isSaving.value = true
+      const json = await serializeProject(dataStore, formulaStore, dashboardStore)
+      await localforage.setItem('litebi_autosave', {
+        projectName: projectName.value,
+        data: json
+      })
+    } catch (e) {
+      console.error("Error autosaving project:", e)
+    } finally {
+      setTimeout(() => { isSaving.value = false }, 500)
+    }
+  }
+
+  const autoLoad = async () => {
+    try {
+      const saved = await localforage.getItem('litebi_autosave')
+      if (saved && saved.data) {
+        await deserializeProject(saved.data, dataStore, formulaStore, dashboardStore)
+        projectName.value = saved.projectName || 'Proyecto sin título'
+        isDirty.value = false
+        console.log("Sesión recuperada desde IndexedDB.")
+        return true
+      }
+    } catch (e) {
+      console.error("Error autoloading project:", e)
+    }
+    return false
+  }
+
+  const clearAutoSave = async () => {
+    try {
+      await localforage.removeItem('litebi_autosave')
+    } catch (e) {
+      console.error("Error clearing autosave:", e)
+    }
   }
 
   const saveProject = async (saveAs = false) => {
     try {
-      const json = serializeProject(dataStore, formulaStore, dashboardStore)
+      const json = await serializeProject(dataStore, formulaStore, dashboardStore)
       
       // If we don't have a handle yet, or user requested Save As, prompt for location
       if (!fileHandle.value || saveAs) {
@@ -77,19 +130,33 @@ export const useProjectStore = defineStore('project', () => {
         const [handle] = await window.showOpenFilePicker({
           types: [{
             description: 'Archivo de Proyecto LiteBI',
-            accept: { 'application/json': ['.litebi', '.json'] },
+            accept: { 'application/json': ['.litebi', '.litebiview', '.json'] },
           }],
         })
         
         const file = await handle.getFile()
         const content = await file.text()
         
-        deserializeProject(content, dataStore, formulaStore, dashboardStore)
+        await deserializeProject(content, dataStore, formulaStore, dashboardStore)
         
-        fileHandle.value = handle
-        const nameMatch = handle.name.match(/(.*)\.litebi$/i)
-        projectName.value = nameMatch ? nameMatch[1] : handle.name
-        isDirty.value = false
+        const uiStore = useUiStore()
+        
+        if (handle.name.endsWith('.litebi-template') || handle.name.endsWith('.litebitemplate')) {
+          projectName.value = "Nuevo desde Plantilla"
+          fileHandle.value = null
+          isDirty.value = true
+          uiStore.setViewerMode(false)
+        } else {
+          fileHandle.value = handle
+          const nameMatch = handle.name.match(/(.*)\.litebi(?:-view|view)?$/i)
+          if (nameMatch) {
+            projectName.value = nameMatch[1]
+          } else {
+            projectName.value = handle.name
+          }
+          isDirty.value = false
+          uiStore.setViewerMode(handle.name.endsWith('.litebi-view') || handle.name.endsWith('.litebiview'))
+        }
         
         uiStore.addToast({ message: 'Proyecto cargado correctamente', type: 'success' })
         return true
@@ -122,9 +189,12 @@ export const useProjectStore = defineStore('project', () => {
     projectName,
     fileHandle,
     isDirty,
+    isSaving,
     setProjectName,
     markDirty,
     saveProject,
-    loadProject
+    loadProject,
+    autoLoad,
+    clearAutoSave
   }
 })

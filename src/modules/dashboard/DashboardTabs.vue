@@ -1,9 +1,11 @@
 <script setup>
 import { Plus, X, Pencil } from '@lucide/vue'
 import { useDashboardStore } from '@/stores/dashboardStore'
+import { useUiStore } from '@/stores/uiStore'
 import { ref, nextTick } from 'vue'
 
 const dashboardStore = useDashboardStore()
+const uiStore = useUiStore()
 
 const editingTabId = ref(null)
 const editingName = ref('')
@@ -52,9 +54,9 @@ const handleKeydown = (e, tabId) => {
         />
       </div>
       <template v-else>
-        <span class="tab-name" @dblclick="startEdit(tab)">{{ tab.name }}</span>
+        <span class="tab-name" @dblclick="!uiStore.isViewerMode && startEdit(tab)">{{ tab.name }}</span>
         <button 
-          v-if="dashboardStore.tabs.length > 1"
+          v-if="dashboardStore.tabs.length > 1 && !uiStore.isViewerMode"
           class="tab-close" 
           @click.stop="dashboardStore.removeTab(tab.id)"
           title="Eliminar pestaña"
@@ -64,7 +66,7 @@ const handleKeydown = (e, tabId) => {
       </template>
     </div>
     
-    <button class="add-tab-btn" @click="dashboardStore.addTab" title="Nuevo Dashboard">
+    <button v-if="!uiStore.isViewerMode" class="add-tab-btn" @click="dashboardStore.addTab" title="Nuevo Dashboard">
       <Plus />
     </button>
   </div>

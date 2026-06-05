@@ -4,6 +4,7 @@ import { inferSchema } from './SchemaManager'
 export const parseCsv = (file, options = {}) => {
   return new Promise((resolve, reject) => {
     Papa.parse(file, {
+      worker: true,
       header: true,
       skipEmptyLines: true,
       dynamicTyping: true, // Auto-convert numbers and booleans

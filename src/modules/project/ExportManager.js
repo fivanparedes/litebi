@@ -1,5 +1,5 @@
-import html2canvas from 'html2canvas'
-import { jsPDF } from 'jspdf'
+// Heavy libraries are loaded dynamically when needed
+
 
 const prepareForExport = async (element) => {
   element.classList.add('is-exporting')
@@ -18,6 +18,8 @@ export const exportToPNG = async (elementId, filename = 'dashboard') => {
   await prepareForExport(element)
   
   try {
+    const html2canvas = (await import('html2canvas')).default
+    
     const canvas = await html2canvas(element, {
       scale: 2, // Retained quality
       useCORS: true,
@@ -40,6 +42,9 @@ export const exportToPDF = async (elementId, filename = 'dashboard') => {
   await prepareForExport(container)
 
   try {
+    const { jsPDF } = await import('jspdf')
+    const html2canvas = (await import('html2canvas')).default
+    
     const pages = container.querySelectorAll('.report-page-wrapper')
     
     if (pages.length > 0) {
@@ -77,19 +82,22 @@ export const exportToPDF = async (elementId, filename = 'dashboard') => {
   }
 }
 
-import PptxGenJS from 'pptxgenjs'
-import { getInstanceByDom, init } from 'echarts/core'
+
 
 export const exportToPPTX = async (elementId, title = 'Dashboard Report', filename = 'dashboard') => {
   const element = document.getElementById(elementId)
   if (!element) throw new Error("Canvas element not found")
 
-  const pptx = new PptxGenJS()
-  pptx.layout = 'LAYOUT_16x9'
-  
   await prepareForExport(element)
   
   try {
+    const PptxGenJS = (await import('pptxgenjs')).default
+    const { getInstanceByDom, init } = await import('echarts/core')
+    const html2canvas = (await import('html2canvas')).default
+    
+    const pptx = new PptxGenJS()
+    pptx.layout = 'LAYOUT_16x9'
+    
     const widgets = element.querySelectorAll('.grid-stack-item-content')
     
     let slide = pptx.addSlide()

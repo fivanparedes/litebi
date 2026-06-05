@@ -1,21 +1,8 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import alasql from 'alasql'
+import { sqlClient } from '@/modules/data/SqlWorkerClient'
 import { useDataStore } from './dataStore'
 import { useUiStore } from './uiStore'
-
-// Custom functions for AlaSQL (BI context)
-alasql.fn.DATE = function(...args) {
-  if (args.length === 3) {
-    const y = parseInt(args[0]), m = parseInt(args[1]), d = parseInt(args[2]);
-    if (isNaN(y) || isNaN(m) || isNaN(d)) return null;
-    return new Date(Date.UTC(y, m-1, d)).toISOString().split('T')[0];
-  }
-  if (args.length === 1 && args[0]) {
-    try { return new Date(args[0]).toISOString().split('T')[0] } catch(e) { return null }
-  }
-  return null;
-}
 
 export const useFormulaStore = defineStore('formula', () => {
   const dataStore = useDataStore()
@@ -28,7 +15,7 @@ export const useFormulaStore = defineStore('formula', () => {
     return formulas.value[datasetName] || []
   }
   
-  const addFormula = (datasetName, columnName, expression, type = 'number') => {
+  const addFormula = async (datasetName, columnName, expression, type = 'number') => {
     if (!formulas.value[datasetName]) {
       formulas.value[datasetName] = []
     }
@@ -41,8 +28,8 @@ export const useFormulaStore = defineStore('formula', () => {
       // 1. Agregar columna
       // Nota: Usamos SELECT y reemplazamos los datos en lugar de UPDATE debido a un 
       // bug en el compilador de AlaSQL con sentencias CASE WHEN (Identifier 'r' has already been declared)
-      const res = alasql(`SELECT *, (${expression}) AS [${columnName}] FROM [${datasetName}]`)
-      alasql.tables[datasetName].data = res
+      const res = await sqlClient.query(`SELECT *, (${expression}) AS [${columnName}] FROM [${datasetName}]`)
+      await sqlClient.createTable(datasetName, res)
       
       // Update dataStore schema metadata
       const meta = dataStore.datasets.get(datasetName)
@@ -81,7 +68,7 @@ export const useFormulaStore = defineStore('formula', () => {
     }
   }
   
-  const removeFormula = (datasetName, columnName) => {
+  const removeFormula = async (datasetName, columnName) => {
     if (!formulas.value[datasetName]) return
     
     formulas.value[datasetName] = formulas.value[datasetName].filter(f => f.name !== columnName)
@@ -92,12 +79,10 @@ export const useFormulaStore = defineStore('formula', () => {
       meta.schema = meta.schema.filter(c => c.name !== columnName)
       meta.colCount--
       
-      // En AlaSQL para eliminar un key de los objetos JSON:
-      // Alasql doesn't have ALTER TABLE DROP COLUMN for memory JSON objects easily, 
-      // but we can map over data
-      alasql.tables[datasetName].data.forEach(row => {
-        delete row[columnName]
-      })
+      // Update data in worker
+      const currentCols = meta.schema.map(c => `[${c.name}]`).join(', ')
+      const res = await sqlClient.query(`SELECT ${currentCols} FROM [${datasetName}]`)
+      await sqlClient.createTable(datasetName, res)
       
       uiStore.addToast({
         message: `Columna '${columnName}' eliminada`,

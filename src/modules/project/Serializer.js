@@ -1,11 +1,14 @@
-import alasql from 'alasql'
+import { sqlClient } from '@/modules/data/SqlWorkerClient'
 
-export const serializeProject = (dataStore, formulaStore, dashboardStore) => {
+export const serializeProject = async (dataStore, formulaStore, dashboardStore) => {
   // Convert DataStore datasets map to array
   const datasets = []
+  
+  // Get actual table data from AlaSQL Worker
+  const allTables = await sqlClient.exportDb()
+
   dataStore.datasets.forEach((meta, name) => {
-    // Get actual table data from AlaSQL
-    const tableData = alasql.tables[name]?.data || []
+    const tableData = allTables[name] || []
     datasets.push({
       name,
       meta,
@@ -35,7 +38,7 @@ export const serializeProject = (dataStore, formulaStore, dashboardStore) => {
   return JSON.stringify(projectState)
 }
 
-export const deserializeProject = (jsonString, dataStore, formulaStore, dashboardStore) => {
+export const deserializeProject = async (jsonString, dataStore, formulaStore, dashboardStore) => {
   try {
     const project = JSON.parse(jsonString)
     if (!project.version) throw new Error("Invalid project file")
@@ -43,13 +46,15 @@ export const deserializeProject = (jsonString, dataStore, formulaStore, dashboar
     // 1. Restore Data
     // Clear current datasets and tables
     dataStore.datasets.clear()
-    Object.keys(alasql.tables).forEach(t => alasql(`DROP TABLE IF EXISTS [${t}]`))
     
+    const tablesToImport = {}
     project.data.datasets.forEach(ds => {
-      alasql(`CREATE TABLE [${ds.name}]`)
-      alasql.tables[ds.name].data = ds.data
+      tablesToImport[ds.name] = ds.data
       dataStore.datasets.set(ds.name, ds.meta)
     })
+    
+    // Import into worker
+    await sqlClient.importDb(tablesToImport)
     
     dataStore.activeDatasetName = project.data.activeDatasetName || null
     dataStore.relationships = project.data.relationships || []

@@ -1,10 +1,10 @@
 <script setup>
 import { computed, ref, watch, onMounted } from 'vue'
-import alasql from 'alasql'
 import { useDataStore } from '@/stores/dataStore'
 import { useDashboardStore } from '@/stores/dashboardStore'
 import { useSettingsStore } from '@/stores/settingsStore'
-import { use, registerTheme } from 'echarts/core'
+import { sqlClient } from '@/modules/data/SqlWorkerClient'
+import { use, registerTheme, registerMap, getMap } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
 import { BarChart, LineChart, PieChart, ScatterChart, BoxplotChart, FunnelChart, GaugeChart, HeatmapChart, TreemapChart, RadarChart } from 'echarts/charts'
 import {
@@ -13,7 +13,8 @@ import {
   LegendComponent,
   GridComponent,
   DatasetComponent,
-  VisualMapComponent
+  VisualMapComponent,
+  GeoComponent
 } from 'echarts/components'
 import { MapChart } from 'echarts/charts'
 import VChart from 'vue-echarts'
@@ -38,7 +39,8 @@ use([
   LegendComponent,
   GridComponent,
   DatasetComponent,
-  VisualMapComponent
+  VisualMapComponent,
+  GeoComponent
 ])
 
 // Register custom theme
@@ -85,6 +87,12 @@ const loadData = async () => {
     const requiredTables = [dsName, extractTable(rawY)]
     
     dashboardStore.globalFilters.forEach(f => {
+      if (f.dataset !== dsName) {
+        const rel = dataStore.relationships.find(r => 
+          (r.fromTable === dsName && r.toTable === f.dataset) || (r.toTable === dsName && r.fromTable === f.dataset)
+        )
+        if (!rel) return
+      }
       const safeVal = typeof f.value === 'string' ? String(f.value).replace(/'/g, "''") : f.value
       const colName = f.column.includes('].[') ? f.column : `[${f.dataset}].[${f.column}]`
       requiredTables.push(extractTable(f.column) || f.dataset)
@@ -106,7 +114,7 @@ const loadData = async () => {
       const fromClause = dataStore.buildJoinQuery(dsName, uniqueRequiredTables)
 
       const q = `SELECT ${agg}(${ySafe}) as [total] FROM ${fromClause} WHERE ${ySafe} IS NOT NULL${globalWhere}`
-      const res = alasql(q)
+      const res = await sqlClient.query(q)
       kpiValue.value = res[0]?.total || 0
     } catch (e) {
       kpiValue.value = 0
@@ -137,6 +145,12 @@ const loadData = async () => {
   if (rawY2) requiredTables.push(extractTable(rawY2))
   
   dashboardStore.globalFilters.forEach(f => {
+    if (f.dataset !== dsName) {
+      const rel = dataStore.relationships.find(r => 
+        (r.fromTable === dsName && r.toTable === f.dataset) || (r.toTable === dsName && r.fromTable === f.dataset)
+      )
+      if (!rel) return
+    }
     const safeVal = typeof f.value === 'string' ? String(f.value).replace(/'/g, "''") : f.value
     const colName = f.column.includes('].[') ? f.column : `[${f.dataset}].[${f.column}]`
     requiredTables.push(extractTable(f.column) || f.dataset)
@@ -160,9 +174,16 @@ const loadData = async () => {
     
     const fromClause = dataStore.buildJoinQuery(dsName, uniqueRequiredTables)
     
-    if (props.config.type === 'scatter' || props.config.type === 'boxplot') {
-      const q = `SELECT TOP 2000 ${xSafe} as [name], ${ySafe} as [value] FROM ${fromClause} WHERE ${xSafe} IS NOT NULL AND ${ySafe} IS NOT NULL${globalWhere}`
-      chartData.value = alasql(q)
+    if ((props.config.type === 'map' && props.config.mapMode === 'scatter') || props.config.type === 'scatter' || props.config.type === 'boxplot') {
+      const isMapScatter = props.config.type === 'map'
+      const selectY2 = (isMapScatter && rawY2) ? `, ${agg}(${parseCol(rawY2)}) as [value2]` : ''
+      const groupByMap = (isMapScatter && rawY2) ? `GROUP BY ${xSafe}, ${ySafe}` : ''
+      
+      const q = isMapScatter && rawY2 
+        ? `SELECT TOP 2000 ${xSafe} as [name], ${ySafe} as [value] ${selectY2} FROM ${fromClause} WHERE ${xSafe} IS NOT NULL AND ${ySafe} IS NOT NULL${globalWhere} ${groupByMap}`
+        : `SELECT TOP 2000 ${xSafe} as [name], ${ySafe} as [value] FROM ${fromClause} WHERE ${xSafe} IS NOT NULL AND ${ySafe} IS NOT NULL${globalWhere}`
+        
+      chartData.value = await sqlClient.query(q)
       isLoading.value = false
       return
     }
@@ -170,28 +191,28 @@ const loadData = async () => {
     if (props.config.type === 'heatmap' && rawY2) {
       const ySafe2 = parseCol(rawY2)
       const q = `SELECT ${xSafe} as [name], ${ySafe2} as [name2], ${agg}(${ySafe}) as [value] FROM ${fromClause} WHERE ${xSafe} IS NOT NULL AND ${ySafe2} IS NOT NULL${globalWhere} GROUP BY ${xSafe}, ${ySafe2} LIMIT 1000`
-      chartData.value = alasql(q)
+      chartData.value = await sqlClient.query(q)
       isLoading.value = false
       return
     }
 
-    if (props.config.type === 'combo' && rawY2) {
+    if ((props.config.type === 'combo' || props.config.type === 'line' || props.config.type === 'bar') && rawY2) {
       const ySafe2 = parseCol(rawY2)
       const q = `SELECT ${xSafe} as [name], ${agg}(${ySafe}) as [value], ${agg}(${ySafe2}) as [value2] FROM ${fromClause} WHERE ${xSafe} IS NOT NULL${globalWhere} GROUP BY ${xSafe} ORDER BY [value] DESC LIMIT 100`
-      chartData.value = alasql(q)
+      chartData.value = await sqlClient.query(q)
       isLoading.value = false
       return
     }
 
     if (props.config.type === 'gauge') {
       const q = `SELECT ${agg}(${ySafe}) as [value] FROM ${fromClause} WHERE ${ySafe} IS NOT NULL${globalWhere}`
-      chartData.value = alasql(q)
+      chartData.value = await sqlClient.query(q)
       isLoading.value = false
       return
     }
     
     const q = `SELECT ${xSafe} as [name], ${agg}(${ySafe}) as [value] FROM ${fromClause} WHERE ${xSafe} IS NOT NULL${globalWhere} GROUP BY ${xSafe} ORDER BY [value] DESC LIMIT 100`
-    chartData.value = alasql(q)
+    chartData.value = await sqlClient.query(q)
   } catch (e) {
     console.error("Error generating chart data:", e)
     chartData.value = []
@@ -209,11 +230,11 @@ watch(() => [props.config, dashboardStore.globalFilters, dataStore.dataVersion],
 }, { deep: true })
 
 onMounted(async () => {
-  if (!echarts.getMap('world')) {
+  if (!getMap('world')) {
     try {
       const res = await fetch('https://cdn.jsdelivr.net/npm/echarts@4.9.0/map/json/world.json')
       const geoJson = await res.json()
-      echarts.registerMap('world', geoJson)
+      registerMap('world', geoJson)
     } catch (e) {
       console.error('Error fetching map data:', e)
     }
@@ -427,25 +448,71 @@ const echartOptions = computed(() => {
   }
   
   if (ctype === 'map') {
-    const maxVal = Math.max(...seriesData, 1)
-    const minVal = Math.min(...seriesData, 0)
-    return {
-      ...baseOption,
-      visualMap: {
-        left: 'right',
-        min: minVal,
-        max: maxVal,
-        inRange: { color: ['#e0ffff', '#006edd'] },
-        text: ['High', 'Low'],
-        calculable: true
-      },
-      series: [{
-        name: props.config.yAxis,
-        type: 'map',
-        map: 'world',
-        roam: true,
-        data: data.map(d => ({ name: d.name, value: d.value }))
-      }]
+    if (props.config.mapMode === 'scatter') {
+      const y2LabelValue = props.config.secondaryYAxisLabel || props.config.secondaryYAxis
+      const mapData = data.map(d => [Number(d.name), Number(d.value), y2LabelValue ? Number(d.value2 || 0) : 1])
+      let maxVal = y2LabelValue ? Math.max(...mapData.map(d => d[2])) : 1
+      let minVal = y2LabelValue ? Math.min(...mapData.map(d => d[2])) : 0
+      
+      if (!isFinite(maxVal)) maxVal = 100
+      if (!isFinite(minVal)) minVal = 0
+      if (maxVal === minVal) {
+        maxVal += 1
+        minVal -= 1
+      }
+      
+      return {
+        ...baseOption,
+        tooltip: { trigger: 'item', formatter: function (params) {
+          return y2LabelValue ? `${y2LabelValue}: ${params.value[2]}` : `[${params.value[0]}, ${params.value[1]}]`
+        }},
+        geo: {
+          map: 'world',
+          roam: true,
+          itemStyle: { areaColor: '#e0e0e0', borderColor: '#111' },
+          emphasis: { itemStyle: { areaColor: '#c0c0c0' } }
+        },
+        visualMap: y2LabelValue ? {
+          left: 'right',
+          min: minVal,
+          max: maxVal,
+          inRange: { color: ['#50a3ba', '#eac736', '#d94e5d'] },
+          calculable: true,
+          text: [y2LabelValue, '']
+        } : undefined,
+        series: [{
+          name: y2LabelValue || 'Puntos',
+          type: 'scatter',
+          coordinateSystem: 'geo',
+          data: mapData,
+          symbolSize: y2LabelValue ? function (val) {
+            const ratio = maxVal === minVal ? 1 : (val[2] - minVal) / (maxVal - minVal)
+            return 5 + ratio * 15
+          } : 10,
+          itemStyle: { color: y2LabelValue ? undefined : '#ddb926' }
+        }]
+      }
+    } else {
+      const maxVal = Math.max(...seriesData, 1)
+      const minVal = Math.min(...seriesData, 0)
+      return {
+        ...baseOption,
+        visualMap: {
+          left: 'right',
+          min: minVal,
+          max: maxVal,
+          inRange: { color: ['#e0ffff', '#006edd'] },
+          text: [props.config.yAxisLabel || props.config.yAxis || 'High', 'Low'],
+          calculable: true
+        },
+        series: [{
+          name: props.config.yAxisLabel || props.config.yAxis,
+          type: 'map',
+          map: 'world',
+          roam: true,
+          data: data.map(d => ({ name: d.name, value: d.value }))
+        }]
+      }
     }
   }
 
@@ -489,21 +556,35 @@ const echartOptions = computed(() => {
   const showXAxis = props.config.styles?.showAxisLabels !== false
   const showYAxis = props.config.styles?.showAxisLabels !== false
   
+  const defaultSeries = [
+    {
+      name: props.config.yAxisLabel || props.config.yAxis,
+      type: ctype,
+      data: seriesData,
+      areaStyle: (ctype === 'line' && props.config.styles?.fillArea) ? { opacity: 0.2 } : undefined,
+      large: true,
+      largeThreshold: 500,
+      itemStyle: props.config.styles?.borderRadius ? { borderRadius: props.config.styles.borderRadius } : undefined
+    }
+  ]
+
+  if ((ctype === 'line' || ctype === 'bar') && props.config.secondaryYAxis && chartData.value[0] && 'value2' in chartData.value[0]) {
+    const data2 = chartData.value.map(d => d.value2)
+    defaultSeries.push({
+      name: props.config.secondaryYAxisLabel || props.config.secondaryYAxis,
+      type: ctype,
+      data: data2,
+      areaStyle: (ctype === 'line' && props.config.styles?.fillArea) ? { opacity: 0.2 } : undefined,
+      large: true,
+      largeThreshold: 500
+    })
+  }
+
   return {
     ...baseOption,
     xAxis: isHorizontal ? { type: 'value', show: showXAxis } : { type: 'category', data: xAxisData, show: showXAxis, axisLabel: { interval: 'auto', rotate: 30 } },
     yAxis: isHorizontal ? { type: 'category', data: xAxisData, show: showYAxis, axisLabel: { interval: 'auto', width: 100, overflow: 'truncate' } } : { type: 'value', show: showYAxis },
-    series: [
-      {
-        name: props.config.yAxis,
-        type: ctype,
-        data: seriesData,
-        areaStyle: ctype === 'line' ? { opacity: 0.1 } : undefined,
-        large: true,
-        largeThreshold: 500,
-        itemStyle: props.config.styles?.borderRadius ? { borderRadius: props.config.styles.borderRadius } : undefined
-      }
-    ]
+    series: defaultSeries
   }
 })
 const handleChartClick = (params) => {

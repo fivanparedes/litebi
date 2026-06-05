@@ -1,8 +1,9 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import alasql from 'alasql'
-import { coerceData } from '@/modules/data/SchemaManager'
+import { sqlClient } from '@/modules/data/SqlWorkerClient'
+import { coerceData, inferSchema } from '@/modules/data/SchemaManager'
 import { useUiStore } from './uiStore'
+import { Logger } from '@/utils/Logger'
 
 export const useDataStore = defineStore('data', () => {
   const uiStore = useUiStore()
@@ -13,35 +14,40 @@ export const useDataStore = defineStore('data', () => {
   const relationships = ref([])
   const dataVersion = ref(0)
   
-  // AlaSQL config
-  alasql.options.cache = false
-  alasql.options.casesensitive = false
-
   // Actions
-  const addDataset = (name, data, schema) => {
+  const addDataset = async (name, data, schema) => {
     try {
+      if (!data || typeof data !== 'object') {
+        throw new Error("El resultado no es un conjunto de datos válido.")
+      }
+      
+      let targetData = data
+      if (!Array.isArray(data)) {
+        const arrayProp = Object.values(data).find(val => Array.isArray(val))
+        if (arrayProp) {
+          targetData = arrayProp
+        } else {
+          targetData = [data]
+        }
+      }
+
       // 1. Coerce data based on inferred schema
-      const cleanedData = coerceData(data, schema)
+      const finalSchema = schema || inferSchema(targetData)
+      const cleanedData = coerceData(targetData, finalSchema)
       
       // 2. Format name (safe for SQL)
       const safeName = name.replace(/[^a-zA-Z0-9_]/g, '_').toLowerCase()
       
-      // 3. Create table in AlaSQL
-      // AlaSQL handles JS array of objects easily without strict CREATE TABLE schemas for MVP
-      alasql(`DROP TABLE IF EXISTS ${safeName}`)
-      alasql(`CREATE TABLE ${safeName}`)
-      
-      // 4. Insert data
-      // AlaSQL can directly query JS arrays, but inserting creates a managed table
-      alasql.tables[safeName].data = cleanedData
+      // 3 & 4. Create table and insert data in Worker
+      await sqlClient.createTable(safeName, cleanedData)
       
       // 5. Save metadata
       const datasetMeta = {
         name: safeName,
         originalName: name,
-        schema,
+        schema: finalSchema,
         rowCount: cleanedData.length,
-        colCount: schema.length,
+        colCount: finalSchema.length,
         importedAt: new Date(),
         transformations: []
       }
@@ -62,6 +68,7 @@ export const useDataStore = defineStore('data', () => {
       
       return safeName
     } catch (error) {
+      Logger.error('DataStore', `Error adding dataset: ${name}`, error)
       console.error('Error adding dataset:', error)
       uiStore.addToast({
         message: `Error al importar datos: ${error.message}`,
@@ -71,9 +78,9 @@ export const useDataStore = defineStore('data', () => {
     }
   }
   
-  const removeDataset = (name) => {
+  const removeDataset = async (name) => {
     if (datasets.value.has(name)) {
-      alasql(`DROP TABLE IF EXISTS ${name}`)
+      await sqlClient.dropTable(name)
       datasets.value.delete(name)
       
       if (activeDatasetName.value === name) {
@@ -96,10 +103,11 @@ export const useDataStore = defineStore('data', () => {
     }
   }
   
-  const getPreviewData = (name, limit = 100) => {
+  const getPreviewData = async (name, limit = 100) => {
     try {
-      return alasql(`SELECT TOP ${limit} * FROM [${name}]`)
+      return await sqlClient.query(`SELECT TOP ${limit} * FROM [${name}]`)
     } catch (e) {
+      console.error(e)
       return []
     }
   }
@@ -188,7 +196,7 @@ export const useDataStore = defineStore('data', () => {
       { name: 'EsFinDeSemana', type: 'boolean' }
     ]
 
-    addDataset('Calendario', data, schema)
+    return addDataset('Calendario', data, schema)
   }
 
   // Getters

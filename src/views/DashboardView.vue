@@ -6,6 +6,7 @@ import { LayoutDashboard, ArrowRight, Plus, X } from '@lucide/vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import { useDataStore } from '@/stores/dataStore'
 import { useDashboardStore } from '@/stores/dashboardStore'
+import { useUiStore } from '@/stores/uiStore'
 import DashboardTabs from '@/modules/dashboard/DashboardTabs.vue'
 import DashboardCanvas from '@/modules/dashboard/DashboardCanvas.vue'
 import WidgetConfigurator from '@/modules/visualization/WidgetConfigurator.vue'
@@ -14,6 +15,7 @@ const { t } = useI18n()
 const router = useRouter()
 const dataStore = useDataStore()
 const dashboardStore = useDashboardStore()
+const uiStore = useUiStore()
 
 const hasData = computed(() => !!dataStore.activeDatasetName)
 
@@ -105,7 +107,7 @@ const handleEditWidget = (widgetId) => {
         </div>
 
         <div class="toolbar-right">
-          <BaseButton variant="primary" size="sm" @click="handleAddWidget">
+          <BaseButton v-if="!uiStore.isViewerMode" variant="primary" size="sm" @click="handleAddWidget">
             <template #icon-left><Plus /></template>
             Añadir Widget
           </BaseButton>
@@ -156,7 +158,7 @@ const handleEditWidget = (widgetId) => {
   flex-direction: column;
   width: 100%;
   height: 100%;
-  background-color: var(--color-bg-primary);
+  background-color: var(--color-bg-surface);
 }
 
 .dashboard-toolbar {
@@ -164,7 +166,7 @@ const handleEditWidget = (widgetId) => {
   justify-content: space-between;
   align-items: center;
   padding: var(--space-3) var(--space-4);
-  background-color: var(--color-bg-surface);
+  background-color: transparent;
   border-bottom: 1px solid var(--color-border);
 }
 
