@@ -52,17 +52,17 @@ const removeLogo = () => settingsStore.setCompanyLogo(null)
         <div style="flex: 1;">
           <label style="display: block; margin-bottom: 4px; font-size: 14px; font-weight: 500;">Nombre de Usuario</label>
           <BaseInput 
-            :modelValue="settingsStore.username" 
-            @update:modelValue="settingsStore.setUsername" 
+            :model-value="settingsStore.username" 
             placeholder="Ej: Ana Gómez" 
+            @update:model-value="settingsStore.setUsername" 
           />
         </div>
         <div style="flex: 1;">
           <label style="display: block; margin-bottom: 4px; font-size: 14px; font-weight: 500;">ID de la Sala</label>
           <BaseInput 
-            :modelValue="settingsStore.roomName" 
-            @update:modelValue="settingsStore.setRoomName" 
+            :model-value="settingsStore.roomName" 
             placeholder="Ej: equipo-ventas-1" 
+            @update:model-value="settingsStore.setRoomName" 
           />
         </div>
       </div>
@@ -102,7 +102,7 @@ const removeLogo = () => settingsStore.setCompanyLogo(null)
         <div v-else class="logo-upload">
           <label class="upload-btn">
             Subir Logotipo (PNG/JPG)
-            <input type="file" accept="image/*" @change="handleLogoUpload" style="display: none;" />
+            <input type="file" accept="image/*" style="display: none;" @change="handleLogoUpload" />
           </label>
         </div>
       </div>

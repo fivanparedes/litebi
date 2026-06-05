@@ -80,7 +80,7 @@ const handleEditWidget = (widgetId) => {
       </div>
     </div>
     
-    <div v-else class="dashboard-workspace" id="dashboard-export-area">
+    <div v-else id="dashboard-export-area" class="dashboard-workspace">
       <!-- Top Tabs -->
       <DashboardTabs />
       
@@ -91,7 +91,7 @@ const handleEditWidget = (widgetId) => {
         </div>
         
         <!-- Active Filters Bar -->
-        <div class="active-filters" v-if="dashboardStore.globalFilters.length > 0">
+        <div v-if="dashboardStore.globalFilters.length > 0" class="active-filters">
           <span class="filter-label">Filtros Activos:</span>
           <div 
             v-for="f in dashboardStore.globalFilters" 

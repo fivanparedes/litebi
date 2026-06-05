@@ -51,9 +51,9 @@ const handleKeydown = (e) => {
       <div 
         v-if="modelValue" 
         class="modal-overlay" 
+        tabindex="0"
         @click="handleBackdropClick"
         @keydown="handleKeydown"
-        tabindex="0"
       >
         <Transition name="scale">
           <div v-if="modelValue" class="modal-card" :class="`modal-card--${size}`" role="dialog" aria-modal="true">
@@ -65,8 +65,8 @@ const handleKeydown = (e) => {
                 variant="ghost" 
                 size="sm" 
                 icon 
-                @click="close"
                 aria-label="Cerrar modal"
+                @click="close"
               >
                 <X />
               </BaseButton>

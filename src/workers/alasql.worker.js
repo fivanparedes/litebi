@@ -39,13 +39,14 @@ self.onmessage = async (e) => {
         alasql(`DROP TABLE IF EXISTS [${payload.name}]`)
         break
         
-      case 'EXPORT_DB':
+      case 'EXPORT_DB': {
         const tables = {}
         Object.keys(alasql.tables).forEach(t => {
           tables[t] = alasql.tables[t].data
         })
         result = tables
         break
+      }
         
       case 'IMPORT_DB':
         // Clear all

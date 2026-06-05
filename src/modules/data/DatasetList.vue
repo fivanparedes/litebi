@@ -66,7 +66,7 @@ const getTypeIcon = (type) => {
         </div>
       </div>
       
-      <div class="dataset-card__body" v-if="expandedCards[dataset.name]">
+      <div v-if="expandedCards[dataset.name]" class="dataset-card__body">
         <div class="dataset-card__stats">
           <div class="stat">
             <span class="stat__value">{{ formatNumber(dataset.rowCount) }}</span>

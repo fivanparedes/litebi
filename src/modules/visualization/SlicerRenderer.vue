@@ -117,7 +117,7 @@ const clearFilter = () => {
         <h4 class="slicer-title">{{ config.title || config.xAxis }}</h4>
         <div class="header-actions">
           <Loader v-if="isLoading" class="spin-icon" size="14" />
-          <button v-if="activeFilter && !isLoading" class="clear-btn" @click="clearFilter" title="Limpiar Filtro">
+          <button v-if="activeFilter && !isLoading" class="clear-btn" title="Limpiar Filtro" @click="clearFilter">
             <Filter size="14" />
           </button>
         </div>
@@ -128,11 +128,11 @@ const clearFilter = () => {
         <div class="slider-inputs">
           <div class="slider-input-group">
             <label>Desde:</label>
-            <input type="number" v-model.number="sliderRange.min" :min="rangeBounds.min" :max="sliderRange.max" />
+            <input v-model.number="sliderRange.min" type="number" :min="rangeBounds.min" :max="sliderRange.max" />
           </div>
           <div class="slider-input-group">
             <label>Hasta:</label>
-            <input type="number" v-model.number="sliderRange.max" :min="sliderRange.min" :max="rangeBounds.max" />
+            <input v-model.number="sliderRange.max" type="number" :min="sliderRange.min" :max="rangeBounds.max" />
           </div>
         </div>
         <button class="apply-range-btn" @click="applyRangeFilter">Aplicar Rango</button>

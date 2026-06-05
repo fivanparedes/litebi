@@ -74,14 +74,14 @@ const navItems = computed(() => [
         <span v-if="!uiStore.sidebarCollapsed" class="nav-item__label">Manual de Usuario</span>
       </router-link>
       
-      <button class="nav-item collapse-btn" @click="isAboutModalOpen = true" :title="uiStore.sidebarCollapsed ? 'Acerca de' : ''">
+      <button class="nav-item collapse-btn" :title="uiStore.sidebarCollapsed ? 'Acerca de' : ''" @click="isAboutModalOpen = true">
         <Info class="nav-item__icon" />
         <span v-if="!uiStore.sidebarCollapsed" class="nav-item__label">Acerca de</span>
       </button>
 
       <div class="sidebar__divider"></div>
 
-      <button class="nav-item collapse-btn" @click="uiStore.toggleSidebar" :title="uiStore.sidebarCollapsed ? t('nav.expand') : t('nav.collapse')">
+      <button class="nav-item collapse-btn" :title="uiStore.sidebarCollapsed ? t('nav.expand') : t('nav.collapse')" @click="uiStore.toggleSidebar">
         <PanelLeftOpen v-if="uiStore.sidebarCollapsed" class="nav-item__icon" />
         <PanelLeftClose v-else class="nav-item__icon" />
         <span v-if="!uiStore.sidebarCollapsed" class="nav-item__label">Contraer</span>

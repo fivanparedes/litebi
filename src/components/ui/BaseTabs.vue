@@ -29,7 +29,7 @@ const selectTab = (key) => {
         :aria-selected="tab.key === modelValue"
         @click="selectTab(tab.key)"
       >
-        <component v-if="tab.icon" :is="tab.icon" class="tab-icon" />
+        <component :is="tab.icon" v-if="tab.icon" class="tab-icon" />
         {{ tab.label }}
       </button>
     </div>

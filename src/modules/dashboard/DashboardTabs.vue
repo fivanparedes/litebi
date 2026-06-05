@@ -48,9 +48,9 @@ const handleKeydown = (e, tabId) => {
         <input 
           ref="inputRef"
           v-model="editingName"
+          class="tab-input"
           @blur="saveEdit(tab.id)"
           @keydown="(e) => handleKeydown(e, tab.id)"
-          class="tab-input"
         />
       </div>
       <template v-else>
@@ -58,15 +58,15 @@ const handleKeydown = (e, tabId) => {
         <button 
           v-if="dashboardStore.tabs.length > 1 && !uiStore.isViewerMode"
           class="tab-close" 
-          @click.stop="dashboardStore.removeTab(tab.id)"
           title="Eliminar pestaña"
+          @click.stop="dashboardStore.removeTab(tab.id)"
         >
           <X />
         </button>
       </template>
     </div>
     
-    <button v-if="!uiStore.isViewerMode" class="add-tab-btn" @click="dashboardStore.addTab" title="Nuevo Dashboard">
+    <button v-if="!uiStore.isViewerMode" class="add-tab-btn" title="Nuevo Dashboard" @click="dashboardStore.addTab">
       <Plus />
     </button>
   </div>

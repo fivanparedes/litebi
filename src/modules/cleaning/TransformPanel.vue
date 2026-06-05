@@ -101,7 +101,7 @@ const getStepDescription = (step) => {
   <div class="transform-panel">
     <div class="panel-header">
       <h3>Historial de Limpieza</h3>
-      <BaseButton variant="primary" size="sm" icon @click="isAddingStep = true" v-if="!isAddingStep">
+      <BaseButton v-if="!isAddingStep" variant="primary" size="sm" icon @click="isAddingStep = true">
         <Plus />
       </BaseButton>
     </div>
@@ -115,7 +115,7 @@ const getStepDescription = (step) => {
         <BaseDropdown v-model="selectedTransform" :options="transformOptions" />
       </div>
       
-      <div class="form-group" v-if="selectedTransform !== 'remove_duplicates' && selectedTransform !== 'date_diff'">
+      <div v-if="selectedTransform !== 'remove_duplicates' && selectedTransform !== 'date_diff'" class="form-group">
         <label>Columna</label>
         <BaseDropdown v-model="stepConfig.column" :options="columnOptions" placeholder="Selecciona columna" />
       </div>
@@ -123,8 +123,8 @@ const getStepDescription = (step) => {
       <!-- Filter specific fields -->
       <template v-if="selectedTransform === 'filter'">
         <div class="form-row">
-          <BaseDropdown class="op-select" v-model="stepConfig.operator" :options="operatorOptions" />
-          <BaseInput class="val-input" v-model="stepConfig.value" placeholder="Valor..." />
+          <BaseDropdown v-model="stepConfig.operator" class="op-select" :options="operatorOptions" />
+          <BaseInput v-model="stepConfig.value" class="val-input" placeholder="Valor..." />
         </div>
       </template>
       
@@ -183,7 +183,7 @@ const getStepDescription = (step) => {
         <div class="form-row">
           <BaseDropdown v-model="stepConfig.column" :options="columnOptions" placeholder="Fecha Base" />
           <BaseDropdown v-model="stepConfig.dateAddUnit" :options="[{value: 'days', label: 'Días'}, {value: 'months', label: 'Meses'}, {value: 'years', label: 'Años'}]" />
-          <BaseInput type="number" v-model="stepConfig.dateAddAmount" placeholder="Cantidad" />
+          <BaseInput v-model="stepConfig.dateAddAmount" type="number" placeholder="Cantidad" />
         </div>
         <div class="form-row">
           <BaseInput v-model="stepConfig.newColumnName" placeholder="Nueva columna" />
@@ -217,7 +217,7 @@ const getStepDescription = (step) => {
       
       <div class="form-actions">
         <BaseButton variant="ghost" size="sm" @click="isAddingStep = false">Cancelar</BaseButton>
-        <BaseButton variant="primary" size="sm" @click="handleAdd" :disabled="!stepConfig.column && selectedTransform !== 'remove_duplicates'">Aplicar</BaseButton>
+        <BaseButton variant="primary" size="sm" :disabled="!stepConfig.column && selectedTransform !== 'remove_duplicates'" @click="handleAdd">Aplicar</BaseButton>
       </div>
     </div>
     
@@ -236,40 +236,40 @@ const getStepDescription = (step) => {
             <span class="step-item__title">{{ transformOptions.find(o => o.value === step.transformId)?.label }}</span>
           </div>
           <div class="step-item__desc">
-            <div class="step-details" v-if="step.transformId === 'filter'">
+            <div v-if="step.transformId === 'filter'" class="step-details">
               Filtro: {{ step.config.column }} {{ step.config.operator }} {{ step.config.value }}
             </div>
-            <div class="step-details" v-else-if="step.transformId === 'sort'">
+            <div v-else-if="step.transformId === 'sort'" class="step-details">
               Orden: {{ step.config.column }} {{ step.config.direction }}
             </div>
-            <div class="step-details" v-else-if="step.transformId === 'remove_column'">
+            <div v-else-if="step.transformId === 'remove_column'" class="step-details">
               Eliminar: {{ step.config.column }}
             </div>
-            <div class="step-details" v-else-if="step.transformId === 'remove_nulls'">
+            <div v-else-if="step.transformId === 'remove_nulls'" class="step-details">
               Limpiar: Filas nulas en {{ step.config.column }}
             </div>
-            <div class="step-details" v-else-if="step.transformId === 'replace_value'">
+            <div v-else-if="step.transformId === 'replace_value'" class="step-details">
               Reemplazar: "{{ step.config.oldValue || 'null' }}" por "{{ step.config.newValue }}" en {{ step.config.column }}
             </div>
-            <div class="step-details" v-else-if="step.transformId === 'fill_nulls'">
+            <div v-else-if="step.transformId === 'fill_nulls'" class="step-details">
               Rellenar Nulos: {{ step.config.column }} usando {{ step.config.method }}
             </div>
-            <div class="step-details" v-else-if="step.transformId === 'text_transform'">
+            <div v-else-if="step.transformId === 'text_transform'" class="step-details">
               Texto: {{ step.config.operation }} en {{ step.config.column }}
             </div>
-            <div class="step-details" v-else-if="step.transformId === 'remove_duplicates'">
+            <div v-else-if="step.transformId === 'remove_duplicates'" class="step-details">
               Eliminar Duplicados
             </div>
-            <div class="step-details" v-else-if="step.transformId === 'extract_date'">
+            <div v-else-if="step.transformId === 'extract_date'" class="step-details">
               Extraer: {{ step.config.component }} de {{ step.config.column }}
             </div>
-            <div class="step-details" v-else-if="step.transformId === 'groupby'">
+            <div v-else-if="step.transformId === 'groupby'" class="step-details">
               Agrupar por: {{ step.config.column }}, {{ step.config.groupOperation }}({{ step.config.groupMetric }})
             </div>
-            <div class="step-details" v-else-if="step.transformId === 'split'">
+            <div v-else-if="step.transformId === 'split'" class="step-details">
               Dividir: {{ step.config.column }} por "{{ step.config.separator }}"
             </div>
-            <div class="step-details" v-else-if="step.transformId === 'cast'">
+            <div v-else-if="step.transformId === 'cast'" class="step-details">
               Convertir: {{ step.config.column }} a {{ step.config.castType }}
             </div>
           </div>

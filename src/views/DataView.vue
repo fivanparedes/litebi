@@ -131,7 +131,7 @@ const handleGenerateCalendar = () => {
           <h2>{{ $t('data.datasets') }}</h2>
         </div>
         <div class="header-right">
-          <BaseButton variant="secondary" size="sm" @click="openCalendarModal" style="margin-right: 8px;">
+          <BaseButton variant="secondary" size="sm" style="margin-right: 8px;" @click="openCalendarModal">
             <template #icon-left><CalendarDays /></template>
             Crear Calendario
           </BaseButton>
@@ -177,11 +177,11 @@ const handleGenerateCalendar = () => {
       <div style="display: flex; flex-direction: column; gap: 16px; padding: 8px 0;">
         <div>
           <label style="display: block; margin-bottom: 4px; font-size: 14px;">Año de inicio:</label>
-          <BaseInput type="number" v-model="calendarStartYear" />
+          <BaseInput v-model="calendarStartYear" type="number" />
         </div>
         <div>
           <label style="display: block; margin-bottom: 4px; font-size: 14px;">Año de fin:</label>
-          <BaseInput type="number" v-model="calendarEndYear" />
+          <BaseInput v-model="calendarEndYear" type="number" />
         </div>
         <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px;">
           <BaseButton variant="ghost" @click="isCalendarModalOpen = false">Cancelar</BaseButton>

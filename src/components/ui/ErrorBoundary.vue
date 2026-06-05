@@ -27,7 +27,7 @@ const resetError = () => {
       <AlertTriangle class="error-icon" />
       <h3 class="error-title">Error al cargar widget</h3>
       <p class="error-message" :title="errorMessage">{{ errorMessage }}</p>
-      <BaseButton variant="ghost" size="sm" @click="resetError" class="retry-btn">
+      <BaseButton variant="ghost" size="sm" class="retry-btn" @click="resetError">
         <template #icon-left><RefreshCw size="14" /></template>
         Reintentar
       </BaseButton>

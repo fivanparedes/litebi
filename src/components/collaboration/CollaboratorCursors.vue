@@ -6,7 +6,7 @@ const collabStore = useCollaborationStore()
 </script>
 
 <template>
-  <div class="cursors-container" v-if="collabStore.isConnected">
+  <div v-if="collabStore.isConnected" class="cursors-container">
     <template v-for="[id, user] in collabStore.collaborators" :key="id">
       <div 
         v-if="user.cursor"

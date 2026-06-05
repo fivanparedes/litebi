@@ -99,7 +99,7 @@ const confirmExportPPTX = () => {
       
       <!-- Pages Area -->
       <div class="report-body">
-        <div class="pages-scroll-area" id="report-pages-container">
+        <div id="report-pages-container" class="pages-scroll-area">
           <div 
             v-for="(page, index) in reportStore.pages" 
             :key="page.id"
@@ -108,8 +108,8 @@ const confirmExportPPTX = () => {
             <div class="page-header is-export-hidden">
               <span>Página {{ index + 1 }}</span>
               <div class="page-actions">
-                <button class="w-btn" @click="handleAddWidget(page.id)" title="Añadir gráfico"><Plus /></button>
-                <button class="w-btn w-btn-danger" @click="reportStore.removePage(page.id)" title="Eliminar página" v-if="reportStore.pages.length > 1"><X /></button>
+                <button class="w-btn" title="Añadir gráfico" @click="handleAddWidget(page.id)"><Plus /></button>
+                <button v-if="reportStore.pages.length > 1" class="w-btn w-btn-danger" title="Eliminar página" @click="reportStore.removePage(page.id)"><X /></button>
               </div>
             </div>
             <div class="report-page-a4">
@@ -125,7 +125,7 @@ const confirmExportPPTX = () => {
         </div>
         
         <!-- Configurator Sidebar -->
-        <div class="configurator-sidebar" v-if="editingWidgetId">
+        <div v-if="editingWidgetId" class="configurator-sidebar">
           <div class="sidebar-header">
             <h3>Configurar Widget</h3>
             <button class="close-btn" @click="closeEditor"><X size="18" /></button>

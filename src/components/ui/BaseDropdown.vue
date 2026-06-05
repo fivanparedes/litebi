@@ -58,19 +58,19 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="dropdown" ref="dropdownRef" :class="{ 'dropdown--disabled': disabled }">
+  <div ref="dropdownRef" class="dropdown" :class="{ 'dropdown--disabled': disabled }">
     <div 
       class="dropdown__trigger" 
       role="combobox"
       aria-haspopup="listbox"
       :aria-expanded="isOpen"
-      @click="toggleDropdown"
       tabindex="0"
+      @click="toggleDropdown"
       @keydown.enter="toggleDropdown"
       @keydown.space.prevent="toggleDropdown"
     >
       <span v-if="selectedOption" class="dropdown__selected">
-        <component v-if="selectedOption.icon" :is="selectedOption.icon" class="dropdown__icon" />
+        <component :is="selectedOption.icon" v-if="selectedOption.icon" class="dropdown__icon" />
         {{ selectedOption.label }}
       </span>
       <span v-else class="dropdown__placeholder">{{ placeholder }}</span>
@@ -88,7 +88,7 @@ onUnmounted(() => {
           :class="{ 'dropdown__item--selected': option.value === modelValue }"
           @click="selectOption(option)"
         >
-          <component v-if="option.icon" :is="option.icon" class="dropdown__item-icon" />
+          <component :is="option.icon" v-if="option.icon" class="dropdown__item-icon" />
           <span class="dropdown__item-label">{{ option.label }}</span>
           <Check v-if="option.value === modelValue" class="dropdown__item-check" />
         </div>

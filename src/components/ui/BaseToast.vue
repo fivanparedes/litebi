@@ -29,8 +29,8 @@ const getIcon = (type) => {
         <span class="toast__message">{{ toast.message }}</span>
         <button 
           class="toast__close" 
-          @click="uiStore.removeToast(toast.id)"
           aria-label="Cerrar notificación"
+          @click="uiStore.removeToast(toast.id)"
         >
           <X />
         </button>

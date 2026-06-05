@@ -60,7 +60,7 @@ const getTypeIcon = (type) => {
               <span class="column-item__name">{{ col.name }}</span>
             </div>
             
-            <button v-if="col.isCalculated" class="edit-btn" @click.stop="emit('edit-column', { ...col, datasetName: dataset.name })" title="Editar Fórmula">
+            <button v-if="col.isCalculated" class="edit-btn" title="Editar Fórmula" @click.stop="emit('edit-column', { ...col, datasetName: dataset.name })">
               <Pencil />
             </button>
           </div>

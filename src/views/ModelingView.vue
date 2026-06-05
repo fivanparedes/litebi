@@ -118,7 +118,7 @@ watch(() => datasets.value.length, () => {
     </div>
 
     <!-- The Canvas -->
-    <div class="canvas-container" ref="canvasRef">
+    <div ref="canvasRef" class="canvas-container">
       <!-- SVG Layer for Connections -->
       <svg class="connections-layer" width="100%" height="100%">
         <path 
@@ -134,7 +134,7 @@ watch(() => datasets.value.length, () => {
 
       <!-- Tables Layer -->
       <div class="tables-layer">
-        <div v-for="ds in datasets" :key="ds.name" class="table-card" :id="`table-${ds.name}`">
+        <div v-for="ds in datasets" :id="`table-${ds.name}`" :key="ds.name" class="table-card">
           <div class="table-header">
             <h3>{{ ds.meta.originalName }}</h3>
             <span class="badge">{{ ds.meta.rowCount }} rows</span>
@@ -142,11 +142,11 @@ watch(() => datasets.value.length, () => {
           <div class="table-columns">
             <div 
               v-for="col in ds.meta.schema" 
+              :id="`col-${ds.name}-${col.name}`"
               :key="col.name"
               class="column-item"
-              :id="`col-${ds.name}-${col.name}`"
             >
-              <Key class="key-icon" v-if="relationships.some(r => (r.fromTable === ds.name && r.fromColumn === col.name) || (r.toTable === ds.name && r.toColumn === col.name))" />
+              <Key v-if="relationships.some(r => (r.fromTable === ds.name && r.fromColumn === col.name) || (r.toTable === ds.name && r.toColumn === col.name))" class="key-icon" />
               <div class="col-type-indicator" :class="`type-${col.type}`"></div>
               <span>{{ col.name }}</span>
             </div>
@@ -156,7 +156,7 @@ watch(() => datasets.value.length, () => {
     </div>
 
     <!-- Existing Relationships List (for easy deletion) -->
-    <div class="relations-list" v-if="relationships.length > 0">
+    <div v-if="relationships.length > 0" class="relations-list">
       <h3>Relaciones Activas</h3>
       <div v-for="rel in relationships" :key="rel.id" class="rel-item">
         <div class="rel-desc">
@@ -197,7 +197,7 @@ watch(() => datasets.value.length, () => {
       </div>
       <template #footer>
         <BaseButton variant="ghost" @click="isModalOpen = false">Cancelar</BaseButton>
-        <BaseButton @click="handleAddRel" :disabled="!newRel.fromTable || !newRel.fromColumn || !newRel.toTable || !newRel.toColumn">Crear Relación</BaseButton>
+        <BaseButton :disabled="!newRel.fromTable || !newRel.fromColumn || !newRel.toTable || !newRel.toColumn" @click="handleAddRel">Crear Relación</BaseButton>
       </template>
     </BaseModal>
   </div>

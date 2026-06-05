@@ -14,7 +14,7 @@ const uiStore = useUiStore()
       <main class="app-layout__content">
         <router-view v-slot="{ Component, route }">
           <transition name="fade" mode="out-in">
-            <component :is="Component" :key="route.path" v-if="Component" />
+            <component :is="Component" v-if="Component" :key="route.path" />
           </transition>
         </router-view>
       </main>

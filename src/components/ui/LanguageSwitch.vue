@@ -21,9 +21,9 @@ const currentLangLabel = computed(() => locale.value.toUpperCase())
   <BaseButton
     variant="ghost"
     size="sm"
-    @click="toggleLanguage"
     class="language-switch"
     :title="$t('header.language')"
+    @click="toggleLanguage"
   >
     <template #icon-left>
       <Globe />

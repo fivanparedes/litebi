@@ -209,49 +209,49 @@ const handleExportPDF = async () => {
           v-if="isEditingName && !uiStore.isViewerMode"
           ref="nameInputRef"
           v-model="tempName"
+          class="project-name-input"
           @blur="saveName"
           @keyup.enter="saveName"
-          class="project-name-input"
         />
-        <div v-else class="project-name-display" @click="!uiStore.isViewerMode && startEditingName()" title="Renombrar proyecto">
+        <div v-else class="project-name-display" title="Renombrar proyecto" @click="!uiStore.isViewerMode && startEditingName()">
           <h1 class="app-header__title">{{ projectStore.projectName }} <span v-if="uiStore.isViewerMode" style="font-size: 0.8rem; background: var(--color-bg-secondary); padding: 2px 6px; border-radius: 4px; margin-left: 8px;">Visor</span></h1>
-          <span class="saving-indicator" v-if="projectStore.isSaving" title="Guardando..."><RefreshCw class="spin-icon" size="14" /></span>
-          <span class="dirty-indicator" v-else-if="projectStore.isDirty">*</span>
+          <span v-if="projectStore.isSaving" class="saving-indicator" title="Guardando..."><RefreshCw class="spin-icon" size="14" /></span>
+          <span v-else-if="projectStore.isDirty" class="dirty-indicator">*</span>
           <Pencil v-if="!uiStore.isViewerMode" class="edit-icon" size="14" />
         </div>
       </div>
-      <div class="view-subtitle" v-if="viewTitle">/ {{ viewTitle }}</div>
+      <div v-if="viewTitle" class="view-subtitle">/ {{ viewTitle }}</div>
     </div>
 
     <div class="app-header__right">
-      <input type="file" accept=".litebi,.litebiview,.litebitemplate,.json" style="display: none" ref="fileInputRef" @change="handleOpenProject" />
+      <input ref="fileInputRef" type="file" accept=".litebi,.litebiview,.litebitemplate,.json" style="display: none" @change="handleOpenProject" />
       
       <div class="action-group">
-        <BaseButton v-if="!uiStore.isViewerMode" variant="ghost" size="sm" @click="handleNewProject" title="Nuevo Proyecto">
+        <BaseButton v-if="!uiStore.isViewerMode" variant="ghost" size="sm" title="Nuevo Proyecto" @click="handleNewProject">
           <FilePlus />
         </BaseButton>
-        <BaseButton variant="ghost" size="sm" @click="triggerOpen" title="Abrir Proyecto (.litebi)">
+        <BaseButton variant="ghost" size="sm" title="Abrir Proyecto (.litebi)" @click="triggerOpen">
           <FolderOpen />
         </BaseButton>
-        <BaseButton v-if="!uiStore.isViewerMode" variant="ghost" size="sm" @click="handleSaveProject" title="Guardar Proyecto">
+        <BaseButton v-if="!uiStore.isViewerMode" variant="ghost" size="sm" title="Guardar Proyecto" @click="handleSaveProject">
           <Save />
         </BaseButton>
-        <BaseButton v-if="!uiStore.isViewerMode" variant="ghost" size="sm" @click="handleSaveAs" title="Guardar como...">
+        <BaseButton v-if="!uiStore.isViewerMode" variant="ghost" size="sm" title="Guardar como..." @click="handleSaveAs">
           <SaveAll />
         </BaseButton>
-        <BaseButton v-if="!uiStore.isViewerMode" variant="ghost" size="sm" @click="handleExportViewer" title="Compartir a Visor">
+        <BaseButton v-if="!uiStore.isViewerMode" variant="ghost" size="sm" title="Compartir a Visor" @click="handleExportViewer">
           <Share2 />
         </BaseButton>
-        <BaseButton v-if="!uiStore.isViewerMode" variant="ghost" size="sm" @click="handleExportTemplate" title="Guardar como Plantilla">
+        <BaseButton v-if="!uiStore.isViewerMode" variant="ghost" size="sm" title="Guardar como Plantilla" @click="handleExportTemplate">
           <LayoutTemplate />
         </BaseButton>
       </div>
       
-      <div class="action-group" v-if="isDashboard">
-        <BaseButton variant="ghost" size="sm" @click="handleExportPNG" title="Exportar a PNG">
+      <div v-if="isDashboard" class="action-group">
+        <BaseButton variant="ghost" size="sm" title="Exportar a PNG" @click="handleExportPNG">
           <Image />
         </BaseButton>
-        <BaseButton variant="ghost" size="sm" @click="handleExportPDF" title="Exportar a PDF">
+        <BaseButton variant="ghost" size="sm" title="Exportar a PDF" @click="handleExportPDF">
           <FileText />
         </BaseButton>
       </div>
@@ -259,7 +259,7 @@ const handleExportPDF = async () => {
       <div class="divider"></div>
       
       <!-- Collaboration Avatars -->
-      <div class="collab-avatars" v-if="collabStore.isConnected">
+      <div v-if="collabStore.isConnected" class="collab-avatars">
         <div 
           class="avatar local-avatar" 
           :style="{ backgroundColor: collabStore.userColor }"

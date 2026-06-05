@@ -116,8 +116,8 @@ const loadExampleData = async () => {
       @click="!isLoading && triggerFileInput()"
     >
       <input 
-        type="file" 
         ref="fileInput" 
+        type="file" 
         class="file-input" 
         accept=".csv, .xlsx, .xls"
         @change="handleFileSelect"
@@ -146,7 +146,7 @@ const loadExampleData = async () => {
       <div class="divider">
         <span>O</span>
       </div>
-      <BaseButton variant="secondary" @click="loadExampleData" :disabled="isLoading">
+      <BaseButton variant="secondary" :disabled="isLoading" @click="loadExampleData">
         <template #icon-left><FileSpreadsheet /></template>
         {{ $t('data.loadExample') }}
       </BaseButton>

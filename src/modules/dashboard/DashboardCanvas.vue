@@ -159,7 +159,7 @@ const handleMouseMove = (e) => {
 </script>
 
 <template>
-  <div class="canvas-wrapper" ref="canvasWrapperRef" @mousemove="handleMouseMove" style="position: relative;">
+  <div ref="canvasWrapperRef" class="canvas-wrapper" style="position: relative;" @mousemove="handleMouseMove">
     <CollaboratorCursors />
     <div ref="gridElement" class="grid-stack">
       <!-- GridStack handles DOM generation based on load() -->
@@ -174,13 +174,14 @@ const handleMouseMove = (e) => {
         :gs-w="widget.w"
         :gs-h="widget.h"
       >
-        <div class="grid-stack-item-content custom-widget" :style="[
+        <div
+class="grid-stack-item-content custom-widget" :style="[
           widget.config?.styles?.backgroundColor ? { backgroundColor: widget.config.styles.backgroundColor } : {},
           widget.config?.styles?.borderRadius ? { borderRadius: widget.config.styles.borderRadius + 'px' } : {}
         ]">
           <div class="widget-header" :style="uiStore.isViewerMode ? { cursor: 'default' } : {}">
             <span class="widget-title">{{ widget.config?.title || (widget.config?.type === 'slicer' ? 'Segmentador' : 'Gráfico') }}</span>
-            <div class="widget-actions" v-if="!uiStore.isViewerMode">
+            <div v-if="!uiStore.isViewerMode" class="widget-actions">
               <button class="w-btn" @click.stop="emit('edit-widget', widget.id)"><Settings /></button>
               <button class="w-btn w-btn-danger" @click.stop="emit('remove-widget', widget.id)"><X /></button>
             </div>

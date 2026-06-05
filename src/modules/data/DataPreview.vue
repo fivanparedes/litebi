@@ -23,7 +23,7 @@ const formatValue = (val) => {
 </script>
 
 <template>
-  <div class="data-preview" v-if="activeDataset">
+  <div v-if="activeDataset" class="data-preview">
     <div class="preview-header">
       <div class="preview-title">
         <h3>{{ $t('data.preview') }}: {{ activeDataset.originalName }}</h3>

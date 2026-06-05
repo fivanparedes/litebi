@@ -139,9 +139,9 @@ const handleTest = async () => {
 <template>
   <BaseModal 
     :model-value="modelValue" 
-    @update:model-value="$emit('update:modelValue', $event)" 
-    :title="title"
+    :title="title" 
     size="md"
+    @update:model-value="$emit('update:modelValue', $event)"
   >
     <div class="connector-form">
       <div v-if="error" class="error-banner">
@@ -186,7 +186,7 @@ const handleTest = async () => {
         
         <div class="form-group checkbox-group">
           <label class="checkbox-label">
-            <input type="checkbox" v-model="credentials.useCorsProxy" />
+            <input v-model="credentials.useCorsProxy" type="checkbox" />
             <span class="custom-checkbox"></span>
             Usar Proxy CORS (Evita bloqueos del navegador)
           </label>
@@ -224,10 +224,10 @@ const handleTest = async () => {
 
     <template #footer>
       <div class="footer-actions">
-        <BaseButton variant="ghost" @click="handleTest" :disabled="isLoading">
+        <BaseButton variant="ghost" :disabled="isLoading" @click="handleTest">
           Probar Conexión
         </BaseButton>
-        <BaseButton variant="primary" @click="handleConnect" :disabled="isLoading">
+        <BaseButton variant="primary" :disabled="isLoading" @click="handleConnect">
           <template #icon-left>
             <Loader2 v-if="isLoading" class="spin" />
             <Play v-else />

@@ -62,7 +62,7 @@ const scrollTo = (id) => {
       <!-- Main Content -->
       <main class="help-content">
         <div class="manual-container">
-          <div class="markdown-body" ref="contentRef" v-html="htmlContent"></div>
+          <div ref="contentRef" class="markdown-body" v-html="htmlContent"></div>
         </div>
       </main>
     </div>

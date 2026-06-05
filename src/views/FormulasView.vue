@@ -152,11 +152,11 @@ const handleSave = () => {
           </div>
           
           <div class="action-buttons">
-            <BaseButton variant="secondary" @click="handleTest" :disabled="!expression">
+            <BaseButton variant="secondary" :disabled="!expression" @click="handleTest">
               <template #icon-left><Play /></template>
               Probar Fómula
             </BaseButton>
-            <BaseButton variant="primary" @click="handleSave" :disabled="!expression || !columnName">
+            <BaseButton variant="primary" :disabled="!expression || !columnName" @click="handleSave">
               <template #icon-left><Save /></template>
               Guardar Columna
             </BaseButton>

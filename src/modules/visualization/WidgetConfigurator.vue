@@ -109,73 +109,73 @@ const updateField = (field, value) => {
       <div class="form-group">
         <label>Dataset Origen</label>
         <BaseDropdown 
-          :modelValue="config.dataset || dataStore.activeDatasetName" 
-          @update:modelValue="val => updateField('dataset', val)"
-          :options="datasetOptions" 
+          :model-value="config.dataset || dataStore.activeDatasetName" 
+          :options="datasetOptions"
+          @update:model-value="val => updateField('dataset', val)" 
         />
       </div>
 
       <div class="form-group">
         <label>Título del Widget</label>
         <BaseInput 
-          :modelValue="config.title || ''" 
-          @update:modelValue="val => updateField('title', val)"
+          :model-value="config.title || ''" 
           placeholder="Ej: Ventas por Región"
+          @update:model-value="val => updateField('title', val)"
         />
       </div>
       
       <div class="form-group">
         <label>Tipo de Gráfico</label>
         <BaseDropdown 
-          :modelValue="config.type || 'bar'" 
-          @update:modelValue="val => updateField('type', val)"
-          :options="chartTypeOptions" 
+          :model-value="config.type || 'bar'" 
+          :options="chartTypeOptions"
+          @update:model-value="val => updateField('type', val)" 
         />
       </div>
       
       <div v-if="config.type !== 'kpi' && config.type !== 'pie' && config.type !== 'scatter' && config.type !== 'slicer'" class="form-group">
         <label>Orientación</label>
         <BaseDropdown 
-          :modelValue="config.orientation || 'vertical'" 
-          @update:modelValue="val => updateField('orientation', val)"
-          :options="[{value:'vertical', label:'Vertical'}, {value:'horizontal', label:'Horizontal'}]" 
+          :model-value="config.orientation || 'vertical'" 
+          :options="[{value:'vertical', label:'Vertical'}, {value:'horizontal', label:'Horizontal'}]"
+          @update:model-value="val => updateField('orientation', val)" 
         />
       </div>
       
       <hr class="divider" />
       
-      <div class="form-group" v-if="config.type === 'slicer'">
+      <div v-if="config.type === 'slicer'" class="form-group">
         <label>Tipo de Segmentador</label>
         <BaseDropdown 
-          :modelValue="config.slicerType || 'list'" 
-          @update:modelValue="val => updateField('slicerType', val)"
-          :options="[{value:'list', label:'Lista (Botones)'}, {value:'slider', label:'Rango (Slider Numérico/Fechas)'}]" 
+          :model-value="config.slicerType || 'list'" 
+          :options="[{value:'list', label:'Lista (Botones)'}, {value:'slider', label:'Rango (Slider Numérico/Fechas)'}]"
+          @update:model-value="val => updateField('slicerType', val)" 
         />
       </div>
 
-      <div class="form-group" v-if="config.type === 'map'">
+      <div v-if="config.type === 'map'" class="form-group">
         <label>Modo de Mapa</label>
         <BaseDropdown 
-          :modelValue="config.mapMode || 'choropleth'" 
-          @update:modelValue="val => updateField('mapMode', val)"
-          :options="[{value:'choropleth', label:'Áreas Pintadas (Regiones)'}, {value:'scatter', label:'Puntos (Coordenadas)'}]" 
+          :model-value="config.mapMode || 'choropleth'" 
+          :options="[{value:'choropleth', label:'Áreas Pintadas (Regiones)'}, {value:'scatter', label:'Puntos (Coordenadas)'}]"
+          @update:model-value="val => updateField('mapMode', val)" 
         />
       </div>
 
       <!-- Dimensión (X) -->
-      <div class="form-group" v-if="config.type !== 'kpi' && config.type !== 'gauge'">
+      <div v-if="config.type !== 'kpi' && config.type !== 'gauge'" class="form-group">
         <label>{{ config.type === 'scatter' ? 'Eje X (Numérico)' : config.type === 'slicer' ? 'Campo a Filtrar' : config.type === 'map' ? (config.mapMode === 'scatter' ? 'Longitud (X)' : 'Región (Nombre del País)') : 'Dimensión (Categoría)' }}</label>
         <BaseDropdown 
-          :modelValue="config.xAxis || ''" 
-          @update:modelValue="val => updateField('xAxis', val)"
-          :options="(config.type === 'scatter' || (config.type === 'map' && config.mapMode === 'scatter')) ? numericColumnOptions : columnOptions" 
-          placeholder="Seleccionar columna..."
+          :model-value="config.xAxis || ''" 
+          :options="(config.type === 'scatter' || (config.type === 'map' && config.mapMode === 'scatter')) ? numericColumnOptions : columnOptions"
+          placeholder="Seleccionar columna..." 
+          @update:model-value="val => updateField('xAxis', val)"
         />
         <BaseInput 
           v-if="config.xAxis"
-          :modelValue="config.xAxisLabel || ''" 
-          @update:modelValue="val => updateField('xAxisLabel', val)"
+          :model-value="config.xAxisLabel || ''" 
           placeholder="Etiqueta personalizada (Opcional)"
+          @update:model-value="val => updateField('xAxisLabel', val)"
         />
       </div>
       
@@ -184,52 +184,52 @@ const updateField = (field, value) => {
         <div class="form-group">
           <label>{{ config.type === 'kpi' ? 'Métrica a Calcular' : config.type === 'scatter' ? 'Eje Y (Numérico)' : config.type === 'map' && config.mapMode === 'scatter' ? 'Latitud (Y)' : 'Métrica (Eje Y)' }}</label>
           <BaseDropdown 
-            :modelValue="config.yAxis || ''" 
-            @update:modelValue="val => updateField('yAxis', val)"
-            :options="numericColumnOptions" 
-            placeholder="Seleccionar métrica numérica..."
+            :model-value="config.yAxis || ''" 
+            :options="numericColumnOptions"
+            placeholder="Seleccionar métrica numérica..." 
+            @update:model-value="val => updateField('yAxis', val)"
           />
           <BaseInput 
             v-if="config.yAxis"
-            :modelValue="config.yAxisLabel || ''" 
-            @update:modelValue="val => updateField('yAxisLabel', val)"
+            :model-value="config.yAxisLabel || ''" 
             placeholder="Etiqueta personalizada (Opcional)"
+            @update:model-value="val => updateField('yAxisLabel', val)"
           />
         </div>
         
         <!-- Combo Chart Secondary Y Axis or Heatmap Y Axis -->
-        <div class="form-group" v-if="config.type === 'combo' || config.type === 'line' || config.type === 'heatmap' || (config.type === 'map' && config.mapMode === 'scatter')">
+        <div v-if="config.type === 'combo' || config.type === 'line' || config.type === 'heatmap' || (config.type === 'map' && config.mapMode === 'scatter')" class="form-group">
           <label>{{ config.type === 'heatmap' ? 'Eje Y (Categoría Secundaria)' : config.type === 'map' ? 'Métrica (Tamaño/Color)' : 'Métrica Secundaria (Opcional)' }}</label>
           <BaseDropdown 
-            :modelValue="config.secondaryYAxis || ''" 
-            @update:modelValue="val => updateField('secondaryYAxis', val)"
-            :options="config.type === 'heatmap' ? columnOptions : numericColumnOptions" 
-            placeholder="Seleccionar métrica secundaria..."
+            :model-value="config.secondaryYAxis || ''" 
+            :options="config.type === 'heatmap' ? columnOptions : numericColumnOptions"
+            placeholder="Seleccionar métrica secundaria..." 
+            @update:model-value="val => updateField('secondaryYAxis', val)"
           />
           <BaseInput 
             v-if="config.secondaryYAxis"
-            :modelValue="config.secondaryYAxisLabel || ''" 
-            @update:modelValue="val => updateField('secondaryYAxisLabel', val)"
+            :model-value="config.secondaryYAxisLabel || ''" 
             placeholder="Etiqueta personalizada (Opcional)"
+            @update:model-value="val => updateField('secondaryYAxisLabel', val)"
           />
         </div>
 
         <!-- Gauge Target Value -->
-        <div class="form-group" v-if="config.type === 'gauge'">
+        <div v-if="config.type === 'gauge'" class="form-group">
           <label>Valor Meta (Target)</label>
           <BaseInput 
-            :modelValue="config.targetValue || 100" 
-            @update:modelValue="val => updateField('targetValue', Number(val))"
+            :model-value="config.targetValue || 100" 
             type="number"
+            @update:model-value="val => updateField('targetValue', Number(val))"
           />
         </div>
         
-        <div class="form-group" v-if="config.type !== 'scatter' && !(config.type === 'map' && config.mapMode === 'scatter')">
+        <div v-if="config.type !== 'scatter' && !(config.type === 'map' && config.mapMode === 'scatter')" class="form-group">
           <label>Agregación</label>
           <BaseDropdown 
-            :modelValue="config.aggregation || 'SUM'" 
-            @update:modelValue="val => updateField('aggregation', val)"
-            :options="aggregationOptions" 
+            :model-value="config.aggregation || 'SUM'" 
+            :options="aggregationOptions"
+            @update:model-value="val => updateField('aggregation', val)" 
           />
         </div>
       </template>
@@ -237,52 +237,52 @@ const updateField = (field, value) => {
       <hr class="divider" />
       
       <h4>Estilo y Diseño</h4>
-      <div class="form-group" v-if="config.type === 'line'">
+      <div v-if="config.type === 'line'" class="form-group">
         <label>Rellenar Área bajo la Curva</label>
         <BaseDropdown 
-          :modelValue="config.styles?.fillArea === true ? 'true' : 'false'" 
-          @update:modelValue="val => updateField('styles', { ...(config.styles || {}), fillArea: val === 'true' })"
-          :options="[{value:'true', label:'Sí'}, {value:'false', label:'No'}]" 
+          :model-value="config.styles?.fillArea === true ? 'true' : 'false'" 
+          :options="[{value:'true', label:'Sí'}, {value:'false', label:'No'}]"
+          @update:model-value="val => updateField('styles', { ...(config.styles || {}), fillArea: val === 'true' })" 
         />
       </div>
       <div class="form-group">
         <label>Mostrar Leyenda</label>
         <BaseDropdown 
-          :modelValue="config.styles?.showLegend === false ? 'false' : 'true'" 
-          @update:modelValue="val => updateField('styles', { ...(config.styles || {}), showLegend: val === 'true' })"
-          :options="[{value:'true', label:'Sí'}, {value:'false', label:'No'}]" 
+          :model-value="config.styles?.showLegend === false ? 'false' : 'true'" 
+          :options="[{value:'true', label:'Sí'}, {value:'false', label:'No'}]"
+          @update:model-value="val => updateField('styles', { ...(config.styles || {}), showLegend: val === 'true' })" 
         />
       </div>
       <div class="form-group">
         <label>Mostrar Ejes / Etiquetas</label>
         <BaseDropdown 
-          :modelValue="config.styles?.showAxisLabels === false ? 'false' : 'true'" 
-          @update:modelValue="val => updateField('styles', { ...(config.styles || {}), showAxisLabels: val === 'true' })"
-          :options="[{value:'true', label:'Sí'}, {value:'false', label:'No'}]" 
+          :model-value="config.styles?.showAxisLabels === false ? 'false' : 'true'" 
+          :options="[{value:'true', label:'Sí'}, {value:'false', label:'No'}]"
+          @update:model-value="val => updateField('styles', { ...(config.styles || {}), showAxisLabels: val === 'true' })" 
         />
       </div>
       <div class="form-group">
         <label>Redondeo (Border Radius)</label>
         <BaseInput 
-          :modelValue="config.styles?.borderRadius || 0" 
-          @update:modelValue="val => updateField('styles', { ...(config.styles || {}), borderRadius: Number(val) })"
+          :model-value="config.styles?.borderRadius || 0" 
           type="number"
+          @update:model-value="val => updateField('styles', { ...(config.styles || {}), borderRadius: Number(val) })"
         />
       </div>
       <div class="form-group">
         <label>Color de Fondo</label>
         <BaseInput 
-          :modelValue="config.styles?.backgroundColor || ''" 
-          @update:modelValue="val => updateField('styles', { ...(config.styles || {}), backgroundColor: val })"
+          :model-value="config.styles?.backgroundColor || ''" 
           placeholder="Ej: #ffffff, transparent"
+          @update:model-value="val => updateField('styles', { ...(config.styles || {}), backgroundColor: val })"
         />
       </div>
       <div class="form-group">
         <label>Paleta Personalizada (Hex, sep. comas)</label>
         <BaseInput 
-          :modelValue="config.styles?.customColors ? config.styles.customColors.join(',') : ''" 
-          @update:modelValue="val => updateField('styles', { ...(config.styles || {}), customColors: val.split(',').map(c => c.trim()).filter(c => c) })"
+          :model-value="config.styles?.customColors ? config.styles.customColors.join(',') : ''" 
           placeholder="Ej: #ff0000,#00ff00"
+          @update:model-value="val => updateField('styles', { ...(config.styles || {}), customColors: val.split(',').map(c => c.trim()).filter(c => c) })"
         />
       </div>
 
@@ -293,22 +293,21 @@ const updateField = (field, value) => {
         <div class="form-group">
           <label>Tendencia (Regresión)</label>
           <BaseDropdown 
-            :modelValue="config.ml?.regressionType || 'none'" 
-            @update:modelValue="val => updateField('ml', { ...(config.ml || {}), regressionType: val })"
+            :model-value="config.ml?.regressionType || 'none'" 
             :options="[
               {value: 'none', label: 'Ninguna'},
               {value: 'linear', label: 'Lineal'},
               {value: 'exponential', label: 'Exponencial'},
               {value: 'polynomial', label: 'Polinómica'}
-            ]" 
+            ]"
+            @update:model-value="val => updateField('ml', { ...(config.ml || {}), regressionType: val })" 
           />
         </div>
         
-        <div class="form-group" v-if="config.type === 'scatter'">
+        <div v-if="config.type === 'scatter'" class="form-group">
           <label>Agrupamiento (K-Means Clustering)</label>
           <BaseDropdown 
-            :modelValue="config.ml?.clusterCount || 'none'" 
-            @update:modelValue="val => updateField('ml', { ...(config.ml || {}), clusterCount: val })"
+            :model-value="config.ml?.clusterCount || 'none'" 
             :options="[
               {value: 'none', label: 'Ninguno'},
               {value: '2', label: '2 Clusters'},
@@ -316,7 +315,8 @@ const updateField = (field, value) => {
               {value: '4', label: '4 Clusters'},
               {value: '5', label: '5 Clusters'},
               {value: '6', label: '6 Clusters'}
-            ]" 
+            ]"
+            @update:model-value="val => updateField('ml', { ...(config.ml || {}), clusterCount: val })" 
           />
         </div>
       </template>
