@@ -107,28 +107,30 @@ export const exportToPPTX = async (elementId, title = 'Dashboard Report', filena
         const instance = getInstanceByDom(echartWrapper)
         if (instance) {
           const option = instance.getOption()
-          // Desactivar animaciones para la captura estática
-          option.animation = false
-          
-          const hiddenDiv = document.createElement('div')
-          hiddenDiv.style.width = '960px'
-          hiddenDiv.style.height = '480px' // Proporción ideal para 16:9 dejando espacio para título
-          hiddenDiv.style.position = 'absolute'
-          hiddenDiv.style.top = '-9999px'
-          document.body.appendChild(hiddenDiv)
-          
-          try {
-            // Re-renderizar usando el mismo tema
-            const hiddenChart = init(hiddenDiv, 'business')
-            hiddenChart.setOption(option)
-            // Pequeño delay para asegurar renderizado completo
-            await new Promise(r => setTimeout(r, 100))
-            imgData = hiddenChart.getDataURL({ type: 'png', pixelRatio: 2, backgroundColor: '#FFFFFF' })
-            hiddenChart.dispose()
-          } catch (e) {
-            console.error("Error re-rendering chart for PPTX:", e)
-          } finally {
-            document.body.removeChild(hiddenDiv)
+          if (option) {
+            // Desactivar animaciones para la captura estática
+            option.animation = false
+            
+            const hiddenDiv = document.createElement('div')
+            hiddenDiv.style.width = '960px'
+            hiddenDiv.style.height = '480px' // Proporción ideal para 16:9 dejando espacio para título
+            hiddenDiv.style.position = 'absolute'
+            hiddenDiv.style.top = '-9999px'
+            document.body.appendChild(hiddenDiv)
+            
+            try {
+              // Re-renderizar usando el mismo tema
+              const hiddenChart = init(hiddenDiv, 'business')
+              hiddenChart.setOption(option)
+              // Pequeño delay para asegurar renderizado completo
+              await new Promise(r => setTimeout(r, 100))
+              imgData = hiddenChart.getDataURL({ type: 'png', pixelRatio: 2, backgroundColor: '#FFFFFF' })
+              hiddenChart.dispose()
+            } catch (e) {
+              console.error("Error re-rendering chart for PPTX:", e)
+            } finally {
+              document.body.removeChild(hiddenDiv)
+            }
           }
         }
       }

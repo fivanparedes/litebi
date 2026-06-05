@@ -136,6 +136,41 @@
 - **Descripción**: Ya que los datos viven en el navegador, implementar WebRTC (Yjs) para que dos personas puedan editar un mismo proyecto `.litebi` a la vez en la misma red o mediante enlaces temporales sin servidor central.
 - **Criterio de completitud**: Cursores múltiples en pantalla y cambios sincronizados en vivo usando CRDTs.
 
+### Etapa 15: Persistencia Local Avanzada (IndexedDB)
+- **Estado**: ⬜ No iniciada
+- **Descripción**: Transicionar el guardado de estado en memoria (RAM) a IndexedDB utilizando librerías como `localForage`. Esto permitirá a los usuarios trabajar con archivos pesados sin perder sus avances si el navegador se refresca inesperadamente.
+- **Criterio de completitud**: Al recargar la pestaña (F5), el dashboard y los datos importados permanecen intactos sin necesidad de guardar en `.litebi` manualmente.
+
+### Etapa 16: Multithreading con Web Workers
+- **Estado**: ⬜ No iniciada
+- **Descripción**: Mover el motor de procesamiento de AlaSQL, parseo de CSV/XLSX y cálculos matemáticos pesados a Web Workers. Esto evitará que la UI se congele (UI Blocking) mientras se procesan datasets masivos o consultas complejas.
+- **Criterio de completitud**: Importación de archivos >50MB y agrupación (GROUP BY) sin trabar las animaciones de la UI.
+
+### Etapa 17: Query Caching y Lazy Loading
+- **Estado**: ⬜ No iniciada
+- **Descripción**: Implementar un sistema de caché de consultas para los widgets (si la data y los filtros no cambiaron, usar el caché) y garantizar que librerías pesadas (ej: exportadores PDF, mapas detallados) se carguen dinámicamente (`import()`) solo cuando sean requeridas. Además de añadir *Error Boundaries* en los componentes de Vue para contener fallos.
+- **Criterio de completitud**: Reducción del tamaño inicial del bundle y navegación instantánea entre pestañas de dashboards complejos.
+
+### Etapa 18: Conectores a Bases de Datos Externas (Live Data)
+- **Estado**: ⬜ No iniciada
+- **Descripción**: Ampliar LiteBI para que no solo dependa de archivos locales. Desarrollar conectores API (o un micro-backend puente) para traer datos en vivo desde fuentes SQL (PostgreSQL, MySQL, SQL Server) y APIs empresariales (Salesforce, Google Analytics).
+- **Criterio de completitud**: Componente de nueva conexión ("Conectar a BDD") permitiendo queries directas o programadas.
+
+### Etapa 19: Asistente IA (Natural Language to Chart)
+- **Estado**: ⬜ No iniciada
+- **Descripción**: Integrar soporte con LLMs (como Gemini) para que el usuario pueda escribir: *"Muéstrame las ventas de 2025 agrupadas por país"* y LiteBI genere automáticamente la consulta AlaSQL y el widget visual adecuado.
+- **Criterio de completitud**: Un chatbot o barra de búsqueda en el Dashboard que renderice gráficos dinámicamente según lenguaje natural.
+
+### Etapa 20: Modo de Solo-Lectura y Compartir (Viewer Mode)
+- **Estado**: ⬜ No iniciada
+- **Descripción**: Crear una vista especial donde la barra lateral y opciones de configuración estén bloqueadas. Permite empaquetar el dashboard actual en un enlace o archivo `.html` para compartirlo con gerentes/stakeholders, dándoles capacidad de filtrar, pero no de editar/romper el modelo de datos.
+- **Criterio de completitud**: Nuevo botón "Share / Export to Viewer", generando un layout simplificado.
+
+### Etapa 21: Plantillas y Temas Corporativos
+- **Estado**: ⬜ No iniciada
+- **Descripción**: Poder guardar un dashboard como "Template" para futuros proyectos y establecer un "Brand Kit" (subir Logo de la empresa, paleta de colores corporativa obligatoria) que todos los gráficos heredarán por defecto.
+- **Criterio de completitud**: Editor de temas globales y capacidad de guardar un `.litebi-template`.
+
 ---
 
 ## Stores Pinia — APIs Públicas

@@ -32,7 +32,10 @@ const transformOptions = [
   { value: 'remove_duplicates', label: 'Eliminar Duplicados', icon: Trash2 },
   { value: 'extract_date', label: 'Extraer Fecha', icon: Check },
   { value: 'date_diff', label: 'Diferencia de Fechas', icon: Check },
-  { value: 'date_add', label: 'Desplazar Fecha', icon: Check }
+  { value: 'date_add', label: 'Desplazar Fecha', icon: Check },
+  { value: 'groupby', label: 'Agrupar (Group By)', icon: Check },
+  { value: 'split', label: 'Dividir Columna (Split)', icon: Check },
+  { value: 'cast', label: 'Convertir Tipo (Cast)', icon: Check }
 ]
 
 const columnOptions = computed(() => {
@@ -54,7 +57,11 @@ const stepConfig = ref({
   dateColumn2: '',
   dateDiffUnit: 'days',
   dateAddAmount: 1,
-  dateAddUnit: 'days'
+  dateAddUnit: 'days',
+  separator: ',',
+  castType: 'number',
+  groupOperation: 'SUM',
+  groupMetric: ''
 })
 
 const operatorOptions = [
@@ -182,6 +189,31 @@ const getStepDescription = (step) => {
           <BaseInput v-model="stepConfig.newColumnName" placeholder="Nueva columna" />
         </div>
       </template>
+
+      <!-- Group By fields -->
+      <template v-if="selectedTransform === 'groupby'">
+        <div class="form-row">
+          <BaseDropdown v-model="stepConfig.column" :options="columnOptions" placeholder="Columna a Agrupar" />
+          <BaseDropdown v-model="stepConfig.groupMetric" :options="columnOptions" placeholder="Métrica" />
+        </div>
+        <div class="form-row">
+          <BaseDropdown v-model="stepConfig.groupOperation" :options="[{value:'SUM', label:'Suma'}, {value:'AVG', label:'Promedio'}, {value:'MIN', label:'Mínimo'}, {value:'MAX', label:'Máximo'}, {value:'COUNT', label:'Conteo'}]" />
+        </div>
+      </template>
+
+      <!-- Split fields -->
+      <template v-if="selectedTransform === 'split'">
+        <div class="form-row">
+          <BaseInput v-model="stepConfig.separator" placeholder="Separador (ej: , o - o espacio)" />
+        </div>
+      </template>
+
+      <!-- Cast fields -->
+      <template v-if="selectedTransform === 'cast'">
+        <div class="form-row">
+          <BaseDropdown v-model="stepConfig.castType" :options="[{value:'number', label:'Número'}, {value:'string', label:'Texto'}, {value:'date', label:'Fecha'}]" />
+        </div>
+      </template>
       
       <div class="form-actions">
         <BaseButton variant="ghost" size="sm" @click="isAddingStep = false">Cancelar</BaseButton>
@@ -230,6 +262,15 @@ const getStepDescription = (step) => {
             </div>
             <div class="step-details" v-else-if="step.transformId === 'extract_date'">
               Extraer: {{ step.config.component }} de {{ step.config.column }}
+            </div>
+            <div class="step-details" v-else-if="step.transformId === 'groupby'">
+              Agrupar por: {{ step.config.column }}, {{ step.config.groupOperation }}({{ step.config.groupMetric }})
+            </div>
+            <div class="step-details" v-else-if="step.transformId === 'split'">
+              Dividir: {{ step.config.column }} por "{{ step.config.separator }}"
+            </div>
+            <div class="step-details" v-else-if="step.transformId === 'cast'">
+              Convertir: {{ step.config.column }} a {{ step.config.castType }}
             </div>
           </div>
         </div>

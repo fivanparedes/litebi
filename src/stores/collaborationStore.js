@@ -85,11 +85,8 @@ export const useCollaborationStore = defineStore('collaboration', () => {
 
   // React to room name changes
   watch(() => settingsStore.roomName, () => {
-    connect() // reconnect to new room
+    if (isConnected.value) connect() // reconnect to new room only if already connected
   })
-
-  // Connect initially
-  connect()
 
   return {
     ydoc,

@@ -60,9 +60,9 @@ const initGrid = () => {
           w: node.w,
           h: node.h,
           type: node.type,
-          config: node.el?.getAttribute('data-config') ? JSON.parse(node.el.getAttribute('data-config')) : (props.layout.find(w => w.id === widgetId)?.config || {})
+          config: props.layout.find(w => w.id === widgetId)?.config || {}
         }
-      }).filter(n => n.id) // Prevenir corrupciA3n de estado
+      }).filter(n => n.id) // Prevenir corrupción de estado
       
       emit('update:layout', updatedLayout)
     })
@@ -105,6 +105,7 @@ watch(() => props.layout, async (newLayout) => {
   
   // Damos un margen a que las animaciones terminen para evitar eventos `change` rezagados
   setTimeout(() => {
+    if (!grid) return
     // Force sync the layout back to Vue so Vue's VNode matches GridStack's calculated positions
     const updatedLayout = grid.engine.nodes.map(node => {
       const widgetId = node.id || node.el?.getAttribute('gs-id') || node.el?.id;
@@ -115,7 +116,7 @@ watch(() => props.layout, async (newLayout) => {
         w: node.w,
         h: node.h,
         type: node.type,
-        config: node.el?.getAttribute('data-config') ? JSON.parse(node.el.getAttribute('data-config')) : (props.layout.find(w => w.id === widgetId)?.config || {})
+        config: props.layout.find(w => w.id === widgetId)?.config || {}
       }
     }).filter(n => n.id)
     
@@ -156,9 +157,11 @@ const handleMouseMove = (e) => {
         :gs-y="widget.y"
         :gs-w="widget.w"
         :gs-h="widget.h"
-        :data-config="JSON.stringify(widget.config || {})"
       >
-        <div class="grid-stack-item-content custom-widget">
+        <div class="grid-stack-item-content custom-widget" :style="[
+          widget.config?.styles?.backgroundColor ? { backgroundColor: widget.config.styles.backgroundColor } : {},
+          widget.config?.styles?.borderRadius ? { borderRadius: widget.config.styles.borderRadius + 'px' } : {}
+        ]">
           <div class="widget-header">
             <span class="widget-title">{{ widget.config?.title || (widget.config?.type === 'slicer' ? 'Segmentador' : 'Gráfico') }}</span>
             <div class="widget-actions">

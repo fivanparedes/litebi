@@ -1,19 +1,21 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref, watch, onMounted } from 'vue'
 import alasql from 'alasql'
 import { useDataStore } from '@/stores/dataStore'
 import { useDashboardStore } from '@/stores/dashboardStore'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { use, registerTheme } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
-import { BarChart, LineChart, PieChart, ScatterChart, BoxplotChart, FunnelChart, GaugeChart } from 'echarts/charts'
+import { BarChart, LineChart, PieChart, ScatterChart, BoxplotChart, FunnelChart, GaugeChart, HeatmapChart, TreemapChart, RadarChart } from 'echarts/charts'
 import {
   TitleComponent,
   TooltipComponent,
   LegendComponent,
   GridComponent,
-  DatasetComponent
+  DatasetComponent,
+  VisualMapComponent
 } from 'echarts/components'
+import { MapChart } from 'echarts/charts'
 import VChart from 'vue-echarts'
 import { businessTheme } from './themes/businessTheme'
 
@@ -27,11 +29,16 @@ use([
   BoxplotChart,
   FunnelChart,
   GaugeChart,
+  HeatmapChart,
+  TreemapChart,
+  RadarChart,
+  MapChart,
   TitleComponent,
   TooltipComponent,
   LegendComponent,
   GridComponent,
-  DatasetComponent
+  DatasetComponent,
+  VisualMapComponent
 ])
 
 // Register custom theme
@@ -49,9 +56,72 @@ const dataStore = useDataStore()
 const dashboardStore = useDashboardStore()
 const settingsStore = useSettingsStore()
 
-const chartData = computed(() => {
-  if (props.config.type === 'kpi') return [] // KPI no usa chartData
-  if (!props.config.dataset || !props.config.xAxis || !props.config.yAxis) return []
+const chartData = ref([])
+const kpiValue = ref(0)
+const isLoading = ref(false)
+
+const loadData = async () => {
+  if (!props.config) return
+
+  isLoading.value = true
+  // Permitir que el hilo de UI se libere antes de cálculos pesados
+  await new Promise(resolve => setTimeout(resolve, 0))
+
+  if (props.config.type === 'kpi') {
+    if (!props.config.yAxis || !props.config.dataset) {
+      kpiValue.value = 0
+      isLoading.value = false
+      return
+    }
+    
+    const rawY = props.config.yAxis
+    const agg = props.config.aggregation || 'SUM'
+    const dsName = props.config.dataset
+
+    const parseCol = (colStr) => colStr.includes('].[') ? colStr : `[${dsName}].[${colStr}]`
+    const extractTable = (colStr) => colStr.includes('].[') ? colStr.split('].[')[0].replace('[', '') : dsName
+    
+    let globalWhere = ''
+    const requiredTables = [dsName, extractTable(rawY)]
+    
+    dashboardStore.globalFilters.forEach(f => {
+      const safeVal = typeof f.value === 'string' ? String(f.value).replace(/'/g, "''") : f.value
+      const colName = f.column.includes('].[') ? f.column : `[${f.dataset}].[${f.column}]`
+      requiredTables.push(extractTable(f.column) || f.dataset)
+      
+      if (f.operator === 'BETWEEN') {
+        const safeVal2 = typeof f.value2 === 'string' ? String(f.value2).replace(/'/g, "''") : f.value2
+        const v1 = typeof f.value === 'number' ? f.value : `'${safeVal}'`
+        const v2 = typeof f.value2 === 'number' ? f.value2 : `'${safeVal2}'`
+        globalWhere += ` AND ${colName} BETWEEN ${v1} AND ${v2}`
+      } else {
+        const v1 = typeof f.value === 'number' ? f.value : `'${safeVal}'`
+        globalWhere += ` AND ${colName} ${f.operator || '='} ${v1}`
+      }
+    })
+
+    try {
+      const ySafe = parseCol(rawY)
+      const uniqueRequiredTables = [...new Set(requiredTables)]
+      const fromClause = dataStore.buildJoinQuery(dsName, uniqueRequiredTables)
+
+      const q = `SELECT ${agg}(${ySafe}) as [total] FROM ${fromClause} WHERE ${ySafe} IS NOT NULL${globalWhere}`
+      const res = alasql(q)
+      kpiValue.value = res[0]?.total || 0
+    } catch (e) {
+      kpiValue.value = 0
+    }
+    chartData.value = []
+    isLoading.value = false
+    return
+  }
+
+  // Not KPI
+  if (!props.config.dataset || !props.config.xAxis || !props.config.yAxis) {
+    chartData.value = []
+    isLoading.value = false
+    return
+  }
   
   const dsName = props.config.dataset
   const rawX = props.config.xAxis
@@ -59,27 +129,14 @@ const chartData = computed(() => {
   const rawY2 = props.config.secondaryYAxis
   const agg = props.config.aggregation || 'SUM'
   
-  const parseCol = (colStr) => {
-    if (colStr.includes('].[')) return colStr
-    return `[${dsName}].[${colStr}]`
-  }
-  
-  const extractTable = (colStr) => {
-    if (!colStr) return dsName
-    if (colStr.includes('].[')) {
-      return colStr.split('].[')[0].replace('[', '')
-    }
-    return dsName
-  }
+  const parseCol = (colStr) => colStr.includes('].[') ? colStr : `[${dsName}].[${colStr}]`
+  const extractTable = (colStr) => colStr && colStr.includes('].[') ? colStr.split('].[')[0].replace('[', '') : dsName
 
-  // Inject global filters
-  const dashboardStore = useDashboardStore()
   let globalWhere = ''
   const requiredTables = [dsName, extractTable(rawX), extractTable(rawY)]
   if (rawY2) requiredTables.push(extractTable(rawY2))
   
   dashboardStore.globalFilters.forEach(f => {
-    // Escape single quotes for SQL safety
     const safeVal = typeof f.value === 'string' ? String(f.value).replace(/'/g, "''") : f.value
     const colName = f.column.includes('].[') ? f.column : `[${f.dataset}].[${f.column}]`
     requiredTables.push(extractTable(f.column) || f.dataset)
@@ -95,10 +152,8 @@ const chartData = computed(() => {
     }
   })
 
-  // Dedup tables
   const uniqueRequiredTables = [...new Set(requiredTables)]
 
-  // Need to execute AlaSQL to group the data
   try {
     const xSafe = parseCol(rawX)
     const ySafe = parseCol(rawY)
@@ -107,80 +162,63 @@ const chartData = computed(() => {
     
     if (props.config.type === 'scatter' || props.config.type === 'boxplot') {
       const q = `SELECT TOP 2000 ${xSafe} as [name], ${ySafe} as [value] FROM ${fromClause} WHERE ${xSafe} IS NOT NULL AND ${ySafe} IS NOT NULL${globalWhere}`
-      return alasql(q)
+      chartData.value = alasql(q)
+      isLoading.value = false
+      return
+    }
+
+    if (props.config.type === 'heatmap' && rawY2) {
+      const ySafe2 = parseCol(rawY2)
+      const q = `SELECT ${xSafe} as [name], ${ySafe2} as [name2], ${agg}(${ySafe}) as [value] FROM ${fromClause} WHERE ${xSafe} IS NOT NULL AND ${ySafe2} IS NOT NULL${globalWhere} GROUP BY ${xSafe}, ${ySafe2} LIMIT 1000`
+      chartData.value = alasql(q)
+      isLoading.value = false
+      return
     }
 
     if (props.config.type === 'combo' && rawY2) {
       const ySafe2 = parseCol(rawY2)
       const q = `SELECT ${xSafe} as [name], ${agg}(${ySafe}) as [value], ${agg}(${ySafe2}) as [value2] FROM ${fromClause} WHERE ${xSafe} IS NOT NULL${globalWhere} GROUP BY ${xSafe} ORDER BY [value] DESC LIMIT 100`
-      return alasql(q)
+      chartData.value = alasql(q)
+      isLoading.value = false
+      return
     }
 
     if (props.config.type === 'gauge') {
       const q = `SELECT ${agg}(${ySafe}) as [value] FROM ${fromClause} WHERE ${ySafe} IS NOT NULL${globalWhere}`
-      return alasql(q)
+      chartData.value = alasql(q)
+      isLoading.value = false
+      return
     }
     
-    // Grouping query for normal charts
     const q = `SELECT ${xSafe} as [name], ${agg}(${ySafe}) as [value] FROM ${fromClause} WHERE ${xSafe} IS NOT NULL${globalWhere} GROUP BY ${xSafe} ORDER BY [value] DESC LIMIT 100`
-    return alasql(q)
+    chartData.value = alasql(q)
   } catch (e) {
     console.error("Error generating chart data:", e)
-    return []
+    chartData.value = []
   }
-})
+  isLoading.value = false
+}
 
-const kpiValue = computed(() => {
-  if (props.config.type !== 'kpi' || !props.config.yAxis || !props.config.dataset) return 0
-  
-  // KPI aggregates all rows into a single number
-  const rawY = props.config.yAxis
-  const agg = props.config.aggregation || 'SUM'
-  const dsName = props.config.dataset
+// Watch global filters and config to recalculate data
+let filterTimeout
+watch(() => [props.config, dashboardStore.globalFilters, dataStore.dataVersion], () => {
+  clearTimeout(filterTimeout)
+  filterTimeout = setTimeout(() => {
+    loadData()
+  }, 100)
+}, { deep: true })
 
-  const parseCol = (colStr) => {
-    if (colStr.includes('].[')) return colStr
-    return `[${dsName}].[${colStr}]`
-  }
-  
-  const extractTable = (colStr) => {
-    if (colStr.includes('].[')) {
-      return colStr.split('].[')[0].replace('[', '')
+onMounted(async () => {
+  if (!echarts.getMap('world')) {
+    try {
+      const res = await fetch('https://cdn.jsdelivr.net/npm/echarts@4.9.0/map/json/world.json')
+      const geoJson = await res.json()
+      echarts.registerMap('world', geoJson)
+    } catch (e) {
+      console.error('Error fetching map data:', e)
     }
-    return dsName
   }
-  
-  const dashboardStore = useDashboardStore()
-  let globalWhere = ''
-  const requiredTables = [dsName, extractTable(rawY)]
-  
-  dashboardStore.globalFilters.forEach(f => {
-    const safeVal = typeof f.value === 'string' ? String(f.value).replace(/'/g, "''") : f.value
-    const colName = f.column.includes('].[') ? f.column : `[${f.dataset}].[${f.column}]`
-    requiredTables.push(extractTable(f.column) || f.dataset)
-    
-    if (f.operator === 'BETWEEN') {
-      const safeVal2 = typeof f.value2 === 'string' ? String(f.value2).replace(/'/g, "''") : f.value2
-      const v1 = typeof f.value === 'number' ? f.value : `'${safeVal}'`
-      const v2 = typeof f.value2 === 'number' ? f.value2 : `'${safeVal2}'`
-      globalWhere += ` AND ${colName} BETWEEN ${v1} AND ${v2}`
-    } else {
-      const v1 = typeof f.value === 'number' ? f.value : `'${safeVal}'`
-      globalWhere += ` AND ${colName} ${f.operator || '='} ${v1}`
-    }
-  })
-
-  try {
-    const ySafe = parseCol(rawY)
-    const uniqueRequiredTables = [...new Set(requiredTables)]
-    const fromClause = dataStore.buildJoinQuery(dsName, uniqueRequiredTables)
-
-    const q = `SELECT ${agg}(${ySafe}) as [total] FROM ${fromClause} WHERE ${ySafe} IS NOT NULL${globalWhere}`
-    const res = alasql(q)
-    return res[0]?.total || 0
-  } catch (e) {
-    return 0
-  }
+  loadData()
 })
 
 const formattedKpi = computed(() => {
@@ -198,20 +236,24 @@ const echartOptions = computed(() => {
   const seriesData = data.map(d => d.value)
   
   const baseOption = {
-    color: settingsStore.currentChartColors,
+    color: props.config.styles?.customColors?.length ? props.config.styles.customColors : settingsStore.currentChartColors,
     title: {
       text: props.config.title || '',
       left: 'left',
       padding: [0, 0, 16, 0]
     },
-    tooltip: { trigger: ctype === 'pie' ? 'item' : 'axis' },
+    tooltip: { trigger: ctype === 'pie' || ctype === 'map' ? 'item' : 'axis' },
     grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true }
+  }
+  
+  if (props.config.styles?.showLegend !== false) {
+    baseOption.legend = { type: 'scroll', bottom: 0 }
   }
 
   if (ctype === 'pie') {
     return {
       ...baseOption,
-      legend: { orient: 'vertical', right: 0, top: 'center' },
+      legend: props.config.styles?.showLegend === false ? undefined : { orient: 'vertical', right: 0, top: 'center' },
       series: [
         {
           name: props.config.yAxis,
@@ -235,7 +277,9 @@ const echartOptions = computed(() => {
       series: [{
         symbolSize: 10,
         data: data.map(d => [d.name, d.value]),
-        type: 'scatter'
+        type: 'scatter',
+        large: true,
+        largeThreshold: 500
       }]
     }
   }
@@ -248,8 +292,8 @@ const echartOptions = computed(() => {
       xAxis: { type: 'category', data: xAxisData },
       yAxis: [{ type: 'value', name: props.config.yAxis }, { type: 'value', name: props.config.secondaryYAxis }],
       series: [
-        { name: props.config.yAxis, type: 'bar', data: seriesData },
-        { name: props.config.secondaryYAxis, type: 'line', yAxisIndex: 1, data: data2 }
+        { name: props.config.yAxis, type: 'bar', data: seriesData, large: true, largeThreshold: 500 },
+        { name: props.config.secondaryYAxis, type: 'line', yAxisIndex: 1, data: data2, large: true, largeThreshold: 500 }
       ]
     }
   }
@@ -332,20 +376,132 @@ const echartOptions = computed(() => {
     }
   }
 
+  if (ctype === 'heatmap') {
+    const xCats = [...new Set(data.map(d => d.name))]
+    const yCats = [...new Set(data.map(d => d.name2))]
+    const mapData = data.map(d => [xCats.indexOf(d.name), yCats.indexOf(d.name2), d.value])
+    const maxVal = Math.max(...data.map(d => d.value))
+    
+    return {
+      ...baseOption,
+      tooltip: { position: 'top' },
+      grid: { height: '70%', top: '10%' },
+      xAxis: { type: 'category', data: xCats, splitArea: { show: true } },
+      yAxis: { type: 'category', data: yCats, splitArea: { show: true } },
+      visualMap: { min: 0, max: maxVal, calculable: true, orient: 'horizontal', left: 'center', bottom: '0%' },
+      series: [{
+        name: props.config.yAxis,
+        type: 'heatmap',
+        data: mapData,
+        label: { show: true },
+        emphasis: { itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0, 0, 0, 0.5)' } }
+      }]
+    }
+  }
+
+  if (ctype === 'treemap') {
+    return {
+      ...baseOption,
+      series: [{
+        type: 'treemap',
+        data: data.map(d => ({ name: d.name, value: d.value })),
+        roam: false,
+        label: { show: true, formatter: '{b}\n{c}' }
+      }]
+    }
+  }
+
+  if (ctype === 'radar') {
+    const maxVal = Math.max(...data.map(d => d.value))
+    return {
+      ...baseOption,
+      radar: {
+        indicator: data.map(d => ({ name: d.name, max: maxVal * 1.1 }))
+      },
+      series: [{
+        name: props.config.yAxis,
+        type: 'radar',
+        data: [{ value: seriesData, name: props.config.yAxis }]
+      }]
+    }
+  }
+  
+  if (ctype === 'map') {
+    const maxVal = Math.max(...seriesData, 1)
+    const minVal = Math.min(...seriesData, 0)
+    return {
+      ...baseOption,
+      visualMap: {
+        left: 'right',
+        min: minVal,
+        max: maxVal,
+        inRange: { color: ['#e0ffff', '#006edd'] },
+        text: ['High', 'Low'],
+        calculable: true
+      },
+      series: [{
+        name: props.config.yAxis,
+        type: 'map',
+        map: 'world',
+        roam: true,
+        data: data.map(d => ({ name: d.name, value: d.value }))
+      }]
+    }
+  }
+
+  if (ctype === 'waterfall') {
+    const helpData = []
+    const barData = []
+    let currentSum = 0
+    
+    data.forEach(d => {
+      const val = Number(d.value)
+      if (val >= 0) {
+        helpData.push(currentSum)
+        barData.push({ value: val, itemStyle: { color: '#91cc75' } })
+        currentSum += val
+      } else {
+        currentSum += val
+        helpData.push(currentSum)
+        barData.push({ value: Math.abs(val), itemStyle: { color: '#ee6666' } })
+      }
+    })
+    
+    return {
+      ...baseOption,
+      tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, formatter: function (params) {
+        const tar = params[1]
+        return tar ? tar.name + '<br/>' + tar.seriesName + ' : ' + tar.value : ''
+      }},
+      xAxis: { type: 'category', splitLine: { show: false }, data: xAxisData },
+      yAxis: { type: 'value' },
+      series: [
+        { name: 'Placeholder', type: 'bar', stack: 'Total', itemStyle: { borderColor: 'transparent', color: 'transparent' }, emphasis: { itemStyle: { borderColor: 'transparent', color: 'transparent' } }, data: helpData },
+        { name: props.config.yAxis, type: 'bar', stack: 'Total', label: { show: true, position: 'top' }, data: barData }
+      ]
+    }
+  }
+
   if (ctype === 'grid') return null // Grid no usa echarts
 
   const isHorizontal = props.config.orientation === 'horizontal'
   
+  const showXAxis = props.config.styles?.showAxisLabels !== false
+  const showYAxis = props.config.styles?.showAxisLabels !== false
+  
   return {
     ...baseOption,
-    xAxis: isHorizontal ? { type: 'value' } : { type: 'category', data: xAxisData, axisLabel: { interval: 'auto', rotate: 30 } },
-    yAxis: isHorizontal ? { type: 'category', data: xAxisData, axisLabel: { interval: 'auto', width: 100, overflow: 'truncate' } } : { type: 'value' },
+    xAxis: isHorizontal ? { type: 'value', show: showXAxis } : { type: 'category', data: xAxisData, show: showXAxis, axisLabel: { interval: 'auto', rotate: 30 } },
+    yAxis: isHorizontal ? { type: 'category', data: xAxisData, show: showYAxis, axisLabel: { interval: 'auto', width: 100, overflow: 'truncate' } } : { type: 'value', show: showYAxis },
     series: [
       {
         name: props.config.yAxis,
         type: ctype,
         data: seriesData,
-        areaStyle: ctype === 'line' ? { opacity: 0.1 } : undefined
+        areaStyle: ctype === 'line' ? { opacity: 0.1 } : undefined,
+        large: true,
+        largeThreshold: 500,
+        itemStyle: props.config.styles?.borderRadius ? { borderRadius: props.config.styles.borderRadius } : undefined
       }
     ]
   }

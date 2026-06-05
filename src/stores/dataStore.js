@@ -11,6 +11,7 @@ export const useDataStore = defineStore('data', () => {
   const datasets = ref(new Map())
   const activeDatasetName = ref(null)
   const relationships = ref([])
+  const dataVersion = ref(0)
   
   // AlaSQL config
   alasql.options.cache = false
@@ -52,6 +53,8 @@ export const useDataStore = defineStore('data', () => {
         activeDatasetName.value = safeName
       }
       
+      dataVersion.value++
+      
       uiStore.addToast({
         message: `Dataset "${name}" importado con éxito (${cleanedData.length} filas)`,
         type: 'success'
@@ -77,6 +80,8 @@ export const useDataStore = defineStore('data', () => {
         const nextActive = datasets.value.keys().next().value
         activeDatasetName.value = nextActive || null
       }
+      
+      dataVersion.value++
       
       uiStore.addToast({
         message: `Dataset "${name}" eliminado`,
@@ -212,6 +217,7 @@ export const useDataStore = defineStore('data', () => {
     removeRelationship,
     buildJoinQuery,
     generateCalendarTable,
+    dataVersion,
     
     // Getters exported via destructuring implicitly
     datasetList

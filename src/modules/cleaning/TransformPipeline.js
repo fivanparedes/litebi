@@ -230,8 +230,51 @@ export class TransformPipeline {
             }
           })
         }
+        else if (step.transformId === 'groupby') {
+          const { column, groupOperation, groupMetric } = step.config
+          const result = alasql(`SELECT [${column}], ${groupOperation}([${groupMetric}]) AS [${groupMetric}] FROM [${this.tempTableName}] GROUP BY [${column}]`)
+          alasql.tables[this.tempTableName].data = result
+          currentColumns = [column, groupMetric]
+        }
+        else if (step.transformId === 'split') {
+          const { column, separator } = step.config
+          const data = alasql.tables[this.tempTableName].data
+          
+          let maxSplits = 0
+          data.forEach(row => {
+            if (row[column] && typeof row[column] === 'string') {
+              const parts = row[column].split(separator)
+              if (parts.length > maxSplits) maxSplits = parts.length
+              parts.forEach((p, i) => {
+                row[`${column}_part${i+1}`] = p.trim()
+              })
+            }
+          })
+          
+          for (let i = 1; i <= maxSplits; i++) {
+            const newCol = `${column}_part${i}`
+            if (!currentColumns.includes(newCol)) currentColumns.push(newCol)
+          }
+        }
+        else if (step.transformId === 'cast') {
+          const { column, castType } = step.config
+          const data = alasql.tables[this.tempTableName].data
+          
+          data.forEach(row => {
+            if (row[column] != null) {
+              if (castType === 'number') {
+                const num = Number(row[column])
+                row[column] = isNaN(num) ? null : num
+              } else if (castType === 'string') {
+                row[column] = String(row[column])
+              } else if (castType === 'date') {
+                const d = new Date(row[column])
+                row[column] = isNaN(d.getTime()) ? null : d.toISOString()
+              }
+            }
+          })
+        }
       }
-      
       // Update schema based on currentColumns
       const newSchema = currentColumns.map(colName => {
         const existing = this.originalSchema.find(c => c.name === colName)

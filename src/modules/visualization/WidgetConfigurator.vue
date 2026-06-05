@@ -64,13 +64,18 @@ const chartTypeOptions = [
   { value: 'line', label: 'Gráfico de Líneas' },
   { value: 'pie', label: 'Gráfico de Torta' },
   { value: 'scatter', label: 'Dispersión (Scatter)' },
+  { value: 'heatmap', label: 'Mapa de Calor (Heatmap)' },
+  { value: 'treemap', label: 'Mapa de Árbol (Treemap)' },
+  { value: 'radar', label: 'Radar' },
+  { value: 'waterfall', label: 'Cascada (Waterfall)' },
   { value: 'kpi', label: 'Tarjeta KPI' },
   { value: 'slicer', label: 'Segmentador (Filtro)' },
   { value: 'boxplot', label: 'Cajas y Bigotes (Boxplot)' },
   { value: 'grid', label: 'Tabla de Datos (Grid)' },
   { value: 'combo', label: 'Combinado (Barras + Líneas)' },
   { value: 'funnel', label: 'Embudo (Funnel)' },
-  { value: 'gauge', label: 'Medidor de Metas (Gauge)' }
+  { value: 'gauge', label: 'Medidor de Metas (Gauge)' },
+  { value: 'map', label: 'Mapa Político (Map)' }
 ]
 
 const aggregationOptions = [
@@ -134,7 +139,7 @@ const updateField = (field, value) => {
 
       <!-- Dimensión (X) -->
       <div class="form-group" v-if="config.type !== 'kpi' && config.type !== 'gauge'">
-        <label>{{ config.type === 'scatter' ? 'Eje X (Numérico)' : config.type === 'slicer' ? 'Campo a Filtrar' : 'Dimensión (Categoría)' }}</label>
+        <label>{{ config.type === 'scatter' ? 'Eje X (Numérico)' : config.type === 'slicer' ? 'Campo a Filtrar' : config.type === 'map' ? 'Región (Nombre del País)' : 'Dimensión (Categoría)' }}</label>
         <BaseDropdown 
           :modelValue="config.xAxis || ''" 
           @update:modelValue="val => updateField('xAxis', val)"
@@ -155,13 +160,13 @@ const updateField = (field, value) => {
           />
         </div>
         
-        <!-- Combo Chart Secondary Y Axis -->
-        <div class="form-group" v-if="config.type === 'combo'">
-          <label>Métrica Secundaria (Eje Y2 - Línea)</label>
+        <!-- Combo Chart Secondary Y Axis or Heatmap Y Axis -->
+        <div class="form-group" v-if="config.type === 'combo' || config.type === 'heatmap'">
+          <label>{{ config.type === 'heatmap' ? 'Eje Y (Categoría Secundaria)' : 'Métrica Secundaria (Eje Y2 - Línea)' }}</label>
           <BaseDropdown 
             :modelValue="config.secondaryYAxis || ''" 
             @update:modelValue="val => updateField('secondaryYAxis', val)"
-            :options="numericColumnOptions" 
+            :options="config.type === 'heatmap' ? columnOptions : numericColumnOptions" 
             placeholder="Seleccionar métrica secundaria..."
           />
         </div>
@@ -185,6 +190,50 @@ const updateField = (field, value) => {
           />
         </div>
       </template>
+      
+      <hr class="divider" />
+      
+      <h4>Estilo y Diseño</h4>
+      <div class="form-group">
+        <label>Mostrar Leyenda</label>
+        <BaseDropdown 
+          :modelValue="config.styles?.showLegend === false ? 'false' : 'true'" 
+          @update:modelValue="val => updateField('styles', { ...(config.styles || {}), showLegend: val === 'true' })"
+          :options="[{value:'true', label:'Sí'}, {value:'false', label:'No'}]" 
+        />
+      </div>
+      <div class="form-group">
+        <label>Mostrar Ejes / Etiquetas</label>
+        <BaseDropdown 
+          :modelValue="config.styles?.showAxisLabels === false ? 'false' : 'true'" 
+          @update:modelValue="val => updateField('styles', { ...(config.styles || {}), showAxisLabels: val === 'true' })"
+          :options="[{value:'true', label:'Sí'}, {value:'false', label:'No'}]" 
+        />
+      </div>
+      <div class="form-group">
+        <label>Redondeo (Border Radius)</label>
+        <BaseInput 
+          :modelValue="config.styles?.borderRadius || 0" 
+          @update:modelValue="val => updateField('styles', { ...(config.styles || {}), borderRadius: Number(val) })"
+          type="number"
+        />
+      </div>
+      <div class="form-group">
+        <label>Color de Fondo</label>
+        <BaseInput 
+          :modelValue="config.styles?.backgroundColor || ''" 
+          @update:modelValue="val => updateField('styles', { ...(config.styles || {}), backgroundColor: val })"
+          placeholder="Ej: #ffffff, transparent"
+        />
+      </div>
+      <div class="form-group">
+        <label>Paleta Personalizada (Hex, sep. comas)</label>
+        <BaseInput 
+          :modelValue="config.styles?.customColors ? config.styles.customColors.join(',') : ''" 
+          @update:modelValue="val => updateField('styles', { ...(config.styles || {}), customColors: val.split(',').map(c => c.trim()).filter(c => c) })"
+          placeholder="Ej: #ff0000,#00ff00"
+        />
+      </div>
     </div>
   </div>
 </template>
