@@ -4,7 +4,7 @@ import { useDataStore } from '@/stores/dataStore'
 import { useDashboardStore } from '@/stores/dashboardStore'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { sqlClient } from '@/modules/data/SqlWorkerClient'
-import { use, registerTheme, registerMap, getMap } from 'echarts/core'
+import { use, registerTheme, registerMap, getMap, registerTransform } from 'echarts/core'
 import { Loader } from '@lucide/vue'
 import { CanvasRenderer } from 'echarts/renderers'
 import { BarChart, LineChart, PieChart, ScatterChart, BoxplotChart, FunnelChart, GaugeChart, HeatmapChart, TreemapChart, RadarChart } from 'echarts/charts'
@@ -14,12 +14,17 @@ import {
   LegendComponent,
   GridComponent,
   DatasetComponent,
+  TransformComponent,
   VisualMapComponent,
   GeoComponent
 } from 'echarts/components'
 import { MapChart } from 'echarts/charts'
 import VChart from 'vue-echarts'
 import { businessTheme } from './themes/businessTheme'
+import ecStat from 'echarts-stat'
+
+registerTransform(ecStat.transform.regression)
+registerTransform(ecStat.transform.clustering)
 
 // Register ECharts core and components
 use([
@@ -40,6 +45,7 @@ use([
   LegendComponent,
   GridComponent,
   DatasetComponent,
+  TransformComponent,
   VisualMapComponent,
   GeoComponent
 ])
@@ -265,19 +271,74 @@ const chartStrategies = {
       }
     ]
   }),
-  scatter: (baseOption, data, props) => ({
-    ...baseOption,
-    tooltip: { trigger: 'item' },
-    xAxis: { name: props.config.xAxis, type: 'value', scale: true },
-    yAxis: { name: props.config.yAxis, type: 'value', scale: true },
-    series: [{
-      symbolSize: 10,
-      data: data.map(d => [d.name, d.value]),
-      type: 'scatter',
-      large: true,
-      largeThreshold: 500
-    }]
-  }),
+  scatter: (baseOption, data, props) => {
+    const rawData = data.map(d => [d.name, d.value])
+    const result = {
+      ...baseOption,
+      tooltip: { trigger: 'item' },
+      xAxis: { name: props.config.xAxis, type: 'value', scale: true },
+      yAxis: { name: props.config.yAxis, type: 'value', scale: true },
+      dataset: [{ source: rawData }],
+      series: [{
+        symbolSize: 10,
+        datasetIndex: 0,
+        type: 'scatter',
+        large: true,
+        largeThreshold: 500
+      }]
+    }
+
+    if (props.config.ml) {
+      if (props.config.ml.regressionType && props.config.ml.regressionType !== 'none') {
+        result.dataset.push({
+          transform: {
+            type: 'ecStat:regression',
+            config: { method: props.config.ml.regressionType }
+          }
+        })
+        result.series.push({
+          name: 'Regresión',
+          type: 'line',
+          datasetIndex: result.dataset.length - 1,
+          symbolSize: 0.1,
+          symbol: 'circle',
+          label: { show: true, fontSize: 16 },
+          labelLayout: { dx: -20 },
+          encode: { label: 2, tooltip: 1 }
+        })
+      }
+
+      if (props.config.ml.clusterCount && props.config.ml.clusterCount !== 'none') {
+        const k = Number(props.config.ml.clusterCount)
+        result.dataset.push({
+          transform: {
+            type: 'ecStat:clustering',
+            config: { clusterCount: k, outputType: 'single', outputClusterIndexDimension: 2 }
+          }
+        })
+        const clusteringResultIndex = result.dataset.length - 1
+        
+        result.series = [] // Override series to color by cluster
+        for (let i = 0; i < k; i++) {
+          result.dataset.push({
+            fromDatasetIndex: clusteringResultIndex,
+            transform: {
+              type: 'filter',
+              config: { dimension: 2, '=': i }
+            }
+          })
+          result.series.push({
+            type: 'scatter',
+            datasetIndex: result.dataset.length - 1,
+            symbolSize: 10,
+            name: `Cluster ${i + 1}`
+          })
+        }
+      }
+    }
+
+    return result
+  },
   combo: (baseOption, data, props, xAxisData, seriesData) => {
     const data2 = data.map(d => d.value2)
     return {
@@ -538,16 +599,40 @@ const getDefaultStrategy = (baseOption, data, props, xAxisData, seriesData, ctyp
       data: data2,
       areaStyle: (ctype === 'line' && props.config.styles?.fillArea) ? { opacity: 0.2 } : undefined,
       large: true,
-      largeThreshold: 500
     })
   }
 
-  return {
+  const baseResult = {
     ...baseOption,
     xAxis: isHorizontal ? { type: 'value', show: showXAxis } : { type: 'category', data: xAxisData, show: showXAxis, axisLabel: { interval: 'auto', rotate: 30 } },
     yAxis: isHorizontal ? { type: 'category', data: xAxisData, show: showYAxis, axisLabel: { interval: 'auto', width: 100, overflow: 'truncate' } } : { type: 'value', show: showYAxis },
     series: defaultSeries
   }
+
+  if (props.config.ml && props.config.ml.regressionType && props.config.ml.regressionType !== 'none' && !isHorizontal) {
+    const regData = seriesData.map((val, idx) => [idx, Number(val)])
+    baseResult.dataset = [
+      { source: regData },
+      {
+        transform: {
+          type: 'ecStat:regression',
+          config: { method: props.config.ml.regressionType }
+        }
+      }
+    ]
+    baseResult.series.push({
+      name: 'Regresión',
+      type: 'line',
+      datasetIndex: 1,
+      symbolSize: 0.1,
+      symbol: 'circle',
+      label: { show: true, fontSize: 14 },
+      labelLayout: { dx: -20 },
+      encode: { x: 0, y: 1, tooltip: 1 }
+    })
+  }
+
+  return baseResult
 }
 
 const echartOptions = computed(() => {

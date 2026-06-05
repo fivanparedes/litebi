@@ -59,5 +59,16 @@
     "vite": "^6.3.5",
     "vitest": "^3.2.6",
     "wait-on": "^9.0.10"
+  },
+  "build": {
+    "appId": "com.litebi.app",
+    "productName": "LiteBI",
+    "directories": {
+      "output": "dist-electron"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*"
+    ]
   }
 }

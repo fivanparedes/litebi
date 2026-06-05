@@ -94,7 +94,11 @@ const aggregationOptions = [
 ]
 
 const updateField = (field, value) => {
-  emit('update:config', { ...props.config, [field]: value })
+  if (field === 'dataset' && props.config.dataset !== value) {
+    emit('update:config', { ...props.config, [field]: value, xAxis: '', yAxis: '', secondaryYAxis: '' })
+  } else {
+    emit('update:config', { ...props.config, [field]: value })
+  }
 }
 </script>
 

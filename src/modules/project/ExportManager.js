@@ -97,11 +97,18 @@ export const exportToPPTX = async (elementId, title = 'Dashboard Report', filena
     
     const pptx = new PptxGenJS()
     pptx.layout = 'LAYOUT_16x9'
+
+    const { useSettingsStore } = await import('@/stores/settingsStore')
+    const settingsStore = useSettingsStore()
+    const corporateLogo = settingsStore.corporateLogo
     
     const widgets = element.querySelectorAll('.grid-stack-item-content')
     
     let slide = pptx.addSlide()
     slide.addText(title, { x: 1, y: 2, w: '80%', fontSize: 36, bold: true, align: 'center', color: '363636' })
+    if (corporateLogo) {
+      slide.addImage({ data: corporateLogo, x: 0.5, y: 0.5, w: 2, h: 1, sizing: { type: 'contain' } })
+    }
     
     for (const widget of widgets) {
       if (widget.querySelector('.slicer-wrapper')) continue // No exportar segmentadores
@@ -152,6 +159,9 @@ export const exportToPPTX = async (elementId, title = 'Dashboard Report', filena
       let wSlide = pptx.addSlide()
       wSlide.addText(headerTitle, { x: '5%', y: '5%', w: '90%', fontSize: 24, bold: true, color: '363636' })
       wSlide.addImage({ data: imgData, x: '5%', y: '15%', w: '90%', h: '80%', sizing: { type: 'contain' } })
+      if (corporateLogo) {
+        wSlide.addImage({ data: corporateLogo, x: '85%', y: '2%', w: '10%', h: '8%', sizing: { type: 'contain' } })
+      }
     }
     
     await pptx.writeFile({ fileName: `${filename}.pptx` })
