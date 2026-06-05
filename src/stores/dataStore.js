@@ -4,6 +4,7 @@ import { sqlClient } from '@/modules/data/SqlWorkerClient'
 import { coerceData, inferSchema } from '@/modules/data/SchemaManager'
 import { useUiStore } from './uiStore'
 import { Logger } from '@/utils/Logger'
+import { generateId } from '@/utils/generateId'
 
 export const useDataStore = defineStore('data', () => {
   const uiStore = useUiStore()
@@ -79,20 +80,28 @@ export const useDataStore = defineStore('data', () => {
   }
   
   const removeDataset = async (name) => {
-    if (datasets.value.has(name)) {
-      await sqlClient.dropTable(name)
-      datasets.value.delete(name)
-      
-      if (activeDatasetName.value === name) {
-        const nextActive = datasets.value.keys().next().value
-        activeDatasetName.value = nextActive || null
+    try {
+      if (datasets.value.has(name)) {
+        await sqlClient.dropTable(name)
+        datasets.value.delete(name)
+        
+        if (activeDatasetName.value === name) {
+          const nextActive = datasets.value.keys().next().value
+          activeDatasetName.value = nextActive || null
+        }
+        
+        dataVersion.value++
+        
+        uiStore.addToast({
+          message: `Dataset "${name}" eliminado`,
+          type: 'info'
+        })
       }
-      
-      dataVersion.value++
-      
+    } catch (error) {
+      Logger.error('DataStore', `Error removing dataset: ${name}`, error)
       uiStore.addToast({
-        message: `Dataset "${name}" eliminado`,
-        type: 'info'
+        message: `Error al eliminar dataset: ${error.message}`,
+        type: 'error'
       })
     }
   }
@@ -114,89 +123,142 @@ export const useDataStore = defineStore('data', () => {
 
   // --- Relationships API ---
   const addRelationship = (fromTable, fromCol, toTable, toCol, type = '1:N') => {
-    relationships.value.push({
-      id: `rel_${Date.now()}`,
-      fromTable,
-      fromColumn: fromCol,
-      toTable,
-      toColumn: toCol,
-      type
-    })
-    uiStore.addToast({ message: 'Relación añadida exitosamente', type: 'success' })
+    try {
+      // Validar que ambas tablas existan antes de crear la relación
+      if (!datasets.value.has(fromTable)) {
+        throw new Error(`La tabla origen "${fromTable}" no existe en los datasets.`)
+      }
+      if (!datasets.value.has(toTable)) {
+        throw new Error(`La tabla destino "${toTable}" no existe en los datasets.`)
+      }
+
+      relationships.value.push({
+        id: generateId('rel'),
+        fromTable,
+        fromColumn: fromCol,
+        toTable,
+        toColumn: toCol,
+        type
+      })
+      uiStore.addToast({ message: 'Relación añadida exitosamente', type: 'success' })
+    } catch (error) {
+      Logger.error('DataStore', `Error adding relationship: ${fromTable} -> ${toTable}`, error)
+      uiStore.addToast({
+        message: `Error al añadir relación: ${error.message}`,
+        type: 'error'
+      })
+    }
   }
 
   const removeRelationship = (id) => {
-    relationships.value = relationships.value.filter(r => r.id !== id)
-    uiStore.addToast({ message: 'Relación eliminada', type: 'info' })
+    try {
+      relationships.value = relationships.value.filter(r => r.id !== id)
+      uiStore.addToast({ message: 'Relación eliminada', type: 'info' })
+    } catch (error) {
+      Logger.error('DataStore', `Error removing relationship: ${id}`, error)
+      uiStore.addToast({
+        message: `Error al eliminar relación: ${error.message}`,
+        type: 'error'
+      })
+    }
   }
 
   const buildJoinQuery = (baseTable, requiredTables) => {
-    let joinClause = `[${baseTable}]`
-    const tablesToJoin = requiredTables.filter(t => t !== baseTable)
-    
-    for (const targetTable of tablesToJoin) {
-      const rel = relationships.value.find(r => 
-        (r.fromTable === baseTable && r.toTable === targetTable) ||
-        (r.toTable === baseTable && r.fromTable === targetTable)
-      )
-      
-      if (rel) {
-        if (rel.fromTable === baseTable) {
-          joinClause += ` LEFT JOIN [${targetTable}] ON [${baseTable}].[${rel.fromColumn}] = [${targetTable}].[${rel.toColumn}]`
-        } else {
-          joinClause += ` LEFT JOIN [${targetTable}] ON [${baseTable}].[${rel.toColumn}] = [${targetTable}].[${rel.fromColumn}]`
-        }
-      } else {
-        console.warn(`No relationship found between ${baseTable} and ${targetTable}`)
+    try {
+      // Validar que la tabla base exista
+      if (!datasets.value.has(baseTable)) {
+        throw new Error(`La tabla base "${baseTable}" no existe en los datasets.`)
       }
+
+      let joinClause = `[${baseTable}]`
+      const tablesToJoin = requiredTables.filter(t => t !== baseTable)
+      
+      for (const targetTable of tablesToJoin) {
+        // Validar que la tabla destino exista
+        if (!datasets.value.has(targetTable)) {
+          Logger.warn('DataStore', `Tabla "${targetTable}" no existe, se omite del JOIN.`)
+          continue
+        }
+
+        const rel = relationships.value.find(r => 
+          (r.fromTable === baseTable && r.toTable === targetTable) ||
+          (r.toTable === baseTable && r.fromTable === targetTable)
+        )
+        
+        if (rel) {
+          if (rel.fromTable === baseTable) {
+            joinClause += ` LEFT JOIN [${targetTable}] ON [${baseTable}].[${rel.fromColumn}] = [${targetTable}].[${rel.toColumn}]`
+          } else {
+            joinClause += ` LEFT JOIN [${targetTable}] ON [${baseTable}].[${rel.toColumn}] = [${targetTable}].[${rel.fromColumn}]`
+          }
+        } else {
+          Logger.warn('DataStore', `No se encontró relación entre ${baseTable} y ${targetTable}`)
+        }
+      }
+      
+      return joinClause
+    } catch (error) {
+      Logger.error('DataStore', `Error building JOIN query for: ${baseTable}`, error)
+      uiStore.addToast({
+        message: `Error al construir consulta JOIN: ${error.message}`,
+        type: 'error'
+      })
+      // Fallback: retornar solo la tabla base para no romper la consulta
+      return `[${baseTable}]`
     }
-    
-    return joinClause
   }
   
   // --- Calendar Generator ---
-  const generateCalendarTable = (startYear, endYear) => {
-    const data = []
-    const startDate = new Date(startYear, 0, 1)
-    const endDate = new Date(endYear, 11, 31)
-    
-    const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
-    const dayNames = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
-
-    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-      const dateStr = d.toISOString().split('T')[0]
-      const year = d.getFullYear()
-      const month = d.getMonth() + 1
-      const day = d.getDate()
-      const dayOfWeek = d.getDay()
-      const quarter = Math.floor(d.getMonth() / 3) + 1
+  const generateCalendarTable = async (startYear, endYear) => {
+    try {
+      const data = []
+      const startDate = new Date(startYear, 0, 1)
+      const endDate = new Date(endYear, 11, 31)
       
-      data.push({
-        Fecha: dateStr,
-        Año: year,
-        Mes: month,
-        NombreMes: monthNames[d.getMonth()],
-        Trimestre: quarter,
-        Dia: day,
-        DiaSemana: dayOfWeek,
-        NombreDia: dayNames[dayOfWeek],
-        EsFinDeSemana: dayOfWeek === 0 || dayOfWeek === 6
+      const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+      const dayNames = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
+
+      for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+        const dateStr = d.toISOString().split('T')[0]
+        const year = d.getFullYear()
+        const month = d.getMonth() + 1
+        const day = d.getDate()
+        const dayOfWeek = d.getDay()
+        const quarter = Math.floor(d.getMonth() / 3) + 1
+        
+        data.push({
+          Fecha: dateStr,
+          Año: year,
+          Mes: month,
+          NombreMes: monthNames[d.getMonth()],
+          Trimestre: quarter,
+          Dia: day,
+          DiaSemana: dayOfWeek,
+          NombreDia: dayNames[dayOfWeek],
+          EsFinDeSemana: dayOfWeek === 0 || dayOfWeek === 6
+        })
+      }
+
+      const schema = [
+        { name: 'Fecha', type: 'date' },
+        { name: 'Año', type: 'number' },
+        { name: 'Mes', type: 'number' },
+        { name: 'NombreMes', type: 'string' },
+        { name: 'Trimestre', type: 'number' },
+        { name: 'Dia', type: 'number' },
+        { name: 'DiaSemana', type: 'number' },
+        { name: 'NombreDia', type: 'string' },
+        { name: 'EsFinDeSemana', type: 'boolean' }
+      ]
+
+      return await addDataset('Calendario', data, schema)
+    } catch (error) {
+      Logger.error('DataStore', 'Error generating calendar table', error)
+      uiStore.addToast({
+        message: `Error al generar tabla calendario: ${error.message}`,
+        type: 'error'
       })
     }
-
-    const schema = [
-      { name: 'Fecha', type: 'date' },
-      { name: 'Año', type: 'number' },
-      { name: 'Mes', type: 'number' },
-      { name: 'NombreMes', type: 'string' },
-      { name: 'Trimestre', type: 'number' },
-      { name: 'Dia', type: 'number' },
-      { name: 'DiaSemana', type: 'number' },
-      { name: 'NombreDia', type: 'string' },
-      { name: 'EsFinDeSemana', type: 'boolean' }
-    ]
-
-    return addDataset('Calendario', data, schema)
   }
 
   // Getters

@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
 import { useCollaborationStore } from './collaborationStore'
+import { generateId } from '@/utils/generateId'
 
 export const useDashboardStore = defineStore('dashboard', () => {
   // Pestañas (Tabs)
@@ -23,7 +24,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
 
   // Actions - Tabs
   const addTab = () => {
-    const newId = `tab_${Date.now()}`
+    const newId = generateId('tab')
     tabs.value.push({ id: newId, name: `Dashboard ${tabs.value.length + 1}` })
     layouts.value[newId] = []
     activeTabId.value = newId
@@ -55,45 +56,65 @@ export const useDashboardStore = defineStore('dashboard', () => {
   }
 
   const addWidget = (tabId, widgetConfig) => {
-    if (!layouts.value[tabId]) layouts.value[tabId] = []
-    
-    // Find an empty spot or just push to bottom
-    const newWidget = {
-      id: `w_${Date.now()}`,
-      x: 0, 
-      y: 0, 
-      w: 4, 
-      h: 4,
-      ...widgetConfig
+    try {
+      if (!layouts.value[tabId]) layouts.value[tabId] = []
+      
+      // Find an empty spot or just push to bottom
+      const newWidget = {
+        id: generateId('w'),
+        x: 0, 
+        y: 0, 
+        w: 4, 
+        h: 4,
+        ...widgetConfig
+      }
+      
+      layouts.value[tabId].push(newWidget)
+      // We return a completely new array reference to trigger Vue watch effectively
+      layouts.value[tabId] = [...layouts.value[tabId]]
+    } catch (e) {
+      console.error('[DashboardStore] Error adding widget:', e.message)
     }
-    
-    layouts.value[tabId].push(newWidget)
-    // We return a completely new array reference to trigger Vue watch effectively
-    layouts.value[tabId] = [...layouts.value[tabId]]
   }
 
   const removeWidget = (tabId, widgetId) => {
-    if (layouts.value[tabId]) {
-      layouts.value[tabId] = layouts.value[tabId].filter(w => w.id !== widgetId)
+    try {
+      if (layouts.value[tabId]) {
+        layouts.value[tabId] = layouts.value[tabId].filter(w => w.id !== widgetId)
+      }
+    } catch (e) {
+      console.error('[DashboardStore] Error removing widget:', e.message)
     }
   }
 
   const editMode = ref(false)
 
   const updateWidget = (tabId, widgetId, updates) => {
+    // Validate that tabId exists in layouts
     const layout = layouts.value[tabId]
-    const index = layout.findIndex(w => w.id === widgetId)
-    if (index !== -1) {
-      layout[index] = { ...layout[index], ...updates }
-      layouts.value[tabId] = [...layout]
+    if (!layout) {
+      console.warn(`[DashboardStore] updateWidget: tab '${tabId}' not found in layouts`)
+      return
     }
+    // Validate that widgetId exists in the layout
+    const index = layout.findIndex(w => w.id === widgetId)
+    if (index === -1) {
+      console.warn(`[DashboardStore] updateWidget: widget '${widgetId}' not found in tab '${tabId}'`)
+      return
+    }
+    layout[index] = { ...layout[index], ...updates }
+    layouts.value[tabId] = [...layout]
   }
 
   const duplicateWidget = (tabId, widgetId) => {
     const layout = layouts.value[tabId]
     const widget = layout.find(w => w.id === widgetId)
     if (widget) {
-      const newWidget = { ...widget, id: `w_${Date.now()}`, x: widget.x + 1, y: widget.y + 1 }
+      // Fix: deep clone to avoid shared references between original and duplicate
+      const newWidget = JSON.parse(JSON.stringify(widget))
+      newWidget.id = generateId('w')
+      newWidget.x = widget.x + 1
+      newWidget.y = widget.y + 1
       layout.push(newWidget)
       layouts.value[tabId] = [...layout]
     }
@@ -113,7 +134,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
     }
     
     globalFilters.value.push({
-      id: `filter_${Date.now()}`,
+      id: generateId('filter'),
       dataset,
       column,
       value,
@@ -172,7 +193,11 @@ export const useDashboardStore = defineStore('dashboard', () => {
   }
 
   // Initialize sync immediately
-  initCollaborationSync()
+  try {
+    initCollaborationSync()
+  } catch (e) {
+    console.warn('[DashboardStore] Collaboration sync init failed:', e.message)
+  }
 
   return {
     tabs,

@@ -61,6 +61,9 @@ onUnmounted(() => {
   <div class="dropdown" ref="dropdownRef" :class="{ 'dropdown--disabled': disabled }">
     <div 
       class="dropdown__trigger" 
+      role="combobox"
+      aria-haspopup="listbox"
+      :aria-expanded="isOpen"
       @click="toggleDropdown"
       tabindex="0"
       @keydown.enter="toggleDropdown"
@@ -75,11 +78,13 @@ onUnmounted(() => {
     </div>
 
     <Transition name="scale">
-      <div v-if="isOpen" class="dropdown__menu">
+      <div v-if="isOpen" class="dropdown__menu" role="listbox">
         <div 
           v-for="option in options" 
           :key="option.value"
           class="dropdown__item"
+          role="option"
+          :aria-selected="option.value === modelValue"
           :class="{ 'dropdown__item--selected': option.value === modelValue }"
           @click="selectOption(option)"
         >

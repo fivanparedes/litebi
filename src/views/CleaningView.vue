@@ -45,7 +45,8 @@ const updatePreview = async () => {
 watch(() => dataStore.activeDatasetName, async (newName) => {
   if (newName) {
     const meta = dataStore.activeDatasetMeta
-    pipeline.value = new TransformPipeline(newName, meta.schema)
+    // Fix: await factory to ensure temp table is ready before use
+    pipeline.value = await TransformPipeline.create(newName, meta.schema)
     if (meta.transformations && meta.transformations.length > 0) {
       pipeline.value.steps = JSON.parse(JSON.stringify(meta.transformations))
     }

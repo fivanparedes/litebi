@@ -5,6 +5,7 @@ import { useDataStore } from './dataStore'
 import { useFormulaStore } from './formulaStore'
 import { useDashboardStore } from './dashboardStore'
 import { serializeProject, deserializeProject } from '@/modules/project/Serializer'
+import { HistoryManager } from '@/modules/project/HistoryManager'
 import localforage from 'localforage'
 
 export const useProjectStore = defineStore('project', () => {
@@ -19,6 +20,28 @@ export const useProjectStore = defineStore('project', () => {
   const isSaving = ref(false)
 
   let autosaveTimer = null
+  let diskAutoSaveTimer = null
+  let historyTimer = null
+  let isRestoringHistory = false
+  
+  const historyManager = new HistoryManager(20)
+
+  const pushToHistory = async () => {
+    if (isRestoringHistory) return
+    try {
+      const json = await serializeProject(dataStore, formulaStore, dashboardStore)
+      historyManager.pushState(json)
+    } catch (e) {
+      console.error("Error saving history state:", e)
+    }
+  }
+
+  const debouncedPushToHistory = () => {
+    if (historyTimer) clearTimeout(historyTimer)
+    historyTimer = setTimeout(() => {
+      pushToHistory()
+    }, 500) // Debounce history push to avoid performance hits and filling stack during rapid actions
+  }
 
   const setProjectName = (name) => {
     projectName.value = name || 'Proyecto sin título'
@@ -29,6 +52,8 @@ export const useProjectStore = defineStore('project', () => {
   const markDirty = () => {
     isDirty.value = true
     triggerAutoSave()
+    debouncedAutoSave()
+    debouncedPushToHistory()
   }
 
   const triggerAutoSave = () => {
@@ -52,6 +77,16 @@ export const useProjectStore = defineStore('project', () => {
     } finally {
       setTimeout(() => { isSaving.value = false }, 500)
     }
+  }
+
+  const debouncedAutoSave = () => {
+    if (diskAutoSaveTimer) clearTimeout(diskAutoSaveTimer)
+    diskAutoSaveTimer = setTimeout(() => {
+      // Only auto save to disk if we already have a file handle
+      if (fileHandle.value) {
+        saveProject()
+      }
+    }, 3000)
   }
 
   const autoLoad = async () => {
@@ -185,6 +220,38 @@ export const useProjectStore = defineStore('project', () => {
     uiStore.addToast({ message: 'Proyecto descargado correctamente', type: 'success' })
   }
 
+  const undo = async () => {
+    if (!historyManager.canUndo()) return
+    isRestoringHistory = true
+    try {
+      const currentState = await serializeProject(dataStore, formulaStore, dashboardStore)
+      const previousState = historyManager.undo(currentState)
+      if (previousState) {
+        await deserializeProject(previousState, dataStore, formulaStore, dashboardStore)
+      }
+    } catch (e) {
+      console.error("Error undoing:", e)
+    } finally {
+      isRestoringHistory = false
+    }
+  }
+
+  const redo = async () => {
+    if (!historyManager.canRedo()) return
+    isRestoringHistory = true
+    try {
+      const currentState = await serializeProject(dataStore, formulaStore, dashboardStore)
+      const nextState = historyManager.redo(currentState)
+      if (nextState) {
+        await deserializeProject(nextState, dataStore, formulaStore, dashboardStore)
+      }
+    } catch (e) {
+      console.error("Error redoing:", e)
+    } finally {
+      isRestoringHistory = false
+    }
+  }
+
   return {
     projectName,
     fileHandle,
@@ -195,6 +262,10 @@ export const useProjectStore = defineStore('project', () => {
     saveProject,
     loadProject,
     autoLoad,
-    clearAutoSave
+    clearAutoSave,
+    debouncedAutoSave,
+    pushToHistory,
+    undo,
+    redo
   }
 })

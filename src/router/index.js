@@ -15,7 +15,7 @@ const routes = [
     path: '/cleaning',
     name: 'cleaning',
     component: () => import('@/views/CleaningView.vue'),
-    meta: { title: 'nav.cleaning' }
+    meta: { icon: 'Wand2', titleKey: 'nav.cleaning' }
   },
   {
     path: '/modeling',
@@ -27,31 +27,37 @@ const routes = [
     path: '/formulas',
     name: 'formulas',
     component: () => import('@/views/FormulasView.vue'),
-    meta: { title: 'nav.formulas' }
+    meta: { icon: 'FunctionSquare', titleKey: 'nav.formulas' }
   },
   {
     path: '/dashboard',
     name: 'dashboard',
     component: () => import('@/views/DashboardView.vue'),
-    meta: { title: 'nav.dashboard' }
+    meta: { icon: 'LayoutDashboard', titleKey: 'nav.dashboard' }
   },
   {
     path: '/reports',
     name: 'reports',
     component: () => import('@/views/ReportView.vue'),
-    meta: { title: 'nav.reports' }
+    meta: { icon: 'FileText', titleKey: 'nav.reports' }
   },
   {
     path: '/help',
     name: 'help',
     component: () => import('@/views/HelpView.vue'),
-    meta: { title: 'Manual de Usuario' }
+    meta: { icon: 'HelpCircle', titleKey: 'nav.help' }
   },
   {
     path: '/settings',
     name: 'settings',
     component: () => import('@/views/SettingsView.vue'),
-    meta: { title: 'Configuración' }
+    meta: { icon: 'Settings', titleKey: 'nav.settings' }
+  },
+  {
+    path: '/:pathMatch(.*)*',
+    name: 'not-found',
+    component: () => import('@/views/NotFoundView.vue'),
+    meta: { titleKey: 'nav.notFound' }
   }
 ]
 

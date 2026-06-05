@@ -187,7 +187,8 @@ const handleMouseMove = (e) => {
           </div>
           <div class="widget-body">
             <SlicerRenderer v-if="widget.config?.type === 'slicer'" :config="widget.config" />
-            <ChartRenderer v-else :config="{ ...widget.config, dataset: widget.config?.dataset || 'default' }" v-if="widget.config" />
+            <!-- FIX: Cambiado de v-else + v-if (inválido, causa doble renderizado) a v-else-if -->
+            <ChartRenderer v-else-if="widget.config" :config="{ ...widget.config, dataset: widget.config?.dataset || 'default' }" />
           </div>
         </div>
       </div>

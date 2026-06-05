@@ -117,5 +117,12 @@
     "actions": "Actions",
     "noResults": "No results",
     "unsavedChanges": "You have unsaved changes. Do you want to continue?"
+  },
+  "error": {
+    "notFound": "Page not found",
+    "notFoundDesc": "Sorry, the page you are looking for does not exist or has been moved."
+  },
+  "action": {
+    "goHome": "Go Home"
   }
 }

@@ -117,5 +117,12 @@
     "actions": "Acciones",
     "noResults": "Sin resultados",
     "unsavedChanges": "Tienes cambios sin guardar. ¿Deseas continuar?"
+  },
+  "error": {
+    "notFound": "Página no encontrada",
+    "notFoundDesc": "Lo sentimos, la página que estás buscando no existe o ha sido movida."
+  },
+  "action": {
+    "goHome": "Volver al Inicio"
   }
 }

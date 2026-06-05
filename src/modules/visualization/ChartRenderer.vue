@@ -5,6 +5,7 @@ import { useDashboardStore } from '@/stores/dashboardStore'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { sqlClient } from '@/modules/data/SqlWorkerClient'
 import { use, registerTheme, registerMap, getMap } from 'echarts/core'
+import { Loader } from '@lucide/vue'
 import { CanvasRenderer } from 'echarts/renderers'
 import { BarChart, LineChart, PieChart, ScatterChart, BoxplotChart, FunnelChart, GaugeChart, HeatmapChart, TreemapChart, RadarChart } from 'echarts/charts'
 import {
@@ -248,64 +249,36 @@ const formattedKpi = computed(() => {
   return new Intl.NumberFormat('es-AR', { maximumFractionDigits: 2 }).format(val)
 })
 
-const echartOptions = computed(() => {
-  const ctype = props.config.type || 'bar'
-  if (ctype === 'kpi' || chartData.value.length === 0) return null
-  
-  const data = chartData.value
-  const xAxisData = data.map(d => d.name)
-  const seriesData = data.map(d => d.value)
-  
-  const baseOption = {
-    color: props.config.styles?.customColors?.length ? props.config.styles.customColors : settingsStore.currentChartColors,
-    title: {
-      text: props.config.title || '',
-      left: 'left',
-      padding: [0, 0, 16, 0]
-    },
-    tooltip: { trigger: ctype === 'pie' || ctype === 'map' ? 'item' : 'axis' },
-    grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true }
-  }
-  
-  if (props.config.styles?.showLegend !== false) {
-    baseOption.legend = { type: 'scroll', bottom: 0 }
-  }
-
-  if (ctype === 'pie') {
-    return {
-      ...baseOption,
-      legend: props.config.styles?.showLegend === false ? undefined : { orient: 'vertical', right: 0, top: 'center' },
-      series: [
-        {
-          name: props.config.yAxis,
-          type: 'pie',
-          radius: ['40%', '70%'],
-          avoidLabelOverlap: false,
-          itemStyle: { borderRadius: 10 },
-          label: { show: false },
-          data: data.map(d => ({ name: d.name, value: d.value }))
-        }
-      ]
-    }
-  }
-
-  if (ctype === 'scatter') {
-    return {
-      ...baseOption,
-      tooltip: { trigger: 'item' },
-      xAxis: { name: props.config.xAxis, type: 'value', scale: true },
-      yAxis: { name: props.config.yAxis, type: 'value', scale: true },
-      series: [{
-        symbolSize: 10,
-        data: data.map(d => [d.name, d.value]),
-        type: 'scatter',
-        large: true,
-        largeThreshold: 500
-      }]
-    }
-  }
-
-  if (ctype === 'combo') {
+const chartStrategies = {
+  pie: (baseOption, data, props) => ({
+    ...baseOption,
+    legend: props.config.styles?.showLegend === false ? undefined : { orient: 'vertical', right: 0, top: 'center' },
+    series: [
+      {
+        name: props.config.yAxis,
+        type: 'pie',
+        radius: ['40%', '70%'],
+        avoidLabelOverlap: false,
+        itemStyle: { borderRadius: 10 },
+        label: { show: false },
+        data: data.map(d => ({ name: d.name, value: d.value }))
+      }
+    ]
+  }),
+  scatter: (baseOption, data, props) => ({
+    ...baseOption,
+    tooltip: { trigger: 'item' },
+    xAxis: { name: props.config.xAxis, type: 'value', scale: true },
+    yAxis: { name: props.config.yAxis, type: 'value', scale: true },
+    series: [{
+      symbolSize: 10,
+      data: data.map(d => [d.name, d.value]),
+      type: 'scatter',
+      large: true,
+      largeThreshold: 500
+    }]
+  }),
+  combo: (baseOption, data, props, xAxisData, seriesData) => {
     const data2 = data.map(d => d.value2)
     return {
       ...baseOption,
@@ -317,34 +290,30 @@ const echartOptions = computed(() => {
         { name: props.config.secondaryYAxis, type: 'line', yAxisIndex: 1, data: data2, large: true, largeThreshold: 500 }
       ]
     }
-  }
-
-  if (ctype === 'funnel') {
-    return {
-      ...baseOption,
-      tooltip: { trigger: 'item', formatter: '{a} <br/>{b} : {c}' },
-      series: [
-        {
-          name: props.config.yAxis,
-          type: 'funnel',
-          left: '10%',
-          top: 60,
-          bottom: 60,
-          width: '80%',
-          min: 0,
-          max: Math.max(...seriesData),
-          minSize: '0%',
-          maxSize: '100%',
-          sort: 'descending',
-          gap: 2,
-          label: { show: true, position: 'inside' },
-          data: data.map(d => ({ name: d.name, value: d.value }))
-        }
-      ]
-    }
-  }
-
-  if (ctype === 'gauge') {
+  },
+  funnel: (baseOption, data, props, xAxisData, seriesData) => ({
+    ...baseOption,
+    tooltip: { trigger: 'item', formatter: '{a} <br/>{b} : {c}' },
+    series: [
+      {
+        name: props.config.yAxis,
+        type: 'funnel',
+        left: '10%',
+        top: 60,
+        bottom: 60,
+        width: '80%',
+        min: 0,
+        max: Math.max(...seriesData),
+        minSize: '0%',
+        maxSize: '100%',
+        sort: 'descending',
+        gap: 2,
+        label: { show: true, position: 'inside' },
+        data: data.map(d => ({ name: d.name, value: d.value }))
+      }
+    ]
+  }),
+  gauge: (baseOption, data, props) => {
     const val = data[0]?.value || 0
     const target = props.config.targetValue || 100
     return {
@@ -365,9 +334,8 @@ const echartOptions = computed(() => {
         }
       ]
     }
-  }
-
-  if (ctype === 'boxplot') {
+  },
+  boxplot: (baseOption, data, props) => {
     const grouped = {}
     data.forEach(d => {
       if (!grouped[d.name]) grouped[d.name] = []
@@ -395,9 +363,8 @@ const echartOptions = computed(() => {
         data: boxData
       }]
     }
-  }
-
-  if (ctype === 'heatmap') {
+  },
+  heatmap: (baseOption, data, props) => {
     const xCats = [...new Set(data.map(d => d.name))]
     const yCats = [...new Set(data.map(d => d.name2))]
     const mapData = data.map(d => [xCats.indexOf(d.name), yCats.indexOf(d.name2), d.value])
@@ -418,21 +385,17 @@ const echartOptions = computed(() => {
         emphasis: { itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0, 0, 0, 0.5)' } }
       }]
     }
-  }
-
-  if (ctype === 'treemap') {
-    return {
-      ...baseOption,
-      series: [{
-        type: 'treemap',
-        data: data.map(d => ({ name: d.name, value: d.value })),
-        roam: false,
-        label: { show: true, formatter: '{b}\n{c}' }
-      }]
-    }
-  }
-
-  if (ctype === 'radar') {
+  },
+  treemap: (baseOption, data) => ({
+    ...baseOption,
+    series: [{
+      type: 'treemap',
+      data: data.map(d => ({ name: d.name, value: d.value })),
+      roam: false,
+      label: { show: true, formatter: '{b}\n{c}' }
+    }]
+  }),
+  radar: (baseOption, data, props, xAxisData, seriesData) => {
     const maxVal = Math.max(...data.map(d => d.value))
     return {
       ...baseOption,
@@ -445,9 +408,8 @@ const echartOptions = computed(() => {
         data: [{ value: seriesData, name: props.config.yAxis }]
       }]
     }
-  }
-  
-  if (ctype === 'map') {
+  },
+  map: (baseOption, data, props, xAxisData, seriesData) => {
     if (props.config.mapMode === 'scatter') {
       const y2LabelValue = props.config.secondaryYAxisLabel || props.config.secondaryYAxis
       const mapData = data.map(d => [Number(d.name), Number(d.value), y2LabelValue ? Number(d.value2 || 0) : 1])
@@ -514,9 +476,8 @@ const echartOptions = computed(() => {
         }]
       }
     }
-  }
-
-  if (ctype === 'waterfall') {
+  },
+  waterfall: (baseOption, data, props, xAxisData) => {
     const helpData = []
     const barData = []
     let currentSum = 0
@@ -547,10 +508,11 @@ const echartOptions = computed(() => {
         { name: props.config.yAxis, type: 'bar', stack: 'Total', label: { show: true, position: 'top' }, data: barData }
       ]
     }
-  }
+  },
+  grid: () => null
+}
 
-  if (ctype === 'grid') return null // Grid no usa echarts
-
+const getDefaultStrategy = (baseOption, data, props, xAxisData, seriesData, ctype) => {
   const isHorizontal = props.config.orientation === 'horizontal'
   
   const showXAxis = props.config.styles?.showAxisLabels !== false
@@ -568,8 +530,8 @@ const echartOptions = computed(() => {
     }
   ]
 
-  if ((ctype === 'line' || ctype === 'bar') && props.config.secondaryYAxis && chartData.value[0] && 'value2' in chartData.value[0]) {
-    const data2 = chartData.value.map(d => d.value2)
+  if ((ctype === 'line' || ctype === 'bar') && props.config.secondaryYAxis && data[0] && 'value2' in data[0]) {
+    const data2 = data.map(d => d.value2)
     defaultSeries.push({
       name: props.config.secondaryYAxisLabel || props.config.secondaryYAxis,
       type: ctype,
@@ -586,6 +548,36 @@ const echartOptions = computed(() => {
     yAxis: isHorizontal ? { type: 'category', data: xAxisData, show: showYAxis, axisLabel: { interval: 'auto', width: 100, overflow: 'truncate' } } : { type: 'value', show: showYAxis },
     series: defaultSeries
   }
+}
+
+const echartOptions = computed(() => {
+  const ctype = props.config.type || 'bar'
+  if (ctype === 'kpi' || chartData.value.length === 0) return null
+  
+  const data = chartData.value
+  const xAxisData = data.map(d => d.name)
+  const seriesData = data.map(d => d.value)
+  
+  const baseOption = {
+    color: props.config.styles?.customColors?.length ? props.config.styles.customColors : settingsStore.currentChartColors,
+    title: {
+      text: props.config.title || '',
+      left: 'left',
+      padding: [0, 0, 16, 0]
+    },
+    tooltip: { trigger: ctype === 'pie' || ctype === 'map' ? 'item' : 'axis' },
+    grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true }
+  }
+  
+  if (props.config.styles?.showLegend !== false) {
+    baseOption.legend = { type: 'scroll', bottom: 0 }
+  }
+
+  if (chartStrategies[ctype]) {
+    return chartStrategies[ctype](baseOption, data, props, xAxisData, seriesData)
+  }
+
+  return getDefaultStrategy(baseOption, data, props, xAxisData, seriesData, ctype)
 })
 const handleChartClick = (params) => {
   if (params.name && props.config.xAxis) {
@@ -599,6 +591,11 @@ const handleChartClick = (params) => {
 
 <template>
   <div class="chart-wrapper">
+    <div v-if="isLoading" class="chart-loading">
+      <Loader class="spin-icon" size="24" />
+      <span>Cargando datos...</span>
+    </div>
+
     <div v-if="(!config.xAxis && config.type !== 'kpi' && config.type !== 'gauge') || !config.yAxis" class="chart-empty">
       <p>Configura los ejes del widget para visualizar los datos.</p>
     </div>
@@ -646,6 +643,33 @@ const handleChartClick = (params) => {
   position: relative;
   display: flex;
   flex-direction: column;
+}
+
+.chart-loading {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(var(--color-bg-surface-rgb, 255, 255, 255), 0.7);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  color: var(--color-text-secondary);
+  gap: var(--space-2);
+  border-radius: var(--radius-md);
+  backdrop-filter: blur(2px);
+}
+
+.spin-icon {
+  animation: spin 1s linear infinite;
+  color: var(--color-accent);
+}
+
+@keyframes spin {
+  100% { transform: rotate(360deg); }
 }
 
 .chart-empty {

@@ -1,14 +1,33 @@
 import { sqlClient } from '@/modules/data/SqlWorkerClient'
 
 export class TransformPipeline {
+  /**
+   * Use TransformPipeline.create() instead of `new` — the constructor is internal.
+   * The factory ensures the temp table is ready before the instance is used.
+   */
   constructor(baseDatasetName, originalSchema) {
     this.baseDatasetName = baseDatasetName
     this.originalSchema = [...originalSchema]
     this.steps = []
-    
+
     // Create a temporary working table
     this.tempTableName = `${this.baseDatasetName}_working`
-    this._resetTempTable()
+
+    // Fix: expose a `ready` promise so callers can await initialisation
+    this.ready = this._resetTempTable()
+  }
+
+  /**
+   * Factory that creates a fully-initialised pipeline.
+   * Awaits the async temp-table setup before returning.
+   * @param {string} baseDatasetName
+   * @param {Array} originalSchema
+   * @returns {Promise<TransformPipeline>}
+   */
+  static async create(baseDatasetName, originalSchema) {
+    const instance = new TransformPipeline(baseDatasetName, originalSchema)
+    await instance.ready
+    return instance
   }
 
   async addStep(transformId, config) {
@@ -68,20 +87,6 @@ export class TransformPipeline {
     }
   }
 
-  // Helpers
-  _mapOperator(op) {
-    const ops = {
-      'equals': '=', 'not_equals': '!=', 'greater_than': '>', 'less_than': '<',
-      'contains': 'LIKE', 'is_null': 'IS NULL'
-    }
-    return ops[op] || '='
-  }
-  
-  _formatVal(val) {
-    if (typeof val === 'number') return val
-    if (val === null) return 'NULL'
-    // Escape single quotes for SQL safety
-    const escapedVal = String(val).replace(/'/g, "''")
-    return `'${escapedVal}'`
-  }
+  // Dead code removed: _mapOperator and _formatVal were never called —
+  // the actual pipeline runs entirely in the SQL worker.
 }

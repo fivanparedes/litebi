@@ -1,9 +1,18 @@
-import { app, BrowserWindow, protocol } from 'electron'
+import { app, BrowserWindow, protocol, session } from 'electron'
 import path from 'path'
 import { fileURLToPath } from 'url'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
+
+// Add global error handlers for the main process
+process.on('uncaughtException', (error) => {
+  console.error('Excepción no capturada (uncaughtException):', error)
+})
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Rechazo no manejado (unhandledRejection) en:', promise, 'razón:', reason)
+})
 
 const createWindow = () => {
   const mainWindow = new BrowserWindow({
@@ -15,10 +24,23 @@ const createWindow = () => {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
-      webSecurity: false // allow local files if needed for export
+      webSecurity: true,
+      allowRunningInsecureContent: false
     },
     title: "LiteBI",
     autoHideMenuBar: true
+  })
+
+  // Configure Content Security Policy (CSP)
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': [
+          "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: http://localhost:* ws://localhost:*;"
+        ]
+      }
+    })
   })
 
   // In development, load the Vite dev server

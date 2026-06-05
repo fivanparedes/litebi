@@ -45,6 +45,8 @@ const classes = computed(() => {
   <button 
     :class="classes" 
     :disabled="disabled || loading"
+    :aria-disabled="disabled || loading ? 'true' : undefined"
+    :aria-busy="loading ? 'true' : undefined"
     v-bind="$attrs"
   >
     <Loader2 v-if="loading" class="btn__spinner" />

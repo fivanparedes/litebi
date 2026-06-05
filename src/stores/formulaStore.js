@@ -3,6 +3,16 @@ import { ref, computed } from 'vue'
 import { sqlClient } from '@/modules/data/SqlWorkerClient'
 import { useDataStore } from './dataStore'
 import { useUiStore } from './uiStore'
+import { Logger } from '@/utils/Logger'
+
+/** Regex para nombres seguros de datasets/columnas */
+const SAFE_NAME_REGEX = /^[a-zA-Z0-9_\s\u00C0-\u024F]+$/
+
+/** Palabras clave SQL peligrosas que no deben aparecer como statements en expresiones */
+const DANGEROUS_SQL_KEYWORDS = /\b(DROP|DELETE|INSERT|UPDATE|ALTER|CREATE|TRUNCATE|EXEC|EXECUTE)\b/i
+
+/** Longitud máxima de una expresión de fórmula */
+const MAX_EXPRESSION_LENGTH = 5000
 
 export const useFormulaStore = defineStore('formula', () => {
   const dataStore = useDataStore()
@@ -11,11 +21,56 @@ export const useFormulaStore = defineStore('formula', () => {
   // Format: { [datasetName]: [ { name: 'Total', expression: 'Precio * Cantidad', type: 'number' } ] }
   const formulas = ref({})
   
+  /**
+   * Obtiene las fórmulas definidas para un dataset
+   * @param {string} datasetName - Nombre del dataset
+   * @returns {Array} - Lista de fórmulas
+   */
   const getFormulasForDataset = (datasetName) => {
     return formulas.value[datasetName] || []
   }
   
+  /**
+   * Valida los inputs de una fórmula antes de ejecutarla
+   * @param {string} datasetName
+   * @param {string} columnName
+   * @param {string} expression
+   * @throws {Error} Si algún input es inválido
+   */
+  const validateFormulaInputs = (datasetName, columnName, expression) => {
+    if (!datasetName || typeof datasetName !== 'string') {
+      throw new Error('El nombre del dataset es obligatorio.')
+    }
+    if (!columnName || typeof columnName !== 'string') {
+      throw new Error('El nombre de la columna es obligatorio.')
+    }
+    if (!expression || typeof expression !== 'string' || expression.trim() === '') {
+      throw new Error('La expresión de la fórmula es obligatoria.')
+    }
+    if (!SAFE_NAME_REGEX.test(columnName)) {
+      throw new Error(`El nombre de columna "${columnName}" contiene caracteres no permitidos. Use solo letras, números, espacios y guiones bajos.`)
+    }
+    if (expression.length > MAX_EXPRESSION_LENGTH) {
+      throw new Error(`La expresión excede el límite de ${MAX_EXPRESSION_LENGTH} caracteres.`)
+    }
+    // Blocklist de keywords peligrosos (solo como statements independientes)
+    if (DANGEROUS_SQL_KEYWORDS.test(expression)) {
+      throw new Error('La expresión contiene palabras clave SQL no permitidas (DROP, DELETE, INSERT, etc.). Solo se permiten expresiones de cálculo.')
+    }
+  }
+  
+  /**
+   * Agrega o actualiza una columna calculada en un dataset
+   * @param {string} datasetName - Nombre del dataset
+   * @param {string} columnName - Nombre de la nueva columna
+   * @param {string} expression - Expresión SQL para calcular
+   * @param {string} type - Tipo de dato ('number', 'string', etc.)
+   * @returns {Promise<boolean>}
+   */
   const addFormula = async (datasetName, columnName, expression, type = 'number') => {
+    // Validar inputs antes de ejecutar
+    validateFormulaInputs(datasetName, columnName, expression)
+    
     if (!formulas.value[datasetName]) {
       formulas.value[datasetName] = []
     }
@@ -60,6 +115,7 @@ export const useFormulaStore = defineStore('formula', () => {
       
       return true
     } catch (e) {
+      Logger.error('FormulaStore', `Error al agregar fórmula "${columnName}" en "${datasetName}"`, e)
       uiStore.addToast({
         message: `Error en la fórmula: ${e.message}`,
         type: 'error'
@@ -68,6 +124,11 @@ export const useFormulaStore = defineStore('formula', () => {
     }
   }
   
+  /**
+   * Elimina una columna calculada de un dataset
+   * @param {string} datasetName - Nombre del dataset
+   * @param {string} columnName - Nombre de la columna a eliminar
+   */
   const removeFormula = async (datasetName, columnName) => {
     if (!formulas.value[datasetName]) return
     
@@ -76,18 +137,26 @@ export const useFormulaStore = defineStore('formula', () => {
     // Update dataStore schema metadata
     const meta = dataStore.datasets.get(datasetName)
     if (meta) {
-      meta.schema = meta.schema.filter(c => c.name !== columnName)
-      meta.colCount--
-      
-      // Update data in worker
-      const currentCols = meta.schema.map(c => `[${c.name}]`).join(', ')
-      const res = await sqlClient.query(`SELECT ${currentCols} FROM [${datasetName}]`)
-      await sqlClient.createTable(datasetName, res)
-      
-      uiStore.addToast({
-        message: `Columna '${columnName}' eliminada`,
-        type: 'info'
-      })
+      try {
+        meta.schema = meta.schema.filter(c => c.name !== columnName)
+        meta.colCount--
+        
+        // Update data in worker
+        const currentCols = meta.schema.map(c => `[${c.name}]`).join(', ')
+        const res = await sqlClient.query(`SELECT ${currentCols} FROM [${datasetName}]`)
+        await sqlClient.createTable(datasetName, res)
+        
+        uiStore.addToast({
+          message: `Columna '${columnName}' eliminada`,
+          type: 'info'
+        })
+      } catch (e) {
+        Logger.error('FormulaStore', `Error al eliminar fórmula "${columnName}" de "${datasetName}"`, e)
+        uiStore.addToast({
+          message: `Error al eliminar columna: ${e.message}`,
+          type: 'error'
+        })
+      }
     }
   }
   

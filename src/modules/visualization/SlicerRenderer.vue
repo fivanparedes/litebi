@@ -144,6 +144,8 @@ const clearFilter = () => {
           v-for="item in items" 
           :key="item"
           class="slicer-btn"
+          role="checkbox"
+          :aria-checked="activeFilter && activeFilter.value === item ? 'true' : 'false'"
           :class="{ 'active': activeFilter && activeFilter.value === item }"
           @click="toggleFilter(item)"
         >
