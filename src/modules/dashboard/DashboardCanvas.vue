@@ -2,12 +2,13 @@
 import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import 'gridstack/dist/gridstack.min.css'
 import { GridStack } from 'gridstack'
-import { X, Settings } from '@lucide/vue'
+import { X, Settings, Pause, Play, RefreshCw, Copy, Download } from '@lucide/vue'
 import ChartRenderer from '@/modules/visualization/ChartRenderer.vue'
 import SlicerRenderer from '@/modules/visualization/SlicerRenderer.vue'
 import CollaboratorCursors from '@/components/collaboration/CollaboratorCursors.vue'
 import { useCollaborationStore } from '@/stores/collaborationStore'
 import { useUiStore } from '@/stores/uiStore'
+import { useDashboardStore } from '@/stores/dashboardStore'
 
 const props = defineProps({
   layout: {
@@ -24,9 +25,11 @@ const emit = defineEmits(['update:layout', 'remove-widget', 'edit-widget'])
 
 const collabStore = useCollaborationStore()
 const uiStore = useUiStore()
+const dashboardStore = useDashboardStore()
 
 const gridElement = ref(null)
 const canvasWrapperRef = ref(null)
+const renderers = ref([])
 let grid = null
 let isSyncing = false
 const focusedWidgetId = ref(null)
@@ -166,6 +169,41 @@ const handleMouseMove = (e) => {
   const y = e.clientY - rect.top
   collabStore.updateCursor(x, y)
 }
+
+const togglePause = (widgetId) => {
+  const newLayout = props.layout.map(w => {
+    if (w.id === widgetId) {
+      return { ...w, config: { ...w.config, isPaused: !w.config.isPaused } }
+    }
+    return w
+  })
+  emit('update:layout', newLayout)
+}
+
+const refreshWidget = (widgetId) => {
+  const newLayout = props.layout.map(w => {
+    if (w.id === widgetId) {
+      return { ...w, config: { ...w.config, refreshCounter: (w.config.refreshCounter || 0) + 1 } }
+    }
+    return w
+  })
+  emit('update:layout', newLayout)
+}
+
+const duplicateWidget = (widgetId) => {
+  dashboardStore.duplicateWidget(props.tabId, widgetId)
+}
+
+const exportCsv = (widgetId) => {
+  // Find the renderer instance by widgetId
+  // renderers.value is an array of ChartRenderer components
+  const targetRenderer = renderers.value.find(r => r.widgetId === widgetId)
+  if (targetRenderer && targetRenderer.exportToCSV) {
+    targetRenderer.exportToCSV()
+  } else {
+    uiStore.addToast({ message: 'No se puede exportar este widget', type: 'warning' })
+  }
+}
 </script>
 
 <template>
@@ -194,15 +232,30 @@ const handleMouseMove = (e) => {
           ]"
         >
           <div class="widget-header" :style="uiStore.isViewerMode ? { cursor: 'default' } : {}">
-            <span class="widget-title">{{ widget.config?.title || (widget.config?.type === 'slicer' ? 'Segmentador' : 'Gráfico') }}</span>
+            <span class="widget-title">
+              {{ widget.config?.title || (widget.config?.type === 'slicer' ? 'Segmentador' : 'Gráfico') }}
+              <span v-if="widget.config?.isPaused" class="paused-badge">(Pausado)</span>
+            </span>
             <div v-if="!uiStore.isViewerMode" class="widget-actions">
-              <button class="w-btn" @click.stop="emit('edit-widget', widget.id)"><Settings /></button>
-              <button class="w-btn w-btn-danger" @click.stop="emit('remove-widget', widget.id)"><X /></button>
+              <button class="w-btn" title="Refrescar" @click.stop="refreshWidget(widget.id)"><RefreshCw /></button>
+              <button class="w-btn" :title="widget.config?.isPaused ? 'Reanudar' : 'Pausar'" @click.stop="togglePause(widget.id)">
+                <Play v-if="widget.config?.isPaused" />
+                <Pause v-else />
+              </button>
+              <button class="w-btn" title="Exportar CSV" @click.stop="exportCsv(widget.id)"><Download /></button>
+              <button class="w-btn" title="Duplicar" @click.stop="duplicateWidget(widget.id)"><Copy /></button>
+              <button class="w-btn" title="Ajustes" @click.stop="emit('edit-widget', widget.id)"><Settings /></button>
+              <button class="w-btn w-btn-danger" title="Eliminar" @click.stop="emit('remove-widget', widget.id)"><X /></button>
             </div>
           </div>
           <div class="widget-body">
             <SlicerRenderer v-if="widget.config?.type === 'slicer'" :config="widget.config" />
-            <ChartRenderer v-else-if="widget.config" :config="{ ...widget.config, dataset: widget.config?.dataset || 'default' }" />
+            <ChartRenderer 
+              v-else-if="widget.config" 
+              ref="renderers"
+              :widget-id="widget.id"
+              :config="{ ...widget.config, dataset: widget.config?.dataset || 'default' }" 
+            />
           </div>
         </div>
       </div>
@@ -271,14 +324,21 @@ const handleMouseMove = (e) => {
 }
 
 .widget-title {
-  font-size: var(--text-sm);
   font-weight: var(--font-semibold);
+  font-size: var(--text-sm);
   color: var(--color-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
-.widget-actions {
-  display: flex;
-  gap: var(--space-1);
+.paused-badge {
+  font-size: 10px;
+  color: var(--color-warning);
+  font-weight: normal;
 }
 
 .w-btn {

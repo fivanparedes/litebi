@@ -16,6 +16,26 @@ alasql.fn.DATE = function(...args) {
   return null;
 }
 
+alasql.fn.DATE_DIFF = function(unit, date1, date2) {
+  if (!date1 || !date2) return null;
+  const d1 = new Date(date1);
+  const d2 = new Date(date2);
+  if (isNaN(d1) || isNaN(d2)) return null;
+  const diffTime = d2 - d1;
+  
+  switch(unit?.toLowerCase()) {
+    case 'year': return diffTime / (1000 * 60 * 60 * 24 * 365.25);
+    case 'month': return diffTime / (1000 * 60 * 60 * 24 * 30.44);
+    case 'week': return diffTime / (1000 * 60 * 60 * 24 * 7);
+    case 'hour': return diffTime / (1000 * 60 * 60);
+    case 'minute': return diffTime / (1000 * 60);
+    case 'second': return diffTime / 1000;
+    case 'day':
+    default:
+      return diffTime / (1000 * 60 * 60 * 24);
+  }
+}
+
 self.onmessage = async (e) => {
   const { id, action, payload } = e.data
   
@@ -24,7 +44,9 @@ self.onmessage = async (e) => {
     
     switch (action) {
       case 'QUERY':
-        result = alasql(payload.sql, payload.params || [])
+        // Fix for AlaSQL native DATEDIFF toJS bug
+        const safeSql = payload.sql ? payload.sql.replace(/\bDATEDIFF\s*\(/gi, 'DATE_DIFF(') : ''
+        result = alasql(safeSql, payload.params || [])
         break
         
       case 'CREATE_TABLE':
@@ -37,6 +59,12 @@ self.onmessage = async (e) => {
         
       case 'DROP_TABLE':
         alasql(`DROP TABLE IF EXISTS [${payload.name}]`)
+        break
+        
+      case 'INSERT_INTO':
+        if (alasql.tables[payload.name] && payload.data) {
+          alasql.tables[payload.name].data = alasql.tables[payload.name].data.concat(payload.data)
+        }
         break
         
       case 'EXPORT_DB': {
@@ -79,7 +107,11 @@ function runPipeline(baseDatasetName, tempTableName, originalSchema, steps) {
   alasql(`DROP TABLE IF EXISTS [${tempTableName}]`)
   alasql(`CREATE TABLE [${tempTableName}]`)
   const sourceData = alasql.tables[baseDatasetName]?.data || []
-  alasql.tables[tempTableName].data = JSON.parse(JSON.stringify(sourceData))
+  
+  // Optimización de Memoria: Evitar JSON.parse(JSON.stringify()) para grandes datasets
+  // Dado que las filas de AlaSQL son objetos planos, una copia superficial por cada fila
+  // es suficiente para proteger sourceData y consume mucha menos RAM y CPU.
+  alasql.tables[tempTableName].data = sourceData.map(row => ({ ...row }))
 
   let currentColumns = originalSchema.map(col => col.name)
   const enabledSteps = steps.filter(s => s.enabled)
@@ -112,6 +144,16 @@ function runPipeline(baseDatasetName, tempTableName, originalSchema, steps) {
       currentColumns = currentColumns.filter(c => c !== step.config.column)
       const result = alasql(`SELECT ${currentColumns.map(c => `[${c}]`).join(', ')} FROM [${tempTableName}]`)
       alasql.tables[tempTableName].data = result
+    }
+    else if (step.transformId === 'add_formula') {
+      try {
+        const result = alasql(`SELECT *, ${step.config.expression} AS [${step.config.newColumnName}] FROM [${tempTableName}]`)
+        alasql.tables[tempTableName].data = result
+        currentColumns.push(step.config.newColumnName)
+      } catch (err) {
+        console.warn(`Error in add_formula step (col: ${step.config.newColumnName}):`, err)
+        // If formula fails, we skip it to prevent crashing the whole pipeline
+      }
     }
     else if (step.transformId === 'remove_nulls') {
       const result = alasql(`SELECT * FROM [${tempTableName}] WHERE [${step.config.column}] IS NOT NULL AND [${step.config.column}] != ''`)

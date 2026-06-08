@@ -21,6 +21,9 @@ export const useFormulaStore = defineStore('formula', () => {
   // Format: { [datasetName]: [ { name: 'Total', expression: 'Precio * Cantidad', type: 'number' } ] }
   const formulas = ref({})
   
+  // Format: { [datasetName]: [ { id: 'm1', name: 'Margen', expression: 'SUM(Ventas)', type: 'number' } ] }
+  const corporateMetrics = ref({})
+  
   /**
    * Obtiene las fórmulas definidas para un dataset
    * @param {string} datasetName - Nombre del dataset
@@ -159,11 +162,54 @@ export const useFormulaStore = defineStore('formula', () => {
       }
     }
   }
+  const getCorporateMetricsForDataset = (datasetName) => {
+    return corporateMetrics.value[datasetName] || []
+  }
+
+  const addCorporateMetric = (datasetName, metricName, expression, type = 'number') => {
+    validateFormulaInputs(datasetName, metricName, expression)
+    
+    if (!corporateMetrics.value[datasetName]) {
+      corporateMetrics.value[datasetName] = []
+    }
+    
+    const existingIdx = corporateMetrics.value[datasetName].findIndex(m => m.name === metricName)
+    const metric = { 
+      id: existingIdx !== -1 ? corporateMetrics.value[datasetName][existingIdx].id : `metric_${Date.now()}`,
+      name: metricName, 
+      expression, 
+      type 
+    }
+    
+    if (existingIdx === -1) {
+      corporateMetrics.value[datasetName].push(metric)
+    } else {
+      corporateMetrics.value[datasetName][existingIdx] = metric
+    }
+    
+    uiStore.addToast({
+      message: `Métrica corporativa '${metricName}' guardada con éxito`,
+      type: 'success'
+    })
+  }
+
+  const removeCorporateMetric = (datasetName, metricId) => {
+    if (!corporateMetrics.value[datasetName]) return
+    corporateMetrics.value[datasetName] = corporateMetrics.value[datasetName].filter(m => m.id !== metricId)
+    uiStore.addToast({
+      message: 'Métrica eliminada',
+      type: 'info'
+    })
+  }
   
   return {
     formulas,
+    corporateMetrics,
     getFormulasForDataset,
+    getCorporateMetricsForDataset,
     addFormula,
-    removeFormula
+    addCorporateMetric,
+    removeFormula,
+    removeCorporateMetric
   }
 })

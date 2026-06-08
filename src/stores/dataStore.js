@@ -130,6 +130,31 @@ export const useDataStore = defineStore('data', () => {
     }
   }
   
+  const appendData = async (datasetName, newData) => {
+    try {
+      const ds = datasets.value.get(datasetName)
+      if (!ds) throw new Error(`Dataset no encontrado: ${datasetName}`)
+      
+      let targetData = Array.isArray(newData) ? newData : [newData]
+      
+      // Coerce con el esquema existente
+      const cleanedData = coerceData(targetData, ds.schema)
+      
+      // Insertar en worker
+      await sqlClient.insertIntoTable(datasetName, cleanedData)
+      
+      // Actualizar metadatos
+      ds.rowCount += cleanedData.length
+      dataVersion.value++
+      
+      console.log(`[Streaming] ${cleanedData.length} filas añadidas a ${datasetName}.`)
+      return true
+    } catch (error) {
+      console.error(`[Streaming] Error en appendData para ${datasetName}:`, error)
+      return false
+    }
+  }
+
   const removeDataset = async (name) => {
     try {
       if (datasets.value.has(name)) {
@@ -389,6 +414,7 @@ export const useDataStore = defineStore('data', () => {
     datasetNames,
     activeDatasetMeta,
     addDataset,
+    appendData,
     removeDataset,
     setActiveDataset,
     getPreviewData,

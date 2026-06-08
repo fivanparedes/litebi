@@ -124,5 +124,15 @@
   },
   "action": {
     "goHome": "Go Home"
+  },
+  "advanced": {
+    "forecasting": "Forecasting",
+    "machineLearning": "Machine Learning",
+    "regression": "Regression",
+    "clustering": "Clustering",
+    "corporateMetrics": "Corporate Metrics (Semantic Layer)",
+    "quickMeasures": "Quick Measures",
+    "formulaManual": "Formulas Manual",
+    "predictiveAnalytics": "Predictive Analytics"
   }
 }

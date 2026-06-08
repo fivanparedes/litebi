@@ -18,6 +18,8 @@ const props = defineProps({
   }
 })
 
+const emit = defineEmits(['column-selected'])
+
 const tableElement = ref(null)
 let tabulatorInstance = null
 
@@ -93,6 +95,10 @@ const initTabulator = () => {
       paginationSizeSelector: [50, 100, 500, 1000],
       movableColumns: true,
       index: "_temp_id", // Requires a unique ID if using selection
+    })
+
+    tabulatorInstance.on("headerClick", function(e, column) {
+      emit('column-selected', column.getField())
     })
   }
 }

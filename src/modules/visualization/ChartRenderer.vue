@@ -3,11 +3,12 @@ import { computed, ref, watch, onMounted } from 'vue'
 import { useDataStore } from '@/stores/dataStore'
 import { useDashboardStore } from '@/stores/dashboardStore'
 import { useSettingsStore } from '@/stores/settingsStore'
+import { useFormulaStore } from '@/stores/formulaStore'
 import { sqlClient } from '@/modules/data/SqlWorkerClient'
 import { use, registerTheme, registerMap, getMap, registerTransform } from 'echarts/core'
 import { Loader } from '@lucide/vue'
 import { CanvasRenderer } from 'echarts/renderers'
-import { BarChart, LineChart, PieChart, ScatterChart, BoxplotChart, FunnelChart, GaugeChart, HeatmapChart, TreemapChart, RadarChart } from 'echarts/charts'
+import { BarChart, LineChart, PieChart, ScatterChart, BoxplotChart, FunnelChart, GaugeChart, HeatmapChart, TreemapChart, RadarChart, EffectScatterChart } from 'echarts/charts'
 import {
   TitleComponent,
   TooltipComponent,
@@ -16,7 +17,8 @@ import {
   DatasetComponent,
   TransformComponent,
   VisualMapComponent,
-  GeoComponent
+  GeoComponent,
+  CalendarComponent
 } from 'echarts/components'
 import { MapChart } from 'echarts/charts'
 import VChart from 'vue-echarts'
@@ -43,6 +45,7 @@ use([
   TreemapChart,
   RadarChart,
   MapChart,
+  EffectScatterChart,
   TitleComponent,
   TooltipComponent,
   LegendComponent,
@@ -50,7 +53,8 @@ use([
   DatasetComponent,
   TransformComponent,
   VisualMapComponent,
-  GeoComponent
+  GeoComponent,
+  CalendarComponent
 ])
 
 // Register custom themes
@@ -61,6 +65,10 @@ const props = defineProps({
   config: {
     type: Object,
     required: true,
+  },
+  widgetId: {
+    type: String,
+    required: false
   }
 })
 
@@ -68,10 +76,13 @@ const dataStore = useDataStore()
 const dashboardStore = useDashboardStore()
 const settingsStore = useSettingsStore()
 const uiStore = useUiStore()
+const formulaStore = useFormulaStore()
 
 const chartData = ref([])
 const kpiValue = ref(0)
 const isLoading = ref(false)
+const datasetMissing = ref(false)
+const sqlError = ref(null)
 
 // Drill-down State
 const drillLevel = ref(0)
@@ -107,8 +118,17 @@ const loadData = async () => {
   if (!props.config) return
 
   isLoading.value = true
+  sqlError.value = null
   // Permitir que el hilo de UI se libere antes de cálculos pesados
   await new Promise(resolve => setTimeout(resolve, 0))
+
+  datasetMissing.value = false
+  if (props.config.dataset && !dataStore.datasets.has(props.config.dataset)) {
+    datasetMissing.value = true
+    chartData.value = []
+    isLoading.value = false
+    return
+  }
 
   if (props.config.type === 'kpi' || props.config.type === 'scorecard') {
     if (!props.config.yAxis || !props.config.dataset) {
@@ -125,8 +145,18 @@ const loadData = async () => {
     const parseCol = (colStr) => colStr.includes('].[') ? colStr : `[${dsName}].[${colStr}]`
     const extractTable = (colStr) => colStr.includes('].[') ? colStr.split('].[')[0].replace('[', '') : dsName
     
+    const resolveY = (yConfig, defaultAgg) => {
+      if (yConfig?.startsWith('__METRIC__')) {
+        const metricId = yConfig.split('__METRIC__')[1]
+        const metrics = formulaStore.getCorporateMetricsForDataset(dsName)
+        const metric = metrics.find(m => m.id === metricId)
+        if (metric) return `(${metric.expression})`
+      }
+      return `${defaultAgg}(${parseCol(yConfig)})`
+    }
+    
     let globalWhere = ''
-    const requiredTables = [dsName, extractTable(rawY)]
+    const requiredTables = [dsName, rawY.startsWith('__METRIC__') ? dsName : extractTable(rawY)]
     
     dashboardStore.globalFilters.forEach(f => {
       if (f.dataset !== dsName) {
@@ -150,21 +180,41 @@ const loadData = async () => {
       }
     })
 
+    // Apply local widget filters
+    if (Array.isArray(props.config.filters)) {
+      props.config.filters.forEach(f => {
+        if (!f.column || !f.operator || f.value === undefined || f.value === '') return
+        const safeVal = typeof f.value === 'string' ? String(f.value).replace(/'/g, "''") : f.value
+        const colName = f.column.includes('].[') ? f.column : `[${dsName}].[${f.column}]`
+        requiredTables.push(extractTable(f.column) || dsName)
+        
+        const v1 = typeof f.value === 'number' ? f.value : `'${safeVal}'`
+        if (f.operator.toUpperCase() === 'LIKE') {
+          globalWhere += ` AND ${colName} LIKE '%${safeVal}%'`
+        } else {
+          globalWhere += ` AND ${colName} ${f.operator} ${v1}`
+        }
+      })
+    }
+
     try {
-      const ySafe = parseCol(rawY)
+      const ySafeExp = resolveY(rawY, agg)
       const uniqueRequiredTables = [...new Set(requiredTables)]
       const fromClause = dataStore.buildJoinQuery(dsName, uniqueRequiredTables)
 
       if (props.config.type === 'scorecard' && rawY2) {
-        const y2Safe = parseCol(rawY2)
-        const q = `SELECT ${agg}(${ySafe}) as [total], ${agg}(${y2Safe}) as [target] FROM ${fromClause} WHERE 1=1 ${globalWhere}`
+        const y2SafeExp = resolveY(rawY2, agg)
+        const q = `SELECT ${ySafeExp} as [total], ${y2SafeExp} as [target] FROM ${fromClause} WHERE 1=1 ${globalWhere}`
         const res = await sqlClient.query(q)
         kpiValue.value = {
           total: res[0]?.total || 0,
           target: res[0]?.target || 0
         }
       } else {
-        const q = `SELECT ${agg}(${ySafe}) as [total] FROM ${fromClause} WHERE ${ySafe} IS NOT NULL${globalWhere}`
+        // Find main column for IS NOT NULL check
+        const baseColExp = rawY.startsWith('__METRIC__') ? '1' : parseCol(rawY)
+        const nullCheck = baseColExp === '1' ? '' : ` AND ${baseColExp} IS NOT NULL`
+        const q = `SELECT ${ySafeExp} as [total] FROM ${fromClause} WHERE 1=1${nullCheck}${globalWhere}`
         const res = await sqlClient.query(q)
         kpiValue.value = res[0]?.total || 0
       }
@@ -191,6 +241,16 @@ const loadData = async () => {
   
   const parseCol = (colStr) => colStr.includes('].[') ? colStr : `[${dsName}].[${colStr}]`
   const extractTable = (colStr) => colStr && colStr.includes('].[') ? colStr.split('].[')[0].replace('[', '') : dsName
+  
+  const resolveY = (yConfig, defaultAgg) => {
+    if (yConfig?.startsWith('__METRIC__')) {
+      const metricId = yConfig.split('__METRIC__')[1]
+      const metrics = formulaStore.getCorporateMetricsForDataset(dsName)
+      const metric = metrics.find(m => m.id === metricId)
+      if (metric) return `(${metric.expression})`
+    }
+    return `${defaultAgg}(${parseCol(yConfig)})`
+  }
 
   let globalWhere = ''
   const requiredTables = [dsName, extractTable(rawX), extractTable(rawY)]
@@ -227,22 +287,41 @@ const loadData = async () => {
     globalWhere += ` AND ${colName} = ${v1}`
   })
 
+  // Apply local widget filters
+  if (Array.isArray(props.config.filters)) {
+    props.config.filters.forEach(f => {
+      if (!f.column || !f.operator || f.value === undefined || f.value === '') return
+      const safeVal = typeof f.value === 'string' ? String(f.value).replace(/'/g, "''") : f.value
+      const colName = f.column.includes('].[') ? f.column : `[${dsName}].[${f.column}]`
+      requiredTables.push(extractTable(f.column) || dsName)
+      
+      const v1 = typeof f.value === 'number' ? f.value : `'${safeVal}'`
+      if (f.operator.toUpperCase() === 'LIKE') {
+        globalWhere += ` AND ${colName} LIKE '%${safeVal}%'`
+      } else {
+        globalWhere += ` AND ${colName} ${f.operator} ${v1}`
+      }
+    })
+  }
+
   const uniqueRequiredTables = [...new Set(requiredTables)]
 
   try {
     const xSafe = parseCol(rawX)
-    const ySafe = parseCol(rawY)
+    const ySafeExp = resolveY(rawY, agg)
+    const baseColExp = rawY.startsWith('__METRIC__') ? '1' : parseCol(rawY)
+    const yNullCheck = baseColExp === '1' ? '' : ` AND ${baseColExp} IS NOT NULL`
     
     const fromClause = dataStore.buildJoinQuery(dsName, uniqueRequiredTables)
     
     if ((props.config.type === 'map' && props.config.mapMode === 'scatter') || props.config.type === 'scatter' || props.config.type === 'boxplot') {
       const isMapScatter = props.config.type === 'map'
-      const selectY2 = (isMapScatter && rawY2) ? `, ${agg}(${parseCol(rawY2)}) as [value2]` : ''
-      const groupByMap = (isMapScatter && rawY2) ? `GROUP BY ${xSafe}, ${ySafe}` : ''
+      const selectY2 = (isMapScatter && rawY2) ? `, ${resolveY(rawY2, agg)} as [value2]` : ''
+      const groupByMap = (isMapScatter && rawY2) ? `GROUP BY ${xSafe}, ${ySafeExp}` : ''
       
       const q = isMapScatter && rawY2 
-        ? `SELECT TOP 2000 ${xSafe} as [name], ${ySafe} as [value] ${selectY2} FROM ${fromClause} WHERE ${xSafe} IS NOT NULL AND ${ySafe} IS NOT NULL${globalWhere} ${groupByMap}`
-        : `SELECT TOP 2000 ${xSafe} as [name], ${ySafe} as [value] FROM ${fromClause} WHERE ${xSafe} IS NOT NULL AND ${ySafe} IS NOT NULL${globalWhere}`
+        ? `SELECT TOP 2000 ${xSafe} as [name], ${ySafeExp} as [value] ${selectY2} FROM ${fromClause} WHERE ${xSafe} IS NOT NULL${yNullCheck}${globalWhere} ${groupByMap}`
+        : `SELECT TOP 2000 ${xSafe} as [name], ${ySafeExp} as [value] FROM ${fromClause} WHERE ${xSafe} IS NOT NULL${yNullCheck}${globalWhere}`
         
       chartData.value = await sqlClient.query(q)
       isLoading.value = false
@@ -250,32 +329,40 @@ const loadData = async () => {
     }
 
     if (props.config.type === 'heatmap' && rawY2) {
-      const ySafe2 = parseCol(rawY2)
-      const q = `SELECT ${xSafe} as [name], ${ySafe2} as [name2], ${agg}(${ySafe}) as [value] FROM ${fromClause} WHERE ${xSafe} IS NOT NULL AND ${ySafe2} IS NOT NULL${globalWhere} GROUP BY ${xSafe}, ${ySafe2} LIMIT 1000`
+      const ySafe2Exp = resolveY(rawY2, agg)
+      const q = `SELECT ${xSafe} as [name], ${ySafe2Exp} as [name2], ${ySafeExp} as [value] FROM ${fromClause} WHERE ${xSafe} IS NOT NULL${yNullCheck}${globalWhere} GROUP BY ${xSafe}, ${ySafe2Exp} LIMIT 1000`
       chartData.value = await sqlClient.query(q)
       isLoading.value = false
       return
     }
 
     if ((props.config.type === 'combo' || props.config.type === 'line' || props.config.type === 'bar') && rawY2) {
-      const ySafe2 = parseCol(rawY2)
-      const q = `SELECT ${xSafe} as [name], ${agg}(${ySafe}) as [value], ${agg}(${ySafe2}) as [value2] FROM ${fromClause} WHERE ${xSafe} IS NOT NULL${globalWhere} GROUP BY ${xSafe} ORDER BY [value] DESC LIMIT 100`
+      const ySafe2Exp = resolveY(rawY2, agg)
+      const q = `SELECT ${xSafe} as [name], ${ySafeExp} as [value], ${ySafe2Exp} as [value2] FROM ${fromClause} WHERE ${xSafe} IS NOT NULL${globalWhere} GROUP BY ${xSafe} ORDER BY [value] DESC LIMIT 100`
       chartData.value = await sqlClient.query(q)
       isLoading.value = false
       return
     }
 
     if (props.config.type === 'gauge') {
-      const q = `SELECT ${agg}(${ySafe}) as [value] FROM ${fromClause} WHERE ${ySafe} IS NOT NULL${globalWhere}`
+      const q = `SELECT ${ySafeExp} as [value] FROM ${fromClause} WHERE 1=1${yNullCheck}${globalWhere}`
+      chartData.value = await sqlClient.query(q)
+      isLoading.value = false
+      return
+    }
+
+    if (props.config.type === 'calendar') {
+      const q = `SELECT ${xSafe} as [name], ${ySafeExp} as [value] FROM ${fromClause} WHERE ${xSafe} IS NOT NULL${globalWhere} GROUP BY ${xSafe} LIMIT 2000`
       chartData.value = await sqlClient.query(q)
       isLoading.value = false
       return
     }
     
-    const q = `SELECT ${xSafe} as [name], ${agg}(${ySafe}) as [value] FROM ${fromClause} WHERE ${xSafe} IS NOT NULL${globalWhere} GROUP BY ${xSafe} ORDER BY [value] DESC LIMIT 100`
+    const q = `SELECT ${xSafe} as [name], ${ySafeExp} as [value] FROM ${fromClause} WHERE ${xSafe} IS NOT NULL${globalWhere} GROUP BY ${xSafe} ORDER BY [value] DESC LIMIT 100`
     chartData.value = await sqlClient.query(q)
   } catch (e) {
     console.error("Error generating chart data:", e)
+    sqlError.value = e.message || 'Error de sintaxis SQL. Revisa los filtros y tipos de datos.'
     chartData.value = []
   }
   isLoading.value = false
@@ -283,8 +370,19 @@ const loadData = async () => {
 
 // Watch global filters and config to recalculate data
 let filterTimeout
+let lastRefreshCounter = props.config?.refreshCounter || 0
+
 watch(() => [props.config, dashboardStore.globalFilters, dataStore.dataVersion], () => {
   clearTimeout(filterTimeout)
+  
+  const currentCounter = props.config?.refreshCounter || 0
+  const isRefreshTriggered = currentCounter !== lastRefreshCounter
+  lastRefreshCounter = currentCounter
+
+  if (props.config?.isPaused && !isRefreshTriggered) {
+    return
+  }
+
   filterTimeout = setTimeout(() => {
     loadData()
   }, 100)
@@ -569,6 +667,150 @@ const chartStrategies = {
       }]
     }
   },
+  calendar: (baseOption, data, props) => {
+    // 1. Validar y formatear fechas (YYYY-MM-DD)
+    const validData = []
+    let minDate = Infinity
+    let maxDate = -Infinity
+    
+    data.forEach(d => {
+      const parsed = Date.parse(d.name)
+      if (!isNaN(parsed)) {
+        const dateObj = new Date(parsed)
+        const dateStr = dateObj.toISOString().split('T')[0] // YYYY-MM-DD
+        validData.push([dateStr, d.value])
+        
+        if (parsed < minDate) minDate = parsed
+        if (parsed > maxDate) maxDate = parsed
+      }
+    })
+
+    // Si no hay fechas válidas, usar el año actual como fallback
+    let range
+    if (validData.length > 0) {
+      const minD = new Date(minDate).toISOString().split('T')[0]
+      const maxD = new Date(maxDate).toISOString().split('T')[0]
+      
+      const minMonth = minD.substring(0, 7)
+      const maxMonth = maxD.substring(0, 7)
+      
+      if (minMonth === maxMonth) {
+        range = minMonth // Fuerza a que dibuje solo un mes (Ej: "2022-01")
+      } else {
+        range = [minD, maxD]
+      }
+    } else {
+      range = new Date().getFullYear().toString()
+    }
+
+    // Generar serie de días para poner el número en cada celda
+    const allDays = []
+    let currentD = new Date(minDate)
+    let endD = new Date(maxDate)
+    
+    if (validData.length > 0) {
+      const minDStr = new Date(minDate).toISOString().split('T')[0]
+      const maxDStr = new Date(maxDate).toISOString().split('T')[0]
+      if (minDStr.substring(0, 7) === maxDStr.substring(0, 7)) {
+        // Si es solo un mes, forzamos a cubrir todo el mes
+        currentD = new Date(minDStr.substring(0, 7) + '-01T00:00:00')
+        endD = new Date(currentD.getFullYear(), currentD.getMonth() + 1, 0)
+      }
+    } else {
+      currentD = new Date(new Date().getFullYear(), 0, 1)
+      endD = new Date(new Date().getFullYear(), 11, 31)
+    }
+
+    while (currentD <= endD) {
+      allDays.push([currentD.toISOString().split('T')[0], 0])
+      currentD.setDate(currentD.getDate() + 1)
+    }
+
+    const mode = props.config.calendarMode || 'heatmap'
+    const maxVal = validData.length ? Math.max(...validData.map(d => d[1])) : 1
+    const minVal = validData.length ? Math.min(...validData.map(d => d[1])) : 0
+    
+    const option = {
+      ...baseOption,
+      calendar: {
+        top: 60,
+        bottom: 20,
+        left: 40,
+        right: 40,
+        cellSize: ['auto', 'auto'], // Permite redimensionar en ambas direcciones
+        range: range,
+        itemStyle: {
+          borderWidth: 0.5
+        },
+        yearLabel: { show: true }
+      }
+    }
+
+    const dayLabelSeries = {
+      type: 'scatter',
+      coordinateSystem: 'calendar',
+      data: allDays,
+      symbolSize: 0,
+      label: {
+        show: true,
+        formatter: function (params) {
+          return parseInt(params.value[0].split('-')[2], 10)
+        },
+        color: 'var(--color-text-secondary)',
+        position: 'insideTopLeft',
+        offset: [5, 5],
+        fontSize: 10
+      },
+      silent: true // Evita que los números interfieran con tooltips o eventos
+    }
+
+    if (mode === 'heatmap') {
+      option.visualMap = {
+        min: minVal,
+        max: maxVal,
+        calculable: true,
+        orient: 'horizontal',
+        left: 'center',
+        top: 0
+      }
+      option.series = [
+        dayLabelSeries,
+        {
+          type: 'heatmap',
+          coordinateSystem: 'calendar',
+          data: validData
+        }
+      ]
+    } else {
+      // scatter o effectScatter
+      option.visualMap = {
+        min: minVal,
+        max: maxVal,
+        calculable: true,
+        orient: 'horizontal',
+        left: 'center',
+        top: 0,
+        inRange: {
+          color: ['#ffeda0', '#feb24c', '#f03b20']
+        }
+      }
+      option.series = [
+        dayLabelSeries,
+        {
+          type: mode === 'effectScatter' ? 'effectScatter' : 'scatter',
+          coordinateSystem: 'calendar',
+          data: validData,
+          symbolSize: function (val) {
+            // Escalar entre 5 y 20 basado en el maxVal para que sea más visible
+            const span = maxVal - minVal || 1
+            return 5 + ((val[1] - minVal) / span) * 15
+          }
+        }
+      ]
+    }
+
+    return option
+  },
   map: (baseOption, data, props, xAxisData, seriesData) => {
     const getMapName = () => {
       if (props.config.mapMode === 'custom' && props.config.customGeoJson) {
@@ -767,11 +1009,30 @@ const echartOptions = computed(() => {
     baseOption.legend = { type: 'scroll', bottom: 0 }
   }
 
+  const resolveMetricName = (yConfig) => {
+    if (yConfig?.startsWith('__METRIC__')) {
+      const metricId = yConfig.split('__METRIC__')[1]
+      const metrics = formulaStore.getCorporateMetricsForDataset(props.config.dataset)
+      const metric = metrics.find(m => m.id === metricId)
+      if (metric) return metric.name
+    }
+    return yConfig
+  }
+
+  const resolvedProps = {
+    ...props,
+    config: {
+      ...props.config,
+      yAxis: resolveMetricName(props.config.yAxis),
+      secondaryYAxis: resolveMetricName(props.config.secondaryYAxis)
+    }
+  }
+
   let finalOption = baseOption
   if (chartStrategies[ctype]) {
-    finalOption = chartStrategies[ctype](baseOption, data, props, xAxisData, seriesData)
+    finalOption = chartStrategies[ctype](baseOption, data, resolvedProps, xAxisData, seriesData)
   } else {
-    finalOption = getDefaultStrategy(baseOption, data, props, xAxisData, seriesData, ctype)
+    finalOption = getDefaultStrategy(baseOption, data, resolvedProps, xAxisData, seriesData, ctype)
   }
 
   // Apply custom font family
@@ -860,6 +1121,32 @@ const gridSchema = computed(() => {
   }
   return schema
 })
+
+const exportToCSV = () => {
+  if (!chartData.value || chartData.value.length === 0) {
+    uiStore.addToast({ message: 'No hay datos para exportar', type: 'info' })
+    return
+  }
+  const keys = Object.keys(chartData.value[0])
+  const csvContent = [
+    keys.join(','),
+    ...chartData.value.map(row => keys.map(k => `"${String(row[k] || '').replace(/"/g, '""')}"`).join(','))
+  ].join('\n')
+  
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.setAttribute('href', url)
+  link.setAttribute('download', `${props.config.title || 'export'}.csv`)
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+}
+
+defineExpose({
+  exportToCSV,
+  widgetId: props.widgetId
+})
 </script>
 
 <template>
@@ -870,10 +1157,22 @@ const gridSchema = computed(() => {
     </div>
     
     <!-- Drill Up Button -->
-    <button v-if="drillLevel > 0 && !isLoading" class="drill-up-btn" @click="handleDrillUp" title="Subir nivel">
+    <button v-if="drillLevel > 0 && !isLoading && !datasetMissing" class="drill-up-btn" @click="handleDrillUp" title="Subir nivel">
       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-corner-left-up"><polyline points="14 9 9 4 4 9"/><path d="M20 20h-7a4 4 0 0 1-4-4V4"/></svg>
       Subir Nivel
     </button>
+    <div v-else-if="datasetMissing" class="chart-empty">
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 8px; color: var(--color-danger);">
+        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-database-zap"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 15 21.84"/><path d="M21 5V8.5"/><path d="M21 12L18 17H22L19 22"/></svg>
+        <p>Dataset original eliminado o no encontrado.</p>
+      </div>
+    </div>
+    <div v-else-if="sqlError" class="chart-empty">
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 8px; color: var(--color-danger); max-width: 80%; text-align: center;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-alert-triangle"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+        <p style="font-size: 12px; font-family: monospace; opacity: 0.8; word-break: break-all;">{{ sqlError }}</p>
+      </div>
+    </div>
     <div v-else-if="!config.dataset || !config.xAxis || (!config.yAxis && config.type !== 'image')" class="chart-empty">
       <p>Configura el widget para visualizar datos.</p>
     </div>

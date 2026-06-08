@@ -13,6 +13,9 @@ import FormulaEditor from '@/modules/formulas/FormulaEditor.vue'
 import ColumnList from '@/modules/formulas/ColumnList.vue'
 import QuickMeasuresModal from '@/modules/formulas/QuickMeasuresModal.vue'
 
+import { BookOpen } from '@lucide/vue'
+import FormulaManualModal from '@/modules/formulas/FormulaManualModal.vue'
+
 const { t } = useI18n()
 const router = useRouter()
 const dataStore = useDataStore()
@@ -27,7 +30,20 @@ const columnName = ref('')
 const columnType = ref('number')
 const testResult = ref(null)
 const isQuickMeasuresModalOpen = ref(false)
+const isFormulaManualModalOpen = ref(false)
 const formulaMode = ref('columna')
+const attemptedSave = ref(false)
+
+const allAvailableColumns = computed(() => {
+  const baseSchema = activeDatasetMeta.value?.schema || []
+  const dsName = dataStore.activeDatasetName
+  if (!dsName) return baseSchema
+  
+  const virtualCols = formulaStore.getFormulasForDataset(dsName).map(f => ({ name: f.name, type: f.type || 'number' }))
+  const metrics = formulaStore.getCorporateMetricsForDataset(dsName).map(m => ({ name: m.name, type: m.type || 'number' }))
+  
+  return [...baseSchema, ...virtualCols, ...metrics]
+})
 
 const modeOptions = [
   { value: 'columna', label: 'Nueva Columna Computada' },
@@ -58,27 +74,44 @@ const handleEditColumn = (col) => {
   columnName.value = col.name
   columnType.value = col.type || 'number'
   expression.value = col.expression || ''
+  attemptedSave.value = false
 }
 
 const handleTest = async () => {
   if (!expression.value || !dataStore.activeDatasetName) return
-  testResult.value = await testSqlExpression(dataStore.activeDatasetName, expression.value)
+  testResult.value = await testSqlExpression(
+    dataStore.activeDatasetName, 
+    expression.value, 
+    formulaMode.value, 
+    columnName.value
+  )
 }
 
 const handleSave = () => {
+  attemptedSave.value = true
   if (!columnName.value || !expression.value) return
   
   try {
-    formulaStore.addFormula(
-      dataStore.activeDatasetName, 
-      columnName.value, 
-      expression.value, 
-      columnType.value
-    )
+    if (formulaMode.value === 'metrica') {
+      formulaStore.addCorporateMetric(
+        dataStore.activeDatasetName,
+        columnName.value,
+        expression.value,
+        columnType.value
+      )
+    } else {
+      formulaStore.addFormula(
+        dataStore.activeDatasetName, 
+        columnName.value, 
+        expression.value, 
+        columnType.value
+      )
+    }
     // Clear form on success
     columnName.value = ''
     expression.value = ''
     testResult.value = null
+    attemptedSave.value = false
   } catch (e) {
     // Error is handled in store (Toast)
   }
@@ -132,10 +165,16 @@ const handleQuickMeasureGenerate = (generatedExpression) => {
               Crea nuevas columnas calculadas (filas) o métricas agrupadas (agregaciones) utilizando sintaxis SQL. Puedes construir la fórmula seleccionando las opciones del listado o utilizando las medidas rápidas.
             </p>
           </div>
-          <BaseButton variant="secondary" size="sm" @click="isQuickMeasuresModalOpen = true">
-            <template #icon-left><Zap /></template>
-            Medidas Rápidas
-          </BaseButton>
+          <div style="display: flex; gap: var(--space-2);">
+            <BaseButton variant="primary" size="sm" @click="isQuickMeasuresModalOpen = true">
+              <template #icon-left><Zap /></template>
+              Medidas Rápidas
+            </BaseButton>
+            <BaseButton variant="secondary" size="sm" @click="isFormulaManualModalOpen = true">
+              <template #icon-left><BookOpen /></template>
+              Manual de Fórmulas
+            </BaseButton>
+          </div>
         </div>
         
         <div class="form-row">
@@ -145,7 +184,12 @@ const handleQuickMeasureGenerate = (generatedExpression) => {
           </div>
           <div class="form-group flex-2">
             <label>Nombre de la {{ formulaMode === 'columna' ? 'columna' : 'métrica' }}</label>
-            <BaseInput v-model="columnName" placeholder="Ej: Ingresos Totales" />
+            <BaseInput 
+              v-model="columnName" 
+              placeholder="Ej: Ingresos Totales" 
+              :class="{ 'input-error': attemptedSave && !columnName }"
+            />
+            <span v-if="attemptedSave && !columnName" class="error-text">Obligatorio</span>
           </div>
           <div class="form-group flex-1">
             <label>Tipo de dato</label>
@@ -155,12 +199,14 @@ const handleQuickMeasureGenerate = (generatedExpression) => {
         
         <div class="editor-container">
           <label class="editor-label">Expresión SQL / Fórmulas</label>
-          <div class="cm-wrapper">
+          <div class="cm-wrapper" :class="{ 'input-error-border': attemptedSave && !expression }">
             <FormulaEditor 
               v-model="expression"
               :schema="activeDatasetMeta?.schema || []"
             />
           </div>
+          <span v-if="attemptedSave && !expression" class="error-text">La expresión SQL es obligatoria</span>
+          
           <div class="editor-help">
             <div class="snippets-bar">
               <span class="snippets-label">Plantillas Temporales:</span>
@@ -178,8 +224,30 @@ const handleQuickMeasureGenerate = (generatedExpression) => {
         <div class="action-bar">
           <div class="test-results">
             <div v-if="testResult" class="result-box" :class="testResult.success ? 'result-box--success' : 'result-box--error'">
-              <span class="result-label">Resultado de prueba (fila 1):</span>
-              <span class="result-value">{{ testResult.success ? testResult.sampleResult : testResult.error }}</span>
+              <div v-if="!testResult.success" style="display: flex; align-items: center; width: 100%;">
+                <span class="result-label">Resultado de prueba:</span>
+                <span class="result-value" style="margin-left: 8px;">{{ testResult.error }}</span>
+                <button class="help-link" @click="isFormulaManualModalOpen = true">ℹ️ Ver Manual</button>
+              </div>
+              <div v-else style="width: 100%;">
+                <span class="result-label" style="display: block; margin-bottom: 8px;">
+                  Vista Previa ({{ testResult.mode === 'metrica' ? 'Métrica Agrupada' : 'Primeras filas' }}):
+                </span>
+                <div class="preview-table-container">
+                  <table class="preview-table">
+                    <thead>
+                      <tr>
+                        <th v-for="key in Object.keys(testResult.sampleResult[0] || {})" :key="key">{{ key }}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="(row, i) in testResult.sampleResult" :key="i">
+                        <td v-for="(val, key) in row" :key="key">{{ val }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
           </div>
           
@@ -188,7 +256,7 @@ const handleQuickMeasureGenerate = (generatedExpression) => {
               <template #icon-left><Play /></template>
               Probar Fómula
             </BaseButton>
-            <BaseButton variant="primary" :disabled="!expression || !columnName" @click="handleSave">
+            <BaseButton variant="primary" @click="handleSave">
               <template #icon-left><Save /></template>
               Guardar {{ formulaMode === 'columna' ? 'Columna' : 'Métrica' }}
             </BaseButton>
@@ -199,9 +267,13 @@ const handleQuickMeasureGenerate = (generatedExpression) => {
     
     <QuickMeasuresModal 
       v-model="isQuickMeasuresModalOpen"
-      :schema="activeDatasetMeta?.schema || []"
+      :schema="allAvailableColumns"
       :datasetName="dataStore.activeDatasetName"
       @generate="handleQuickMeasureGenerate"
+    />
+
+    <FormulaManualModal 
+      v-model="isFormulaManualModalOpen"
     />
   </div>
 </template>
@@ -391,6 +463,66 @@ const handleQuickMeasureGenerate = (generatedExpression) => {
   display: flex;
   gap: var(--space-3);
   flex-shrink: 0;
+}
+
+.input-error {
+  border-color: var(--color-danger) !important;
+}
+
+.input-error-border {
+  border: 1px solid var(--color-danger);
+  border-radius: var(--radius-md);
+}
+
+.error-text {
+  color: var(--color-danger);
+  font-size: var(--text-xs);
+  margin-top: var(--space-1);
+}
+
+.preview-table-container {
+  max-height: 150px;
+  overflow-y: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background-color: var(--color-bg-primary);
+}
+
+.preview-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-xs);
+  text-align: left;
+}
+
+.preview-table th, .preview-table td {
+  padding: var(--space-2);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.preview-table th {
+  background-color: var(--color-bg-secondary);
+  font-weight: var(--font-semibold);
+  position: sticky;
+  top: 0;
+}
+
+.preview-table tr:last-child td {
+  border-bottom: none;
+}
+
+.help-link {
+  background: none;
+  border: none;
+  color: var(--color-primary);
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: var(--text-sm);
+  margin-left: auto;
+  padding: 0;
+}
+.help-link:hover {
+  color: var(--color-primary-hover);
 }
 
 @keyframes slideUpFade {

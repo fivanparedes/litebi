@@ -124,5 +124,15 @@
   },
   "action": {
     "goHome": "Volver al Inicio"
+  },
+  "advanced": {
+    "forecasting": "Pronóstico (Forecasting)",
+    "machineLearning": "Machine Learning",
+    "regression": "Regresión",
+    "clustering": "Clustering (Agrupación)",
+    "corporateMetrics": "Métricas Corporativas (Capa Semántica)",
+    "quickMeasures": "Medidas Rápidas",
+    "formulaManual": "Manual de Fórmulas",
+    "predictiveAnalytics": "Análisis Predictivo"
   }
 }

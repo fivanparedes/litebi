@@ -10,6 +10,8 @@ import { TransformPipeline } from '@/modules/cleaning/TransformPipeline'
 import DataGrid from '@/modules/cleaning/DataGrid.vue'
 import TransformPanel from '@/modules/cleaning/TransformPanel.vue'
 import ColumnList from '@/modules/formulas/ColumnList.vue'
+import FormulaEditor from '@/modules/formulas/FormulaEditor.vue'
+import { Check } from '@lucide/vue'
 
 const { t } = useI18n()
 const router = useRouter()
@@ -86,6 +88,52 @@ const handleApplyTransformations = async () => {
     projectStore.markDirty()
   }
 }
+
+// --- Formula Bar Logic ---
+const selectedColumn = ref('')
+const isComputedColumn = ref(false)
+const formulaExpression = ref('')
+const newColumnName = ref('')
+const showNewColumnInput = ref(false)
+
+const handleColumnSelected = (colName) => {
+  selectedColumn.value = colName
+  showNewColumnInput.value = false
+  
+  const step = pipelineSteps.value.find(s => s.transformId === 'add_formula' && s.config.newColumnName === colName)
+  if (step) {
+    isComputedColumn.value = true
+    formulaExpression.value = step.config.expression
+  } else {
+    isComputedColumn.value = false
+    formulaExpression.value = `[${colName}]`
+  }
+}
+
+const handleSaveFormula = () => {
+  if (showNewColumnInput.value) {
+    if (!newColumnName.value || !formulaExpression.value) return
+    handleAddStep('add_formula', {
+      newColumnName: newColumnName.value,
+      expression: formulaExpression.value
+    })
+    showNewColumnInput.value = false
+  } else if (isComputedColumn.value && selectedColumn.value) {
+    const stepIndex = pipeline.value.steps.findIndex(s => s.transformId === 'add_formula' && s.config.newColumnName === selectedColumn.value)
+    if (stepIndex !== -1) {
+      pipeline.value.steps[stepIndex].config.expression = formulaExpression.value
+      updatePreview()
+    }
+  }
+}
+
+const handleNewColumn = () => {
+  selectedColumn.value = ''
+  isComputedColumn.value = false
+  showNewColumnInput.value = true
+  newColumnName.value = 'Nueva Columna'
+  formulaExpression.value = ''
+}
 </script>
 
 <template>
@@ -139,12 +187,44 @@ const handleApplyTransformations = async () => {
           </BaseButton>
         </div>
         
-        <div class="cleaning-main__grid">
-          <DataGrid 
-            v-if="currentSchema.length > 0"
-            :data="previewData" 
-            :schema="currentSchema" 
-          />
+        <div class="cleaning-main__grid-container">
+          <!-- Formula Bar -->
+          <div class="formula-bar-container" v-if="currentSchema.length > 0">
+            <div class="formula-bar">
+              <span class="formula-icon"><i>fx</i></span>
+              
+              <div v-if="showNewColumnInput" class="new-col-inputs">
+                <input v-model="newColumnName" class="new-col-name" placeholder="Nombre..." />
+                <span>=</span>
+              </div>
+              
+              <div class="formula-editor-wrapper" :class="{'is-readonly': !isComputedColumn && !showNewColumnInput}">
+                <FormulaEditor 
+                  v-model="formulaExpression" 
+                  :schema="currentSchema" 
+                />
+              </div>
+              
+              <button 
+                class="formula-save-btn" 
+                :disabled="(!isComputedColumn && !showNewColumnInput) || !formulaExpression"
+                @click="handleSaveFormula"
+                title="Guardar Fórmula"
+              >
+                <Check />
+              </button>
+            </div>
+            <BaseButton variant="ghost" size="sm" @click="handleNewColumn" style="flex-shrink: 0;">+ Nueva Columna</BaseButton>
+          </div>
+
+          <div class="cleaning-main__grid">
+            <DataGrid 
+              v-if="currentSchema.length > 0"
+              :data="previewData" 
+              :schema="currentSchema" 
+              @column-selected="handleColumnSelected"
+            />
+          </div>
         </div>
       </main>
     </div>
@@ -248,6 +328,116 @@ const handleApplyTransformations = async () => {
   background-color: var(--color-bg-secondary);
   padding: 2px 8px;
   border-radius: var(--radius-full);
+}
+
+.cleaning-main__grid-container {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.formula-bar-container {
+  display: flex;
+  align-items: center;
+  padding: var(--space-2) var(--space-4);
+  background-color: var(--color-bg-primary);
+  border-bottom: 1px solid var(--color-border);
+  gap: var(--space-3);
+}
+
+.formula-bar {
+  flex-grow: 1;
+  display: flex;
+  align-items: stretch;
+  background-color: var(--color-bg-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  height: 36px;
+}
+
+.formula-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 var(--space-3);
+  background-color: var(--color-bg-secondary);
+  border-right: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+  font-family: var(--font-mono);
+  font-weight: bold;
+  font-style: italic;
+}
+
+.new-col-inputs {
+  display: flex;
+  align-items: center;
+  border-right: 1px solid var(--color-border);
+}
+
+.new-col-name {
+  border: none;
+  background: transparent;
+  padding: 0 var(--space-2);
+  color: var(--color-text-primary);
+  font-size: var(--text-sm);
+  outline: none;
+  width: 120px;
+}
+
+.new-col-inputs span {
+  padding-right: var(--space-2);
+  color: var(--color-text-secondary);
+}
+
+.formula-editor-wrapper {
+  flex-grow: 1;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+}
+
+.formula-editor-wrapper :deep(.cm-editor) {
+  height: 100%;
+  width: 100%;
+}
+
+.formula-editor-wrapper :deep(.cm-scroller) {
+  align-items: center;
+  display: flex;
+}
+
+.formula-editor-wrapper.is-readonly {
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+.formula-save-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 var(--space-3);
+  background: transparent;
+  border: none;
+  border-left: 1px solid var(--color-border);
+  color: var(--color-success);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.formula-save-btn:disabled {
+  color: var(--color-text-disabled);
+  cursor: not-allowed;
+}
+
+.formula-save-btn:not(:disabled):hover {
+  background-color: var(--color-success-light);
+}
+
+.formula-save-btn svg {
+  width: 16px;
+  height: 16px;
 }
 
 .cleaning-main__grid {

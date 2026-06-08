@@ -4,6 +4,7 @@ import BaseInput from '@/components/ui/BaseInput.vue'
 import BaseDropdown from '@/components/ui/BaseDropdown.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import { useDataStore } from '@/stores/dataStore'
+import { useFormulaStore } from '@/stores/formulaStore'
 
 const props = defineProps({
   config: {
@@ -65,8 +66,27 @@ const availableColumns = computed(() => {
   return cols
 })
 
-const columnOptions = computed(() => availableColumns.value.map(c => ({ value: c.value, label: c.label })))
-const numericColumnOptions = computed(() => availableColumns.value.filter(c => c.type === 'number').map(c => ({ value: c.value, label: c.label })))
+const formulaStore = useFormulaStore()
+
+const corporateMetricOptions = computed(() => {
+  const baseName = props.config.dataset || dataStore.activeDatasetName
+  if (!baseName) return []
+  const metrics = formulaStore.getCorporateMetricsForDataset(baseName)
+  return metrics.map(m => ({
+    value: `__METRIC__${m.id}`,
+    label: `✨ Métrica: ${m.name}`
+  }))
+})
+
+const columnOptions = computed(() => {
+  const baseCols = availableColumns.value.map(c => ({ value: c.value, label: c.label }))
+  return [...corporateMetricOptions.value, ...baseCols]
+})
+
+const numericColumnOptions = computed(() => {
+  const numCols = availableColumns.value.filter(c => c.type === 'number').map(c => ({ value: c.value, label: c.label }))
+  return [...corporateMetricOptions.value, ...numCols]
+})
 
 const chartTypeOptions = [
   { value: 'bar', label: 'Gráfico de Barras' },
@@ -86,6 +106,7 @@ const chartTypeOptions = [
   { value: 'gauge', label: 'Medidor de Metas (Gauge)' },
   { value: 'scorecard', label: 'Scorecard (Objetivos)' },
   { value: 'map', label: 'Mapa Político (Map)' },
+  { value: 'calendar', label: 'Calendario (Calendar)' },
   { value: 'image', label: 'Imagen' }
 ]
 
@@ -142,6 +163,33 @@ const removeHierarchyLevel = (idx) => {
   } else if (typeof currentX === 'string') {
     updateField('xAxis', '')
   }
+}
+
+const filterOperators = [
+  { value: '=', label: 'Igual (=)' },
+  { value: '!=', label: 'Distinto (!=)' },
+  { value: '>', label: 'Mayor (>)' },
+  { value: '<', label: 'Menor (<)' },
+  { value: '>=', label: 'Mayor o Igual (>=)' },
+  { value: '<=', label: 'Menor o Igual (<=)' },
+  { value: 'LIKE', label: 'Contiene (LIKE)' }
+]
+
+const addFilter = () => {
+  const currentFilters = props.config.filters || []
+  updateField('filters', [...currentFilters, { column: '', operator: '=', value: '' }])
+}
+
+const updateFilter = (index, field, value) => {
+  const newFilters = [...(props.config.filters || [])]
+  newFilters[index] = { ...newFilters[index], [field]: value }
+  updateField('filters', newFilters)
+}
+
+const removeFilter = (index) => {
+  const newFilters = [...(props.config.filters || [])]
+  newFilters.splice(index, 1)
+  updateField('filters', newFilters)
 }
 
 const advancedJsonString = computed({
@@ -226,12 +274,21 @@ const handleGeoJsonUpload = (e) => {
         />
       </div>
       
-      <div v-if="config.type !== 'kpi' && config.type !== 'pie' && config.type !== 'scatter' && config.type !== 'slicer' && config.type !== 'image'" class="form-group">
+      <div v-if="config.type !== 'kpi' && config.type !== 'pie' && config.type !== 'scatter' && config.type !== 'slicer' && config.type !== 'image' && config.type !== 'calendar'" class="form-group">
         <label>Orientación</label>
         <BaseDropdown 
           :model-value="config.orientation || 'vertical'" 
           :options="[{value:'vertical', label:'Vertical'}, {value:'horizontal', label:'Horizontal'}]"
           @update:model-value="val => updateField('orientation', val)" 
+        />
+      </div>
+
+      <div v-if="config.type === 'calendar'" class="form-group">
+        <label>Modo del Calendario</label>
+        <BaseDropdown 
+          :model-value="config.calendarMode || 'heatmap'" 
+          :options="[{value:'heatmap', label:'Heatmap (Color)'}, {value:'scatter', label:'Scatter (Puntos)'}, {value:'effectScatter', label:'Effect Scatter (Ondas)'}]"
+          @update:model-value="val => updateField('calendarMode', val)" 
         />
       </div>
       
@@ -363,7 +420,7 @@ const handleGeoJsonUpload = (e) => {
           />
         </div>
         
-        <div v-if="config.type !== 'scatter' && !(config.type === 'map' && config.mapMode === 'scatter')" class="form-group">
+        <div v-if="config.type !== 'scatter' && !(config.type === 'map' && config.mapMode === 'scatter') && !config.yAxis?.startsWith('__METRIC__')" class="form-group">
           <label>Agregación</label>
           <BaseDropdown 
             :model-value="config.aggregation || 'SUM'" 
@@ -372,6 +429,38 @@ const handleGeoJsonUpload = (e) => {
           />
         </div>
       </template>
+
+      <!-- Local Filters -->
+      <hr class="divider" />
+      <div class="form-group">
+        <label>Filtros Locales (Widget)</label>
+        <div v-for="(filter, index) in config.filters || []" :key="index" class="filter-item">
+          <BaseDropdown 
+            :model-value="filter.column" 
+            :options="columnOptions"
+            placeholder="Columna" 
+            @update:model-value="val => updateFilter(index, 'column', val)"
+          />
+          <BaseDropdown 
+            :model-value="filter.operator" 
+            :options="filterOperators"
+            placeholder="Operador" 
+            @update:model-value="val => updateFilter(index, 'operator', val)"
+          />
+          <div style="display: flex; gap: 4px;">
+            <BaseInput 
+              :model-value="filter.value || ''" 
+              placeholder="Valor"
+              @update:model-value="val => updateFilter(index, 'value', val)"
+            />
+            <button class="close-btn" style="background: var(--color-bg-secondary); border: 1px solid var(--color-border); padding: 0 8px; border-radius: var(--radius-sm);" @click="removeFilter(index)">&times;</button>
+          </div>
+        </div>
+        <BaseButton variant="secondary" size="sm" style="width: 100%; margin-top: 8px;" @click="addFilter">
+          + Añadir Filtro
+        </BaseButton>
+      </div>
+
       </div> <!-- End Data Tab -->
 
       <div v-if="activeTab === 'style'" class="tab-content">
@@ -529,6 +618,17 @@ const handleGeoJsonUpload = (e) => {
   font-size: var(--text-base);
   font-weight: var(--font-semibold);
   margin-bottom: var(--space-3);
+}
+
+.filter-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+  padding: 8px;
+  background-color: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
 }
 
 .config-tabs {

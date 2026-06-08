@@ -32,7 +32,13 @@ El primer paso para usar LiteBI es traer tu información a la herramienta. En la
 
 A menudo, los datos crudos traen imperfecciones. Ve a la vista **Preparación** (icono de la varita mágica) para arreglarlos:
 
-*   **Perfilado de Datos (Data Profiling):** Al visualizar la tabla, LiteBI calculará automáticamente estadísticas rápidas en la cabecera (porcentaje de completitud, número de nulos, valores únicos y tipo de dato detectado).
+*   **Perfilado de Datos (Data Profiling):** Al visualizar la tabla en la cuadrícula (DataGrid), LiteBI evalúa instantáneamente la "salud" de tus datos y muestra indicadores directamente dentro de la cabecera de cada columna:
+    *   **U (Valores Únicos):** Indica cuántos valores distintos existen en esa columna. Por ejemplo, si tienes 1000 filas pero `U: 2`, significa que solo hay dos categorías posibles (ej. "Sí" o "No").
+    *   **% Válido:** Es el porcentaje de completitud. Calcula qué porción de tus datos en esa columna no son nulos ni están vacíos.
+    *   **Barra de Calidad (Semáforo):** Justo debajo del nombre de la columna verás una barra de progreso que cambia de color según la salud de la columna:
+        *   🟩 **Verde:** Más del 90% de los datos son válidos.
+        *   🟨 **Amarillo:** Entre el 50% y el 90% son válidos (requiere atención).
+        *   🟥 **Rojo:** Menos del 50% son válidos (alta cantidad de datos faltantes o nulos).
 *   **Eliminar Duplicados:** Quita filas repetidas idénticas de todo tu dataset.
 *   **Transformar Texto:** Selecciona una columna de texto (string) y usa opciones como **Recortar espacios**, convertir a **MAYÚSCULAS** o **minúsculas**.
 *   **Manejo de Nulos (Faltantes):** ¿Tienes celdas vacías? Puedes reemplazarlas rellenándolas hacia adelante (Valor Anterior), usando un Valor Fijo (ej. `0`), o métodos estadísticos si la columna es numérica (Media, Moda, Mediana).

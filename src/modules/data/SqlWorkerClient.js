@@ -107,6 +107,17 @@ class SqlClient {
   }
 
   /**
+   * Inserta nuevos datos al final de una tabla existente.
+   * @param {string} name - Nombre de la tabla.
+   * @param {Array} data - Nuevos datos a insertar.
+   * @returns {Promise<*>}
+   */
+  insertIntoTable(name, data) {
+    this.clearCache()
+    return this._post('INSERT_INTO', { name, data })
+  }
+
+  /**
    * Exporta todas las tablas de la base de datos del worker.
    * @returns {Promise<Object>}
    */

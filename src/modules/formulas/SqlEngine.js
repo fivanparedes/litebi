@@ -9,13 +9,15 @@ const MAX_EXPRESSION_LENGTH = 5000
  * @type {Array<[RegExp, string]>}
  */
 const ERROR_TRANSLATIONS = [
-  [/Unexpected token/i, 'Error de sintaxis en la fórmula. Verifique paréntesis y operadores.'],
-  [/Column .* not found/i, 'La columna especificada no existe en el dataset.'],
+  [/Unexpected token/i, 'Error de sintaxis: carácter inesperado o falta de paréntesis.'],
+  [/Column .* not found/i, 'La columna especificada no existe. Verifica que esté escrita exactamente igual y entre [Corchetes].'],
   [/Table .* already exists/i, 'La tabla temporal ya existe. Intente nuevamente.'],
   [/Table .* does not exist/i, 'El dataset especificado no fue encontrado.'],
-  [/Division by zero/i, 'Error de división por cero en la fórmula.'],
-  [/Unknown function/i, 'La función utilizada no es reconocida.'],
-  [/Parse error/i, 'Error al analizar la expresión. Verifique la sintaxis.'],
+  [/Division by zero/i, 'Error de división por cero en la fórmula. Usa NULLIF(col, 0).'],
+  [/Unknown function/i, 'Función no reconocida. Revisa el Manual de Fórmulas.'],
+  [/Parse error/i, 'Error de sintaxis: Falta un paréntesis, un operador (+, -, *), o hay un corchete sin cerrar.'],
+  [/is not a function/i, 'La función SQL contiene argumentos inválidos o tipos de datos incorrectos.'],
+  [/Cannot read properties of undefined/i, 'Error interno al evaluar los datos. Verifica que no estés usando variables o columnas inexistentes.']
 ]
 
 /**
@@ -47,7 +49,7 @@ const translateError = (message) => {
  * @returns {Promise<{success: boolean, sampleResult?: *, error?: string}>}
  *   Objeto con el resultado de la validación
  */
-export const testSqlExpression = async (datasetName, expression) => {
+export const testSqlExpression = async (datasetName, expression, mode = 'columna', columnName = 'Prueba') => {
   // Rechazar expresiones que excedan el límite de longitud
   if (expression && expression.length > MAX_EXPRESSION_LENGTH) {
     return {
@@ -56,23 +58,24 @@ export const testSqlExpression = async (datasetName, expression) => {
     }
   }
 
-  const tempTableName = `${datasetName}_test`
-  const tempTable = `[${tempTableName}]`
+  const safeColName = columnName || 'Prueba'
 
   try {
-    // Take a small sample to validate the expression syntax and logic
-    const sourceData = await sqlClient.query(`SELECT TOP 1 * FROM [${datasetName}]`)
-
-    await sqlClient.createTable(tempTableName, sourceData)
-
-    // Try to execute the expression
-    const sql = `SELECT ${expression} AS _test_result FROM ${tempTable}`
+    let sql;
+    if (mode === 'metrica') {
+      sql = `SELECT ${expression} AS [${safeColName}] FROM [${datasetName}]`
+    } else {
+      sql = `SELECT TOP 3 ${expression} AS [${safeColName}] FROM [${datasetName}]`
+    }
+    
     const result = await sqlClient.query(sql)
 
     if (result && result.length > 0) {
       return {
         success: true,
-        sampleResult: result[0]._test_result,
+        sampleResult: result,
+        mode,
+        columnName: safeColName
       }
     }
 
@@ -81,15 +84,6 @@ export const testSqlExpression = async (datasetName, expression) => {
     return {
       success: false,
       error: translateError(error.message),
-    }
-  } finally {
-    // Fix: siempre eliminar la tabla temporal para evitar fugas de memoria,
-    // incluso si sqlClient.query() lanza un error.
-    try {
-      await sqlClient.dropTable(tempTableName)
-    } catch {
-      // Ignorar errores al eliminar la tabla temporal (puede no existir si
-      // createTable falló antes de crearla).
     }
   }
 }

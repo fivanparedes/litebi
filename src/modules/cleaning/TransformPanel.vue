@@ -35,7 +35,8 @@ const transformOptions = [
   { value: 'date_add', label: 'Desplazar Fecha', icon: Check },
   { value: 'groupby', label: 'Agrupar (Group By)', icon: Check },
   { value: 'split', label: 'Dividir Columna (Split)', icon: Check },
-  { value: 'cast', label: 'Convertir Tipo (Cast)', icon: Check }
+  { value: 'cast', label: 'Convertir Tipo (Cast)', icon: Check },
+  { value: 'add_formula', label: 'Columna Computada', icon: Plus }
 ]
 
 const columnOptions = computed(() => {
@@ -271,6 +272,9 @@ const getStepDescription = (step) => {
             </div>
             <div v-else-if="step.transformId === 'cast'" class="step-details">
               Convertir: {{ step.config.column }} a {{ step.config.castType }}
+            </div>
+            <div v-else-if="step.transformId === 'add_formula'" class="step-details">
+              Fórmula: {{ step.config.newColumnName }} = {{ step.config.expression }}
             </div>
           </div>
         </div>
