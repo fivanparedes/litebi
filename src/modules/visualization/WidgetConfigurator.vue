@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import BaseInput from '@/components/ui/BaseInput.vue'
 import BaseDropdown from '@/components/ui/BaseDropdown.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
@@ -15,6 +15,8 @@ const props = defineProps({
 const emit = defineEmits(['update:config', 'close'])
 
 const dataStore = useDataStore()
+
+const activeTab = ref('data')
 
 const datasetOptions = computed(() => {
   return dataStore.datasetNames.map(name => {
@@ -141,17 +143,63 @@ const removeHierarchyLevel = (idx) => {
     updateField('xAxis', '')
   }
 }
+
+const advancedJsonString = computed({
+  get() {
+    return props.config.advancedOptions ? JSON.stringify(props.config.advancedOptions, null, 2) : ''
+  },
+  set(val) {
+    if (!val) {
+      updateField('advancedOptions', undefined)
+      return
+    }
+    try {
+      const parsed = JSON.parse(val)
+      updateField('advancedOptions', parsed)
+    } catch (e) {
+      // Ignorar
+    }
+  }
+})
+
+const handleGeoJsonUpload = (e) => {
+  const file = e.target.files[0]
+  if (!file) return
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    try {
+      const parsed = JSON.parse(e.target.result)
+      updateField('customGeoJson', {
+        type: 'file',
+        name: file.name.replace(/\.[^/.]+$/, ""),
+        data: parsed
+      })
+      updateField('mapMode', 'custom')
+    } catch (err) {
+      alert("El archivo no es un JSON válido.")
+    }
+  }
+  reader.readAsText(file)
+}
 </script>
 
 <template>
   <div class="configurator">
     <div class="config-header">
-      <h3>Configurar Widget</h3>
-      <button class="close-btn" @click="emit('close')">&times;</button>
+      <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+        <h3>Configurar Widget</h3>
+        <button class="close-btn" @click="emit('close')">&times;</button>
+      </div>
+      <div class="config-tabs">
+        <button :class="{ active: activeTab === 'data' }" @click="activeTab = 'data'">Datos</button>
+        <button :class="{ active: activeTab === 'style' }" @click="activeTab = 'style'">Estilo</button>
+        <button :class="{ active: activeTab === 'advanced' }" @click="activeTab = 'advanced'">Avanzado</button>
+      </div>
     </div>
     
     <div class="config-body">
-      <div class="form-group">
+      <div v-if="activeTab === 'data'" class="tab-content">
+        <div class="form-group">
         <label>Dataset Origen</label>
         <BaseDropdown 
           :model-value="config.dataset || dataStore.activeDatasetName" 
@@ -219,9 +267,23 @@ const removeHierarchyLevel = (idx) => {
         <label>Modo de Mapa</label>
         <BaseDropdown 
           :model-value="config.mapMode || 'choropleth'" 
-          :options="[{value:'choropleth', label:'Áreas Pintadas (Regiones)'}, {value:'scatter', label:'Puntos (Coordenadas)'}]"
+          :options="[{value:'choropleth', label:'Áreas Pintadas (Regiones)'}, {value:'scatter', label:'Puntos (Coordenadas)'}, {value:'custom', label:'GeoJSON Personalizado'}]"
           @update:model-value="val => updateField('mapMode', val)" 
         />
+        
+        <template v-if="config.mapMode === 'custom'">
+          <label style="margin-top: 8px;">URL GeoJSON</label>
+          <BaseInput 
+            :model-value="config.customGeoJson?.type === 'url' ? config.customGeoJson.url : ''" 
+            placeholder="https://..."
+            @update:model-value="val => updateField('customGeoJson', { type: 'url', url: val })"
+          />
+          <label style="margin-top: 8px;">O subir archivo GeoJSON:</label>
+          <input type="file" accept=".json,application/json" @change="handleGeoJsonUpload" />
+          <span v-if="config.customGeoJson?.type === 'file'" style="font-size: 11px; color: var(--color-success); margin-top: 4px;">
+            Archivo cargado: {{ config.customGeoJson.name }}
+          </span>
+        </template>
       </div>
 
       <!-- Dimensión (X) -->
@@ -310,10 +372,17 @@ const removeHierarchyLevel = (idx) => {
           />
         </div>
       </template>
-      
-      <hr class="divider" />
-      
-      <h4>Estilo y Diseño</h4>
+      </div> <!-- End Data Tab -->
+
+      <div v-if="activeTab === 'style'" class="tab-content">
+      <div v-if="config.type === 'line' || config.type === 'bar'" class="form-group">
+        <label>Apilar Series (Stacked)</label>
+        <BaseDropdown 
+          :model-value="config.styles?.stacked === true ? 'true' : 'false'" 
+          :options="[{value:'true', label:'Sí'}, {value:'false', label:'No'}]"
+          @update:model-value="val => updateField('styles', { ...(config.styles || {}), stacked: val === 'true' })" 
+        />
+      </div>
       <div v-if="config.type === 'line'" class="form-group">
         <label>Rellenar Área bajo la Curva</label>
         <BaseDropdown 
@@ -373,8 +442,18 @@ const removeHierarchyLevel = (idx) => {
         />
       </div>
 
+      <div class="form-group">
+        <label>Tipografía (Font Family)</label>
+        <BaseInput 
+          :model-value="config.styles?.fontFamily || ''" 
+          placeholder="Ej: Inter, Roboto, sans-serif"
+          @update:model-value="val => updateField('styles', { ...(config.styles || {}), fontFamily: val })"
+        />
+      </div>
+      </div> <!-- End Style Tab -->
+
+      <div v-if="activeTab === 'advanced'" class="tab-content">
       <template v-if="config.type === 'scatter' || config.type === 'line' || config.type === 'bar'">
-        <hr class="divider" />
         <h4>Machine Learning (Avanzado)</h4>
         
         <div class="form-group">
@@ -408,6 +487,21 @@ const removeHierarchyLevel = (idx) => {
         </div>
       </template>
 
+      <hr class="divider" />
+      <h4>Avanzado (ECharts JSON)</h4>
+      <div class="form-group">
+        <label>Sobreescribir Opciones (JSON)</label>
+        <textarea 
+          v-model="advancedJsonString"
+          rows="6"
+          placeholder='{ "title": { "text": "Custom" } }'
+          style="width: 100%; font-family: monospace; font-size: 12px; padding: 8px; border: 1px solid var(--color-border); border-radius: var(--radius-sm);"
+        ></textarea>
+        <span style="font-size: 11px; color: var(--color-text-secondary);">Este JSON se fusionará con la configuración base del gráfico.</span>
+      </div>
+
+      </div> <!-- End Advanced Tab -->
+
     </div>
   </div>
 </template>
@@ -424,9 +518,9 @@ const removeHierarchyLevel = (idx) => {
 
 .config-header {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  flex-direction: column;
   padding: var(--space-4);
+  padding-bottom: 0;
   border-bottom: 1px solid var(--color-border);
 }
 
@@ -434,6 +528,32 @@ const removeHierarchyLevel = (idx) => {
   margin: 0;
   font-size: var(--text-base);
   font-weight: var(--font-semibold);
+  margin-bottom: var(--space-3);
+}
+
+.config-tabs {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.config-tabs button {
+  background: none;
+  border: none;
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+}
+
+.config-tabs button.active {
+  color: var(--color-accent);
+  border-bottom: 2px solid var(--color-accent);
+}
+
+.config-tabs button:hover:not(.active) {
+  color: var(--color-text-primary);
 }
 
 .close-btn {

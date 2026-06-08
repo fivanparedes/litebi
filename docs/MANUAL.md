@@ -98,15 +98,55 @@ Si importaste múltiples tablas (por ejemplo, *Ventas* y *Clientes*), puedes uni
 
 ¡La mejor parte! Dirígete al apartado **Reportes** (icono del tablero visual). Aquí diseñarás tu cuadro de mando interactivo.
 
+### Ajustes Globales del Dashboard (Nuevo)
+En la barra de herramientas superior encontrarás el botón **Ajustes**. Al hacer clic, podrás personalizar la estética de la pestaña actual de tu reporte:
+*   **Color de Fondo:** Define un color de lienzo personalizado.
+*   **Imagen de Fondo:** Pega la URL de una imagen para usarla como tapiz. Puedes elegir si la imagen debe "Cubrir" toda la pantalla, "Contenerse", o "Repetirse".
+*   **Tipografía General:** Selecciona entre familias tipográficas modernas como Inter, Roboto o Poppins para cambiar el estilo de todos los widgets.
+
 ### Pasos Generales
-1. **Añadir Widgets:** Usa los botones en la barra de herramientas para añadir un gráfico nuevo.
-2. **Configurar el Gráfico:** En la esquina del cuadro recién agregado haz clic en el engranaje (**Configurar**).
+1. **Añadir Widgets:** Usa el botón **Añadir Widget** en la barra superior.
+2. **Configurar el Gráfico:** En la esquina del cuadro recién agregado haz clic en el engranaje (**Configurar**). Verás un panel dividido en secciones colapsables o pestañas (Datos, Estilos, Avanzado).
 3. **Seleccionar Datos:** 
     *   **Dataset:** Selecciona la tabla de origen.
     *   **Eje X (Jerarquías):** Configura la dimensión (categoría). Puedes añadir **múltiples niveles de jerarquía** para habilitar el *Drill-Down* (ej. Continente > País > Ciudad).
     *   **Eje Y:** Configura la métrica numérica a graficar.
+    *   **Eje Y Secundario:** Permite cruzar una métrica adicional.
     *   **Agrupación:** Elige la operación que se realizará (Suma, Promedio, Conteo).
-4. **Etiquetas Personalizadas:** Puedes darle un *Alias* a los nombres de tus ejes llenando el campo "Etiqueta personalizada". Esto limpiará automáticamente las leyendas visuales (ej. convirtiendo `[tabla].[columna]` en `Ventas Totales`).
+4. **Apariencia:** Modifica los colores y nombres de leyenda de tu visualización.
+    *   **Gráficos Apilados (Stacked):** Al usar múltiples métricas o dimensiones, puedes activar el interruptor "Apilar Datos" para que las barras o áreas se acumulen una encima de la otra, mostrando el volumen total y la contribución de cada parte.
+5. **Avanzado (Sobrescritura JSON):** Puedes inyectar código JSON directamente al motor de ECharts para modificar cualquier aspecto gráfico (bordes, sombras, animaciones). 
+
+### Mapas y GeoJSON Personalizados
+Cuando eliges el tipo de gráfico "Mapa", el panel te permite cargar geografías personalizadas:
+*   **Por URL:** Pega la dirección de un archivo `.json` de formato GeoJSON (ej. mapa de provincias, departamentos o polígonos de ventas).
+*   **Subir Archivo:** Carga un archivo `.json` local.
+*   *Nota:* Para que los datos se vinculen con el mapa, los nombres de tu tabla deben coincidir con la propiedad de nombre del GeoJSON (típicamente `properties.name`). Si tu JSON utiliza otra propiedad (ej. `departamento`), puedes usar la sección **Avanzado** para enlazarla.
+
+**Ejemplo Práctico - Avanzado JSON en Mapas:**
+```json
+{
+  "series": [
+    {
+      "nameProperty": "departamento",
+      "itemStyle": {
+        "borderColor": "#ffffff",
+        "borderWidth": 1.5
+      },
+      "emphasis": {
+        "itemStyle": {
+          "areaColor": "#ffcc00",
+          "shadowBlur": 10
+        },
+        "label": {
+          "show": true,
+          "fontWeight": "bold"
+        }
+      }
+    }
+  ]
+}
+```
 
 ### Interacciones de Usuario en el Dashboard
 
@@ -117,19 +157,17 @@ Si importaste múltiples tablas (por ejemplo, *Ventas* y *Clientes*), puedes uni
 
 LiteBI dispone de un amplio abanico de gráficos profesionales:
 
-*   **Tarjetas KPI / Gauge:** Muestran un número agregado central. El *Gauge* (medidor) permite definir un "Target" (valor meta) para ver el progreso.
-*   **Barras, Líneas y Torta:** Clásicos para visualizar distribución y tendencias a lo largo del tiempo o por categoría.
-*   **Combo Chart:** Combina barras y líneas usando un *Eje Y Secundario*. Ideal para comparar Valores Absolutos (Barras) vs Porcentajes (Líneas).
+*   **Tarjetas KPI / Scorecard:** Muestran un número agregado central. El *Scorecard* permite definir un "Target" (valor meta del Eje Y Secundario) para ver el progreso, la diferencia y el porcentaje.
+*   **Barras, Líneas y Torta:** Clásicos para visualizar distribución y tendencias. Soportan apilamiento (Stack).
+*   **Combo Chart:** Combina barras y líneas usando un *Eje Y Secundario*. Ideal para comparar Valores Absolutos vs Porcentajes.
 *   **Dispersión (Scatter):** Compara la correlación entre dos variables numéricas en el Eje X y Eje Y.
-*   **Heatmap (Mapa de Calor):** Muestra la densidad y magnitud de datos mediante el color, cruzando dos dimensiones categóricas (Eje X y Eje Y) con una métrica numérica.
-*   **Mapa de Árbol (Treemap):** Ideal para desglosar jerarquías visualizando cajas proporcionales al tamaño de la métrica.
-*   **Radar:** Muestra variables múltiples distribuidas radialmente. Muy útil para puntajes de perfiles (ej. habilidades de Recursos Humanos).
-*   **Cascada (Waterfall):** Demuestra cómo un valor inicial se ve afectado positiva o negativamente por diferentes conceptos hasta llegar a un valor final. Utilizado ampliamente en balances financieros.
-*   **Embudo (Funnel):** Ilustra etapas de un proceso y la tasa de retención (ej. Embudo de ventas: Visitas -> Registros -> Compras).
-*   **Cajas y Bigotes (Boxplot):** Gráfico estadístico para representar la distribución de datos en cuartiles e identificar valores atípicos.
-*   **Mapas (Coropléticos y Dispersión):** 
-    *   *Mapa Político (Coroplético)*: Pinta regiones y países enteros basándose en una métrica (ej. Continentes o nombres de países en inglés).
-    *   *Mapa de Coordenadas (Scatter Map)*: Ubica puntos mediante Latitud y Longitud, definiendo el tamaño y calor de la burbuja según una métrica secundaria.
+*   **Heatmap (Mapa de Calor):** Muestra la densidad y magnitud de datos mediante el color.
+*   **Mapa de Árbol (Treemap):** Ideal para desglosar jerarquías visualizando cajas.
+*   **Radar:** Muestra variables múltiples distribuidas radialmente.
+*   **Cascada (Waterfall):** Demuestra cómo un valor inicial se ve afectado positiva o negativamente hasta llegar a un valor final.
+*   **Embudo (Funnel):** Ilustra etapas de un proceso y la tasa de retención.
+*   **Cajas y Bigotes (Boxplot):** Gráfico estadístico para representar la distribución.
+*   **Mapas (Personalizables):** Importa cualquier GeoJSON para armar mapas coropléticos.
 
 ---
 
@@ -149,7 +187,37 @@ Disponible para los gráficos de **Dispersión (Scatter)**. LiteBI procesará tu
 
 ---
 
-## 8. Exportación y Presentaciones
+## 8. Inteligencia de Tiempo (Time Intelligence)
+
+Analizar datos a lo largo del tiempo (comparar meses, años, trimestres) es una de las tareas más comunes en Business Intelligence. LiteBI simplifica este proceso mediante la generación automática de un **Calendario Maestro**.
+
+### 1. Generar Tabla Calendario
+En la vista **Datos**, encontrarás un botón especial para "Generar Calendario". Al pulsarlo, el sistema te pedirá un rango de años (por ejemplo, 2023 a 2025).
+LiteBI creará una nueva tabla llamada `Calendario` que contendrá una fila por cada día de ese período, con columnas pre-calculadas como:
+*   `Fecha` (YYYY-MM-DD)
+*   `Año` y `Mes` (Numéricos)
+*   `NombreMes` (Enero, Febrero...)
+*   `Trimestre` (1, 2, 3, 4)
+*   `NombreDia` (Lunes, Martes...)
+*   `AnioMes` (Ej. 2024-01)
+
+### 2. Conectar el Calendario a tus Datos
+Para que el calendario funcione, debes relacionarlo con tu tabla de hechos (ej. tus Ventas).
+1. Ve a la vista de **Modelado**.
+2. Conecta la columna `Fecha` de la tabla `Calendario` con la columna de fecha de tu tabla principal (por ejemplo, `fecha_venta` de la tabla `Ventas`).
+
+### 3. Ejemplo: Análisis de Ventas Trimestrales
+Una vez conectados, dirígete al **Dashboard**:
+1. Crea un gráfico de Barras.
+2. En **Dataset**, selecciona tu tabla de `Ventas`.
+3. En el **Eje X (Jerarquías)**, selecciona las columnas de la tabla *Calendario* para crear un *Drill-Down* temporal. Por ejemplo, agrega primero `[Calendario].[Año]` y luego `[Calendario].[Trimestre]`.
+4. En el **Eje Y**, selecciona `[Ventas].[monto_total]` con agrupación `SUMA`.
+
+¡Listo! Ahora verás tus ventas agrupadas por Año. Si haces clic en "2024", el gráfico profundizará (Drill-Down) automáticamente para mostrarte las ventas desglosadas por cada uno de los 4 Trimestres de ese año, permitiendo un análisis temporal dinámico sin tener que escribir ninguna fórmula compleja.
+
+---
+
+## 9. Exportación y Presentaciones
 
 Una vez que tengas tu panel perfectamente acomodado:
 

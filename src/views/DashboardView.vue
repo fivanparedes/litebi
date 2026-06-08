@@ -10,6 +10,7 @@ import { useUiStore } from '@/stores/uiStore'
 import DashboardTabs from '@/modules/dashboard/DashboardTabs.vue'
 import DashboardCanvas from '@/modules/dashboard/DashboardCanvas.vue'
 import WidgetConfigurator from '@/modules/visualization/WidgetConfigurator.vue'
+import DashboardTabSettingsModal from '@/modules/dashboard/DashboardTabSettingsModal.vue'
 
 const { t } = useI18n()
 const router = useRouter()
@@ -18,6 +19,31 @@ const dashboardStore = useDashboardStore()
 const uiStore = useUiStore()
 
 const hasData = computed(() => !!dataStore.activeDatasetName)
+
+const isTabSettingsModalOpen = ref(false)
+
+const workspaceStyle = computed(() => {
+  const tab = dashboardStore.tabs.find(t => t.id === dashboardStore.activeTabId)
+  if (!tab || !tab.settings) return {}
+  
+  const styles = {}
+  if (tab.settings.backgroundColor) {
+    styles.backgroundColor = tab.settings.backgroundColor
+  }
+  if (tab.settings.backgroundImage) {
+    // If it's a raw URL (http...) or data URI (data:...) we wrap it in url()
+    // if it doesn't already have it
+    let bgUrl = tab.settings.backgroundImage
+    if (!bgUrl.startsWith('url(')) {
+      bgUrl = `url("${bgUrl}")`
+    }
+    styles.backgroundImage = bgUrl
+    styles.backgroundSize = tab.settings.backgroundSize || 'cover'
+    styles.backgroundPosition = 'center'
+    styles.backgroundRepeat = 'no-repeat'
+  }
+  return styles
+})
 
 const editingWidgetId = ref(null)
 
@@ -40,7 +66,10 @@ const editingWidgetConfig = computed({
 })
 
 const handleAddWidget = () => {
+  const currentLayout = dashboardStore.activeLayout || []
+  const visualNumber = currentLayout.length + 1
   const newConfig = { 
+    title: `Visual_${visualNumber}`,
     type: 'bar', 
     dataset: dataStore.activeDatasetName 
   }
@@ -107,6 +136,9 @@ const handleEditWidget = (widgetId) => {
         </div>
 
         <div class="toolbar-right">
+          <BaseButton v-if="!uiStore.isViewerMode" variant="secondary" size="sm" @click="isTabSettingsModalOpen = true" style="margin-right: 8px;">
+            Ajustes
+          </BaseButton>
           <BaseButton v-if="!uiStore.isViewerMode" variant="primary" size="sm" @click="handleAddWidget">
             <template #icon-left><Plus /></template>
             Añadir Widget
@@ -115,7 +147,7 @@ const handleEditWidget = (widgetId) => {
       </div>
       
       <!-- Canvas & Configurator Area -->
-      <div class="dashboard-body">
+      <div class="dashboard-body" :style="workspaceStyle">
         <DashboardCanvas 
           :layout="dashboardStore.activeLayout"
           :tab-id="dashboardStore.activeTabId"
@@ -129,6 +161,12 @@ const handleEditWidget = (widgetId) => {
           :config="editingWidgetConfig"
           @update:config="val => editingWidgetConfig = val"
           @close="editingWidgetId = null"
+        />
+        
+        <DashboardTabSettingsModal 
+          v-if="isTabSettingsModalOpen"
+          :tab-id="dashboardStore.activeTabId"
+          @close="isTabSettingsModalOpen = false"
         />
       </div>
     </div>

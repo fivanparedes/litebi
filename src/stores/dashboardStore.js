@@ -6,7 +6,7 @@ import { generateId } from '@/utils/generateId'
 export const useDashboardStore = defineStore('dashboard', () => {
   // Pestañas (Tabs)
   const tabs = ref([
-    { id: 'tab_1', name: 'Dashboard Principal' }
+    { id: 'tab_1', name: 'Dashboard Principal', settings: {} }
   ])
   const activeTabId = ref('tab_1')
   
@@ -25,7 +25,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
   // Actions - Tabs
   const addTab = () => {
     const newId = generateId('tab')
-    tabs.value.push({ id: newId, name: `Dashboard ${tabs.value.length + 1}` })
+    tabs.value.push({ id: newId, name: `Dashboard ${tabs.value.length + 1}`, settings: {} })
     layouts.value[newId] = []
     activeTabId.value = newId
   }
@@ -48,6 +48,13 @@ export const useDashboardStore = defineStore('dashboard', () => {
 
   const setActiveTab = (id) => {
     activeTabId.value = id
+  }
+
+  const updateTabSettings = (id, settings) => {
+    const tab = tabs.value.find(t => t.id === id)
+    if (tab) {
+      tab.settings = { ...tab.settings, ...settings }
+    }
   }
 
   // Actions - Widgets
@@ -210,6 +217,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
     removeTab,
     renameTab,
     setActiveTab,
+    updateTabSettings,
     updateLayout,
     addWidget,
     removeWidget,

@@ -75,8 +75,17 @@ const handleToggleStep = async (stepId) => {
   await updatePreview()
 }
 
-// TODO: In a real app, there would be a 'Save' button to persist the transformed
-// data back to the main data store as a new view/table.
+const handleApplyTransformations = async () => {
+  if (dataStore.activeDatasetName && previewData.value.length > 0) {
+    await dataStore.applyTransformations(
+      dataStore.activeDatasetName, 
+      previewData.value, 
+      currentSchema.value,
+      pipelineSteps.value
+    )
+    projectStore.markDirty()
+  }
+}
 </script>
 
 <template>
@@ -125,6 +134,9 @@ const handleToggleStep = async (stepId) => {
             <span class="dataset-name">{{ dataStore.activeDatasetMeta?.originalName }}</span>
             <span class="dataset-stats">{{ previewData.length }} filas • {{ currentSchema.length }} columnas</span>
           </div>
+          <BaseButton @click="handleApplyTransformations" variant="primary">
+            Guardar Cambios
+          </BaseButton>
         </div>
         
         <div class="cleaning-main__grid">

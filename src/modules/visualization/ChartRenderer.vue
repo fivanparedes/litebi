@@ -301,7 +301,34 @@ onMounted(async () => {
     }
   }
   loadData()
+  checkCustomGeoJson()
 })
+
+const checkCustomGeoJson = async () => {
+  if (props.config?.type === 'map' && props.config?.mapMode === 'custom' && props.config?.customGeoJson) {
+    const custom = props.config.customGeoJson
+    if (custom.type === 'file' && custom.data && custom.name) {
+      if (!getMap(custom.name)) {
+        registerMap(custom.name, custom.data)
+      }
+    } else if (custom.type === 'url' && custom.url) {
+      const mapName = custom.url
+      if (!getMap(mapName)) {
+        try {
+          const res = await fetch(custom.url)
+          const data = await res.json()
+          registerMap(mapName, data)
+        } catch (e) {
+          console.error('Error fetching custom GeoJSON:', e)
+        }
+      }
+    }
+  }
+}
+
+watch(() => props.config?.customGeoJson, () => {
+  checkCustomGeoJson()
+}, { deep: true })
 
 const formattedKpi = computed(() => {
   const formatVal = (v) => {
@@ -412,14 +439,15 @@ const chartStrategies = {
   },
   combo: (baseOption, data, props, xAxisData, seriesData) => {
     const data2 = data.map(d => d.value2)
+    const isStacked = props.config.styles?.stacked
     return {
       ...baseOption,
       tooltip: { trigger: 'axis' },
       xAxis: { type: 'category', data: xAxisData },
       yAxis: [{ type: 'value', name: props.config.yAxis }, { type: 'value', name: props.config.secondaryYAxis }],
       series: [
-        { name: props.config.yAxis, type: 'bar', data: seriesData, large: true, largeThreshold: 500 },
-        { name: props.config.secondaryYAxis, type: 'line', yAxisIndex: 1, data: data2, large: true, largeThreshold: 500 }
+        { name: props.config.yAxis, type: 'bar', data: seriesData, stack: isStacked ? 'total' : undefined, large: true, largeThreshold: 500 },
+        { name: props.config.secondaryYAxis, type: 'line', yAxisIndex: 1, data: data2, stack: isStacked ? 'total' : undefined, large: true, largeThreshold: 500 }
       ]
     }
   },
@@ -542,7 +570,15 @@ const chartStrategies = {
     }
   },
   map: (baseOption, data, props, xAxisData, seriesData) => {
-    if (props.config.mapMode === 'scatter') {
+    const getMapName = () => {
+      if (props.config.mapMode === 'custom' && props.config.customGeoJson) {
+        return props.config.customGeoJson.type === 'file' ? props.config.customGeoJson.name : props.config.customGeoJson.url
+      }
+      return 'world'
+    }
+    const currentMap = getMapName()
+
+    if (props.config.mapMode === 'scatter' || (props.config.mapMode === 'custom' && props.config.secondaryYAxis)) {
       const y2LabelValue = props.config.secondaryYAxisLabel || props.config.secondaryYAxis
       const mapData = data.map(d => [Number(d.name), Number(d.value), y2LabelValue ? Number(d.value2 || 0) : 1])
       let maxVal = y2LabelValue ? Math.max(...mapData.map(d => d[2])) : 1
@@ -561,7 +597,7 @@ const chartStrategies = {
           return y2LabelValue ? `${y2LabelValue}: ${params.value[2]}` : `[${params.value[0]}, ${params.value[1]}]`
         }},
         geo: {
-          map: 'world',
+          map: currentMap,
           roam: true,
           itemStyle: { areaColor: '#e0e0e0', borderColor: '#111' },
           emphasis: { itemStyle: { areaColor: '#c0c0c0' } }
@@ -602,7 +638,7 @@ const chartStrategies = {
         series: [{
           name: props.config.yAxisLabel || props.config.yAxis,
           type: 'map',
-          map: 'world',
+          map: currentMap,
           roam: true,
           data: data.map(d => ({ name: d.name, value: d.value }))
         }]
@@ -649,6 +685,7 @@ const getDefaultStrategy = (baseOption, data, props, xAxisData, seriesData, ctyp
   
   const showXAxis = props.config.styles?.showAxisLabels !== false
   const showYAxis = props.config.styles?.showAxisLabels !== false
+  const isStacked = props.config.styles?.stacked
   
   const defaultSeries = [
     {
@@ -656,7 +693,7 @@ const getDefaultStrategy = (baseOption, data, props, xAxisData, seriesData, ctyp
       type: ctype,
       data: seriesData,
       areaStyle: (ctype === 'line' && (props.config.styles?.areaType === 'axis' || props.config.styles?.areaType === 'between')) ? { opacity: 0.2 } : undefined,
-      stack: (ctype === 'line' && props.config.styles?.areaType === 'between') ? 'Total' : undefined,
+      stack: isStacked || (ctype === 'line' && props.config.styles?.areaType === 'between') ? 'Total' : undefined,
       large: true,
       largeThreshold: 500,
       itemStyle: props.config.styles?.borderRadius ? { borderRadius: props.config.styles.borderRadius } : undefined
@@ -670,7 +707,7 @@ const getDefaultStrategy = (baseOption, data, props, xAxisData, seriesData, ctyp
       type: ctype,
       data: data2,
       areaStyle: (ctype === 'line' && (props.config.styles?.areaType === 'axis' || props.config.styles?.areaType === 'between')) ? { opacity: 0.2 } : undefined,
-      stack: (ctype === 'line' && props.config.styles?.areaType === 'between') ? 'Total' : undefined,
+      stack: isStacked || (ctype === 'line' && props.config.styles?.areaType === 'between') ? 'Total' : undefined,
       large: true,
     })
   }
@@ -730,11 +767,57 @@ const echartOptions = computed(() => {
     baseOption.legend = { type: 'scroll', bottom: 0 }
   }
 
+  let finalOption = baseOption
   if (chartStrategies[ctype]) {
-    return chartStrategies[ctype](baseOption, data, props, xAxisData, seriesData)
+    finalOption = chartStrategies[ctype](baseOption, data, props, xAxisData, seriesData)
+  } else {
+    finalOption = getDefaultStrategy(baseOption, data, props, xAxisData, seriesData, ctype)
   }
 
-  return getDefaultStrategy(baseOption, data, props, xAxisData, seriesData, ctype)
+  // Apply custom font family
+  if (props.config.styles?.fontFamily) {
+    finalOption.textStyle = {
+      ...(finalOption.textStyle || {}),
+      fontFamily: props.config.styles.fontFamily
+    }
+  }
+
+  // Deep merge for advancedOptions
+  const isObject = (item) => (item && typeof item === 'object' && !Array.isArray(item))
+  const mergeDeep = (target, ...sources) => {
+    if (!sources.length) return target
+    const source = sources.shift()
+    if (source === undefined) return target
+    
+    if (isObject(target) && isObject(source)) {
+      for (const key in source) {
+        if (isObject(source[key])) {
+          if (!target[key]) Object.assign(target, { [key]: {} })
+          mergeDeep(target[key], source[key])
+        } else if (Array.isArray(source[key])) {
+          if (!Array.isArray(target[key])) target[key] = []
+          source[key].forEach((item, index) => {
+            if (isObject(item)) {
+              if (!isObject(target[key][index])) target[key][index] = {}
+              mergeDeep(target[key][index], item)
+            } else {
+              target[key][index] = item
+            }
+          })
+        } else {
+          Object.assign(target, { [key]: source[key] })
+        }
+      }
+    }
+    return mergeDeep(target, ...sources)
+  }
+
+  if (props.config.advancedOptions && isObject(props.config.advancedOptions)) {
+    // Deep clone finalOption to avoid mutating original objects unexpectedly, then merge
+    finalOption = mergeDeep(JSON.parse(JSON.stringify(finalOption)), props.config.advancedOptions)
+  }
+
+  return finalOption
 })
 const handleChartClick = (params) => {
   if (params.name && currentXAxis.value && props.config.dataset) {
@@ -817,19 +900,12 @@ const gridSchema = computed(() => {
       <div v-else class="chart-empty">Sin imagen seleccionada.</div>
     </div>
 
-    <v-chart
-      v-else-if="echartOptions"
-      class="echart-instance"
-      :option="echartOptions"
-      autoresize
-    />
-
     <div v-else-if="config.type === 'grid'" class="data-grid-container">
       <DataGrid :data="gridData" :schema="gridSchema" />
     </div>
-    
+
     <v-chart 
-      v-else 
+      v-else-if="echartOptions" 
       class="echart-instance" 
       :option="echartOptions" 
       :theme="uiStore.isDarkMode ? 'business-dark' : 'business-light'" 

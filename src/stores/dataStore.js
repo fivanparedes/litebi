@@ -344,6 +344,31 @@ export const useDataStore = defineStore('data', () => {
     }
   }
 
+  const applyTransformations = async (name, data, schema, pipelineSteps) => {
+    try {
+      // Remove Vue Proxies to avoid DataCloneError in Worker postMessage
+      const cleanData = JSON.parse(JSON.stringify(data))
+      const cleanSchema = JSON.parse(JSON.stringify(schema))
+      const cleanSteps = JSON.parse(JSON.stringify(pipelineSteps))
+
+      await sqlClient.dropTable(name)
+      await sqlClient.createTable(name, cleanData)
+      
+      const ds = datasets.value.get(name)
+      if (ds) {
+        ds.schema = cleanSchema
+        ds.rowCount = cleanData.length
+        ds.colCount = cleanSchema.length
+        ds.transformations = cleanSteps
+        dataVersion.value++
+      }
+      uiStore.addToast({ message: `Transformaciones aplicadas a ${ds?.originalName || name}`, type: 'success' })
+    } catch (e) {
+      Logger.error('DataStore', 'Error applying transformations', e)
+      uiStore.addToast({ message: `Error al aplicar transformaciones: ${e.message}`, type: 'error' })
+      throw e
+    }
+  }
 
   // Getters
   const datasetNames = computed(() => Array.from(datasets.value.keys()))
@@ -373,6 +398,7 @@ export const useDataStore = defineStore('data', () => {
     buildJoinQuery,
     generateCalendarTable,
     saveManualDataset,
+    applyTransformations,
     getAllData,
     dataVersion,
     
