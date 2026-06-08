@@ -45,7 +45,7 @@ const removeLogo = () => settingsStore.setCompanyLogo(null)
     </div>
 
     <div class="settings-section">
-      <h3><Users class="icon-h3" /> Multijugador (WebRTC)</h3>
+      <h3><Users class="icon-h3" /> Colaboración (WebRTC)</h3>
       <p class="section-desc">Configura tu identidad y la sala de colaboración. Usuarios en la misma sala verán tus cambios en vivo.</p>
 
       <div style="display: flex; gap: 16px; max-width: 500px; margin-bottom: 16px;">

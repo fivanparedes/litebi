@@ -64,6 +64,8 @@ watch(() => [props.config, dataStore.dataVersion], async () => {
 const dsName = computed(() => props.config.dataset)
 const rawX = computed(() => props.config.xAxis)
 const isSlider = computed(() => props.config.slicerType === 'slider')
+const isButton = computed(() => props.config.slicerType === 'button')
+const isInput = computed(() => props.config.slicerType === 'input')
 
 const colNameForFilter = computed(() => {
   if (!rawX.value) return ''
@@ -96,11 +98,25 @@ const applyRangeFilter = () => {
   dashboardStore.addFilter(dsName.value, colNameForFilter.value, min, label, 'BETWEEN', max)
 }
 
+const searchInputValue = ref('')
+const applyInputFilter = () => {
+  if (!searchInputValue.value) {
+    clearFilter()
+    return
+  }
+  const val = `%${searchInputValue.value}%`
+  const label = `${rawX.value} contiene '${searchInputValue.value}'`
+  dashboardStore.addFilter(dsName.value, colNameForFilter.value, val, label, 'LIKE')
+}
+
 const clearFilter = () => {
   if (activeFilter.value) {
     dashboardStore.removeFilter(activeFilter.value.id)
     if (isSlider.value) {
       sliderRange.value = { min: rangeBounds.value.min, max: rangeBounds.value.max }
+    }
+    if (isInput.value) {
+      searchInputValue.value = ''
     }
   }
 }
@@ -138,8 +154,20 @@ const clearFilter = () => {
         <button class="apply-range-btn" @click="applyRangeFilter">Aplicar Rango</button>
       </div>
 
-      <!-- Modo Lista -->
-      <div v-else class="slicer-items">
+      <!-- Modo Input -->
+      <div v-else-if="isInput" class="slicer-input-mode">
+        <input 
+          v-model="searchInputValue" 
+          type="text" 
+          placeholder="Buscar..." 
+          @keyup.enter="applyInputFilter"
+          class="slicer-text-input"
+        />
+        <button class="apply-range-btn" @click="applyInputFilter">Buscar</button>
+      </div>
+
+      <!-- Modo Lista o Botones -->
+      <div v-else class="slicer-items" :class="{ 'slicer-buttons-mode': isButton }">
         <button 
           v-for="item in items" 
           :key="item"
@@ -149,7 +177,7 @@ const clearFilter = () => {
           :class="{ 'active': activeFilter && activeFilter.value === item }"
           @click="toggleFilter(item)"
         >
-          <div class="checkbox">
+          <div v-if="!isButton" class="checkbox">
             <Check v-if="activeFilter && activeFilter.value === item" size="14" />
           </div>
           <span class="item-label">{{ item }}</span>
@@ -331,5 +359,47 @@ const clearFilter = () => {
 
 .apply-range-btn:hover {
   opacity: 0.9;
+}
+
+.slicer-buttons-mode {
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.slicer-buttons-mode .slicer-btn {
+  width: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  padding: 4px 12px;
+  background-color: var(--color-bg-primary);
+  text-align: center;
+  justify-content: center;
+}
+
+.slicer-buttons-mode .slicer-btn.active {
+  background-color: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+.slicer-buttons-mode .slicer-btn.active .item-label {
+  color: white;
+}
+
+.slicer-input-mode {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-top: var(--space-2);
+}
+
+.slicer-text-input {
+  width: 100%;
+  padding: 8px;
+  font-size: var(--text-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
 }
 </style>

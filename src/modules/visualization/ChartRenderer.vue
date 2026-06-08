@@ -21,7 +21,10 @@ import {
 import { MapChart } from 'echarts/charts'
 import VChart from 'vue-echarts'
 import { businessTheme } from './themes/businessTheme'
+import { businessThemeDark } from './themes/businessThemeDark'
 import ecStat from 'echarts-stat'
+import DataGrid from '@/modules/cleaning/DataGrid.vue'
+import { useUiStore } from '@/stores/uiStore'
 
 registerTransform(ecStat.transform.regression)
 registerTransform(ecStat.transform.clustering)
@@ -50,24 +53,55 @@ use([
   GeoComponent
 ])
 
-// Register custom theme
-registerTheme('business', businessTheme)
+// Register custom themes
+registerTheme('business-light', businessTheme)
+registerTheme('business-dark', businessThemeDark)
 
 const props = defineProps({
   config: {
     type: Object,
     required: true,
-    // Expected: { title: '', type: 'bar', dataset: 'dataset1', xAxis: 'col1', yAxis: 'col2', aggregation: 'SUM', orientation: 'vertical' }
   }
 })
 
 const dataStore = useDataStore()
 const dashboardStore = useDashboardStore()
 const settingsStore = useSettingsStore()
+const uiStore = useUiStore()
 
 const chartData = ref([])
 const kpiValue = ref(0)
 const isLoading = ref(false)
+
+// Drill-down State
+const drillLevel = ref(0)
+const drillPath = ref([])
+
+const currentXAxis = computed(() => {
+  const x = props.config.xAxis
+  if (Array.isArray(x)) {
+    return x[Math.min(drillLevel.value, x.length - 1)]
+  }
+  return x
+})
+
+const isDrillable = computed(() => {
+  return Array.isArray(props.config.xAxis) && drillLevel.value < props.config.xAxis.length - 1
+})
+
+const handleDrillUp = () => {
+  if (drillLevel.value > 0) {
+    drillLevel.value--
+    drillPath.value.pop()
+    loadData()
+  }
+}
+
+// Reset drill-down if config xAxis array changes (e.g., config updated)
+watch(() => props.config.xAxis, () => {
+  drillLevel.value = 0
+  drillPath.value = []
+}, { deep: true })
 
 const loadData = async () => {
   if (!props.config) return
@@ -76,16 +110,17 @@ const loadData = async () => {
   // Permitir que el hilo de UI se libere antes de cálculos pesados
   await new Promise(resolve => setTimeout(resolve, 0))
 
-  if (props.config.type === 'kpi') {
+  if (props.config.type === 'kpi' || props.config.type === 'scorecard') {
     if (!props.config.yAxis || !props.config.dataset) {
-      kpiValue.value = 0
+      kpiValue.value = props.config.type === 'scorecard' ? { total: 0, target: 0 } : 0
       isLoading.value = false
       return
     }
     
-    const rawY = props.config.yAxis
-    const agg = props.config.aggregation || 'SUM'
     const dsName = props.config.dataset
+    const rawY = props.config.yAxis
+    const rawY2 = props.config.secondaryYAxis
+    const agg = props.config.aggregation || 'SUM'
 
     const parseCol = (colStr) => colStr.includes('].[') ? colStr : `[${dsName}].[${colStr}]`
     const extractTable = (colStr) => colStr.includes('].[') ? colStr.split('].[')[0].replace('[', '') : dsName
@@ -120,26 +155,36 @@ const loadData = async () => {
       const uniqueRequiredTables = [...new Set(requiredTables)]
       const fromClause = dataStore.buildJoinQuery(dsName, uniqueRequiredTables)
 
-      const q = `SELECT ${agg}(${ySafe}) as [total] FROM ${fromClause} WHERE ${ySafe} IS NOT NULL${globalWhere}`
-      const res = await sqlClient.query(q)
-      kpiValue.value = res[0]?.total || 0
+      if (props.config.type === 'scorecard' && rawY2) {
+        const y2Safe = parseCol(rawY2)
+        const q = `SELECT ${agg}(${ySafe}) as [total], ${agg}(${y2Safe}) as [target] FROM ${fromClause} WHERE 1=1 ${globalWhere}`
+        const res = await sqlClient.query(q)
+        kpiValue.value = {
+          total: res[0]?.total || 0,
+          target: res[0]?.target || 0
+        }
+      } else {
+        const q = `SELECT ${agg}(${ySafe}) as [total] FROM ${fromClause} WHERE ${ySafe} IS NOT NULL${globalWhere}`
+        const res = await sqlClient.query(q)
+        kpiValue.value = res[0]?.total || 0
+      }
     } catch (e) {
-      kpiValue.value = 0
+      kpiValue.value = props.config.type === 'scorecard' ? { total: 0, target: 0 } : 0
     }
     chartData.value = []
     isLoading.value = false
     return
   }
 
-  // Not KPI
-  if (!props.config.dataset || !props.config.xAxis || !props.config.yAxis) {
+  // Not KPI/Scorecard
+  if (!props.config.dataset || !currentXAxis.value || !props.config.yAxis) {
     chartData.value = []
     isLoading.value = false
     return
   }
   
   const dsName = props.config.dataset
-  const rawX = props.config.xAxis
+  const rawX = currentXAxis.value
   const rawY = props.config.yAxis
   const rawY2 = props.config.secondaryYAxis
   const agg = props.config.aggregation || 'SUM'
@@ -171,6 +216,15 @@ const loadData = async () => {
       const v1 = typeof f.value === 'number' ? f.value : `'${safeVal}'`
       globalWhere += ` AND ${colName} ${f.operator || '='} ${v1}`
     }
+  })
+
+  // Apply drill-down path filters
+  drillPath.value.forEach(dFilter => {
+    const safeVal = typeof dFilter.value === 'string' ? String(dFilter.value).replace(/'/g, "''") : dFilter.value
+    const colName = dFilter.colName.includes('].[') ? dFilter.colName : `[${dsName}].[${dFilter.colName}]`
+    requiredTables.push(extractTable(dFilter.colName) || dsName)
+    const v1 = typeof dFilter.value === 'number' ? dFilter.value : `'${safeVal}'`
+    globalWhere += ` AND ${colName} = ${v1}`
   })
 
   const uniqueRequiredTables = [...new Set(requiredTables)]
@@ -250,9 +304,26 @@ onMounted(async () => {
 })
 
 const formattedKpi = computed(() => {
-  const val = kpiValue.value
-  if (typeof val !== 'number') return val
-  return new Intl.NumberFormat('es-AR', { maximumFractionDigits: 2 }).format(val)
+  const formatVal = (v) => {
+    if (typeof v !== 'number') return v
+    return new Intl.NumberFormat('es-AR', { maximumFractionDigits: 2 }).format(v)
+  }
+  
+  if (props.config.type === 'scorecard') {
+    const val = kpiValue.value?.total || 0
+    const target = kpiValue.value?.target || 0
+    const diff = val - target
+    const pct = target !== 0 ? (diff / Math.abs(target)) * 100 : 0
+    return {
+      value: formatVal(val),
+      target: formatVal(target),
+      diff: formatVal(diff),
+      pct: formatVal(pct),
+      isPositive: diff >= 0
+    }
+  }
+  
+  return formatVal(kpiValue.value)
 })
 
 const chartStrategies = {
@@ -263,7 +334,7 @@ const chartStrategies = {
       {
         name: props.config.yAxis,
         type: 'pie',
-        radius: ['40%', '70%'],
+        radius: [props.config.styles?.innerRadius ? `${props.config.styles.innerRadius}%` : '40%', '70%'],
         avoidLabelOverlap: false,
         itemStyle: { borderRadius: 10 },
         label: { show: false },
@@ -584,7 +655,8 @@ const getDefaultStrategy = (baseOption, data, props, xAxisData, seriesData, ctyp
       name: props.config.yAxisLabel || props.config.yAxis,
       type: ctype,
       data: seriesData,
-      areaStyle: (ctype === 'line' && props.config.styles?.fillArea) ? { opacity: 0.2 } : undefined,
+      areaStyle: (ctype === 'line' && (props.config.styles?.areaType === 'axis' || props.config.styles?.areaType === 'between')) ? { opacity: 0.2 } : undefined,
+      stack: (ctype === 'line' && props.config.styles?.areaType === 'between') ? 'Total' : undefined,
       large: true,
       largeThreshold: 500,
       itemStyle: props.config.styles?.borderRadius ? { borderRadius: props.config.styles.borderRadius } : undefined
@@ -597,7 +669,8 @@ const getDefaultStrategy = (baseOption, data, props, xAxisData, seriesData, ctyp
       name: props.config.secondaryYAxisLabel || props.config.secondaryYAxis,
       type: ctype,
       data: data2,
-      areaStyle: (ctype === 'line' && props.config.styles?.fillArea) ? { opacity: 0.2 } : undefined,
+      areaStyle: (ctype === 'line' && (props.config.styles?.areaType === 'axis' || props.config.styles?.areaType === 'between')) ? { opacity: 0.2 } : undefined,
+      stack: (ctype === 'line' && props.config.styles?.areaType === 'between') ? 'Total' : undefined,
       large: true,
     })
   }
@@ -626,8 +699,7 @@ const getDefaultStrategy = (baseOption, data, props, xAxisData, seriesData, ctyp
       datasetIndex: 1,
       symbolSize: 0.1,
       symbol: 'circle',
-      label: { show: true, fontSize: 14 },
-      labelLayout: { dx: -20 },
+      label: { show: false }, // Ocultamos las etiquetas de puntos
       encode: { x: 0, y: 1, tooltip: 1 }
     })
   }
@@ -637,7 +709,7 @@ const getDefaultStrategy = (baseOption, data, props, xAxisData, seriesData, ctyp
 
 const echartOptions = computed(() => {
   const ctype = props.config.type || 'bar'
-  if (ctype === 'kpi' || chartData.value.length === 0) return null
+  if (ctype === 'kpi' || ctype === 'scorecard' || ctype === 'image' || chartData.value.length === 0) return null
   
   const data = chartData.value
   const xAxisData = data.map(d => d.name)
@@ -665,56 +737,102 @@ const echartOptions = computed(() => {
   return getDefaultStrategy(baseOption, data, props, xAxisData, seriesData, ctype)
 })
 const handleChartClick = (params) => {
-  if (params.name && props.config.xAxis) {
+  if (params.name && currentXAxis.value && props.config.dataset) {
     const dsName = props.config.dataset
-    const rawX = props.config.xAxis
+    const rawX = currentXAxis.value
     const colName = rawX.includes('].[') ? rawX : `[${dsName}].[${rawX}]`
-    dashboardStore.addFilter(dsName, colName, params.name, `${rawX}: ${params.name}`)
+    
+    if (isDrillable.value) {
+      // Drill Down
+      drillPath.value.push({ colName, value: params.name })
+      drillLevel.value++
+      loadData()
+    } else {
+      // Cross Filter
+      dashboardStore.addFilter(dsName, colName, params.name, `${rawX}: ${params.name}`)
+    }
   }
 }
+
+const gridData = computed(() => {
+  return chartData.value.map(row => {
+    const obj = {
+      [currentXAxis.value || 'X']: row.name,
+      [props.config.yAxis || 'Y']: typeof row.value === 'number' ? Number(row.value.toFixed(2)) : row.value
+    }
+    if (props.config.secondaryYAxis) {
+      obj[props.config.secondaryYAxis] = typeof row.value2 === 'number' ? Number(row.value2.toFixed(2)) : row.value2
+    }
+    return obj
+  })
+})
+
+const gridSchema = computed(() => {
+  const schema = [
+    { name: currentXAxis.value || 'X', type: 'string' },
+    { name: props.config.yAxis || 'Y', type: 'number' }
+  ]
+  if (props.config.secondaryYAxis) {
+    schema.push({ name: props.config.secondaryYAxis, type: 'number' })
+  }
+  return schema
+})
 </script>
 
 <template>
   <div class="chart-wrapper">
     <div v-if="isLoading" class="chart-loading">
-      <Loader class="spin-icon" size="24" />
-      <span>Cargando datos...</span>
-    </div>
-
-    <div v-if="(!config.xAxis && config.type !== 'kpi' && config.type !== 'gauge') || !config.yAxis" class="chart-empty">
-      <p>Configura los ejes del widget para visualizar los datos.</p>
+      <Loader class="spin-icon" size="32" />
+      <span>Cargando...</span>
     </div>
     
-    <div v-else-if="config.type === 'kpi'" class="kpi-card">
-      <h4 class="kpi-title">{{ config.title || config.yAxis }}</h4>
+    <!-- Drill Up Button -->
+    <button v-if="drillLevel > 0 && !isLoading" class="drill-up-btn" @click="handleDrillUp" title="Subir nivel">
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-corner-left-up"><polyline points="14 9 9 4 4 9"/><path d="M20 20h-7a4 4 0 0 1-4-4V4"/></svg>
+      Subir Nivel
+    </button>
+    <div v-else-if="!config.dataset || !config.xAxis || (!config.yAxis && config.type !== 'image')" class="chart-empty">
+      <p>Configura el widget para visualizar datos.</p>
+    </div>
+    
+    <div v-else-if="config.type === 'kpi'" class="kpi-container">
       <div class="kpi-value">{{ formattedKpi }}</div>
-      <div class="kpi-subtitle">{{ config.aggregation }}</div>
+      <div class="kpi-label">{{ config.yAxisLabel || config.yAxis }}</div>
+    </div>
+    
+    <div v-else-if="config.type === 'scorecard'" class="kpi-container scorecard">
+      <div class="kpi-value">{{ formattedKpi.value }}</div>
+      <div class="kpi-label">{{ config.yAxisLabel || config.yAxis }}</div>
+      
+      <div class="scorecard-target">
+        <span>Objetivo: {{ formattedKpi.target }}</span>
+        <span class="scorecard-diff" :class="formattedKpi.isPositive ? 'text-success' : 'text-danger'">
+          {{ formattedKpi.isPositive ? '+' : '' }}{{ formattedKpi.diff }} ({{ formattedKpi.isPositive ? '+' : '' }}{{ formattedKpi.pct }}%)
+        </span>
+      </div>
     </div>
 
+    <div v-else-if="config.type === 'image'" class="image-container">
+      <img v-if="config.imageUrl" :src="config.imageUrl" :style="{ objectFit: config.imageFit || 'contain' }" class="dashboard-img" />
+      <div v-else class="chart-empty">Sin imagen seleccionada.</div>
+    </div>
+
+    <v-chart
+      v-else-if="echartOptions"
+      class="echart-instance"
+      :option="echartOptions"
+      autoresize
+    />
+
     <div v-else-if="config.type === 'grid'" class="data-grid-container">
-      <table class="simple-data-grid">
-        <thead>
-          <tr>
-            <th>{{ config.xAxis }}</th>
-            <th>{{ config.yAxis }}</th>
-            <th v-if="config.secondaryYAxis">{{ config.secondaryYAxis }}</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="(row, idx) in chartData" :key="idx">
-            <td>{{ row.name }}</td>
-            <td>{{ typeof row.value === 'number' ? row.value.toFixed(2) : row.value }}</td>
-            <td v-if="config.secondaryYAxis">{{ typeof row.value2 === 'number' ? row.value2.toFixed(2) : row.value2 }}</td>
-          </tr>
-        </tbody>
-      </table>
+      <DataGrid :data="gridData" :schema="gridSchema" />
     </div>
     
     <v-chart 
       v-else 
       class="echart-instance" 
       :option="echartOptions" 
-      theme="business" 
+      :theme="uiStore.isDarkMode ? 'business-dark' : 'business-light'" 
       autoresize 
       @click="handleChartClick"
     />
@@ -748,6 +866,32 @@ const handleChartClick = (params) => {
   backdrop-filter: blur(2px);
 }
 
+.drill-up-btn {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background-color: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 4px 8px;
+  font-size: var(--text-xs);
+  font-weight: 500;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.2s ease;
+}
+
+.drill-up-btn:hover {
+  background-color: var(--color-bg-secondary);
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
 .spin-icon {
   animation: spin 1s linear infinite;
   color: var(--color-accent);
@@ -777,7 +921,7 @@ const handleChartClick = (params) => {
   min-height: 150px;
 }
 
-.kpi-card {
+.kpi-container {
   flex-grow: 1;
   display: flex;
   flex-direction: column;
@@ -786,7 +930,7 @@ const handleChartClick = (params) => {
   padding: var(--space-4);
 }
 
-.kpi-title {
+.kpi-label {
   margin: 0 0 var(--space-2) 0;
   font-size: var(--text-base);
   color: var(--color-text-secondary);
@@ -802,13 +946,44 @@ const handleChartClick = (params) => {
   line-height: 1.2;
 }
 
-.kpi-subtitle {
-  margin-top: var(--space-1);
-  font-size: var(--text-xs);
-  color: var(--color-text-tertiary);
+.scorecard-target {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: var(--space-2);
+  padding: var(--space-2) var(--space-4);
   background: var(--color-bg-secondary);
-  padding: 2px 8px;
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+}
+
+.scorecard-diff {
+  font-weight: var(--font-bold);
+  font-size: var(--text-base);
+  margin-top: 4px;
+}
+
+.text-success {
+  color: var(--color-success, #10b981);
+}
+
+.text-danger {
+  color: var(--color-danger, #ef4444);
+}
+
+.image-container {
+  flex-grow: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
+  padding: var(--space-2);
+}
+
+.dashboard-img {
+  width: 100%;
+  height: 100%;
 }
 
 .data-grid-container {

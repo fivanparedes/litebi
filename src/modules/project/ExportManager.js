@@ -44,6 +44,9 @@ export const exportToPDF = async (elementId, filename = 'dashboard') => {
   try {
     const { jsPDF } = await import('jspdf')
     const html2canvas = (await import('html2canvas')).default
+    const { useSettingsStore } = await import('@/stores/settingsStore')
+    const settingsStore = useSettingsStore()
+    const companyLogo = settingsStore.companyLogo
     
     const pages = container.querySelectorAll('.report-page-wrapper')
     
@@ -57,6 +60,14 @@ export const exportToPDF = async (elementId, filename = 'dashboard') => {
         const imgData = canvas.toDataURL('image/jpeg', 0.95)
         // A4 dimension mapping
         pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297)
+        if (companyLogo) {
+          // Add logo to top right corner
+          pdf.addImage(companyLogo, 'PNG', 170, 10, 30, 15)
+        }
+        // Memory cleanup hint
+        canvas.width = 1
+        canvas.height = 1
+
       }
       pdf.save(`${filename}.pdf`)
     } else {
@@ -75,6 +86,13 @@ export const exportToPDF = async (elementId, filename = 'dashboard') => {
       })
 
       pdf.addImage(imgData, 'JPEG', 0, 0, canvas.width, canvas.height)
+      if (companyLogo) {
+        pdf.addImage(companyLogo, 'PNG', canvas.width - 150, 20, 120, 60)
+      }
+      // Memory cleanup hint
+      canvas.width = 1
+      canvas.height = 1
+
       pdf.save(`${filename}.pdf`)
     }
   } finally {
@@ -100,14 +118,14 @@ export const exportToPPTX = async (elementId, title = 'Dashboard Report', filena
 
     const { useSettingsStore } = await import('@/stores/settingsStore')
     const settingsStore = useSettingsStore()
-    const corporateLogo = settingsStore.corporateLogo
+    const companyLogo = settingsStore.companyLogo
     
     const widgets = element.querySelectorAll('.grid-stack-item-content')
     
     let slide = pptx.addSlide()
     slide.addText(title, { x: 1, y: 2, w: '80%', fontSize: 36, bold: true, align: 'center', color: '363636' })
-    if (corporateLogo) {
-      slide.addImage({ data: corporateLogo, x: 0.5, y: 0.5, w: 2, h: 1, sizing: { type: 'contain' } })
+    if (companyLogo) {
+      slide.addImage({ data: companyLogo, x: 0.5, y: 0.5, w: 2, h: 1, sizing: { type: 'contain' } })
     }
     
     for (const widget of widgets) {
@@ -134,8 +152,8 @@ export const exportToPPTX = async (elementId, title = 'Dashboard Report', filena
             document.body.appendChild(hiddenDiv)
             
             try {
-              // Re-renderizar usando el mismo tema
-              const hiddenChart = init(hiddenDiv, 'business')
+              // Re-renderizar usando el mismo tema (Light mode para exportación)
+              const hiddenChart = init(hiddenDiv, 'business-light')
               hiddenChart.setOption(option)
               // Pequeño delay para asegurar renderizado completo
               await new Promise(r => setTimeout(r, 100))
@@ -159,9 +177,13 @@ export const exportToPPTX = async (elementId, title = 'Dashboard Report', filena
       let wSlide = pptx.addSlide()
       wSlide.addText(headerTitle, { x: '5%', y: '5%', w: '90%', fontSize: 24, bold: true, color: '363636' })
       wSlide.addImage({ data: imgData, x: '5%', y: '15%', w: '90%', h: '80%', sizing: { type: 'contain' } })
-      if (corporateLogo) {
-        wSlide.addImage({ data: corporateLogo, x: '85%', y: '2%', w: '10%', h: '8%', sizing: { type: 'contain' } })
+      if (companyLogo) {
+        wSlide.addImage({ data: companyLogo, x: '85%', y: '2%', w: '10%', h: '8%', sizing: { type: 'contain' } })
       }
+      
+      // Cleanup huge image data
+      imgData = null
+
     }
     
     await pptx.writeFile({ fileName: `${filename}.pptx` })

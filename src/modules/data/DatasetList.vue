@@ -2,10 +2,12 @@
 import { computed, ref } from 'vue'
 import { Database, Table, Calendar, CalendarClock, Hash, Type, Trash2, Edit2 } from '@lucide/vue'
 import { useDataStore } from '@/stores/dataStore'
+import { useUiStore } from '@/stores/uiStore'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseTooltip from '@/components/ui/BaseTooltip.vue'
 
 const dataStore = useDataStore()
+const uiStore = useUiStore()
 
 const expandedCards = ref({})
 
@@ -58,7 +60,7 @@ const getTypeIcon = (type) => {
               <svg v-else xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"></polyline></svg>
             </button>
           </BaseTooltip>
-          <BaseTooltip :text="$t('data.delete')" position="top">
+          <BaseTooltip v-if="!uiStore.isViewerMode" :text="$t('data.delete')" position="top">
             <button class="action-btn action-btn--danger" @click.stop="dataStore.removeDataset(dataset.name)">
               <Trash2 />
             </button>

@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Database, Upload, FileSpreadsheet, Plus, CalendarDays, Server, Globe, Box, DatabaseZap } from '@lucide/vue'
+import { Database, Upload, FileSpreadsheet, Plus, CalendarDays, Server, Globe, Box, DatabaseZap, Edit3 } from '@lucide/vue'
 import { useDataStore } from '@/stores/dataStore'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseModal from '@/components/ui/BaseModal.vue'
@@ -10,18 +10,31 @@ import ImportWizard from '@/modules/data/ImportWizard.vue'
 import DatasetList from '@/modules/data/DatasetList.vue'
 import DataPreview from '@/modules/data/DataPreview.vue'
 import LiveConnectorModal from '@/modules/data/LiveConnectorModal.vue'
+import ManualDatasetEditor from '@/modules/data/ManualDatasetEditor.vue'
+import DataPreviewModal from '@/modules/data/DataPreviewModal.vue'
+import { useUiStore } from '@/stores/uiStore'
 
 const { t } = useI18n()
 const dataStore = useDataStore()
+const uiStore = useUiStore()
 
 const isImportModalOpen = ref(false)
 const isLiveConnectorOpen = ref(false)
 const activeConnectorType = ref('postgres')
-const isAddingSource = ref(false)
 const isCalendarModalOpen = ref(false)
+const isManualModalOpen = ref(false)
 const calendarStartYear = ref(new Date().getFullYear() - 3)
 const calendarEndYear = ref(new Date().getFullYear() + 2)
 
+// Preview state
+const isPreviewModalOpen = ref(false)
+const previewDatasetName = ref('')
+const previewRawData = ref([])
+const previewSchema = ref(null)
+const previewConnectorConfig = ref(null)
+const previewRefreshInterval = ref(0)
+
+const isAddingSource = ref(false)
 const hasDatasets = computed(() => dataStore.datasetNames.length > 0)
 
 const openImportModal = () => {
@@ -37,6 +50,42 @@ const onDatasetImported = (name) => {
   isImportModalOpen.value = false
   isLiveConnectorOpen.value = false
   isAddingSource.value = false
+}
+
+const onPreviewRequested = ({ datasetName, parsedData, connectorConfig, refreshInterval }) => {
+  previewDatasetName.value = datasetName
+  previewRawData.value = parsedData.data
+  previewSchema.value = parsedData.schema
+  previewConnectorConfig.value = connectorConfig || null
+  previewRefreshInterval.value = refreshInterval || 0
+  
+  // Close the import wizard modal since preview takes over
+  isImportModalOpen.value = false
+  isLiveConnectorOpen.value = false
+  
+  // Open the preview modal
+  isPreviewModalOpen.value = true
+}
+
+const handlePreviewImport = async (filteredResult) => {
+  await dataStore.addDataset(
+    filteredResult.datasetName, 
+    filteredResult.data, 
+    filteredResult.schema,
+    previewConnectorConfig.value,
+    previewRefreshInterval.value
+  )
+  isPreviewModalOpen.value = false
+  onDatasetImported(filteredResult.datasetName)
+}
+
+const onManualDatasetSaved = (name) => {
+  isManualModalOpen.value = false
+  isAddingSource.value = false
+}
+
+const openManualModal = () => {
+  isManualModalOpen.value = true
 }
 
 const loadExampleData = async () => {
@@ -72,51 +121,56 @@ const handleGenerateCalendar = () => {
 
       <div class="connectors-grid">
         <!-- Local Files -->
-        <div class="connector-card" @click="openImportModal">
+        <div v-if="!uiStore.isViewerMode" class="connector-card" @click="openImportModal">
           <div class="connector-icon-wrapper"><Upload class="connector-icon" /></div>
           <h3>Archivos Locales</h3>
           <p>Importar CSV o Excel (XLSX)</p>
         </div>
         
-        <div class="connector-card" @click="loadExampleData">
-          <div class="connector-icon-wrapper"><FileSpreadsheet class="connector-icon" /></div>
-          <h3>Datos de Ejemplo</h3>
-          <p>Cargar dataset de prueba</p>
+        <div v-if="!uiStore.isViewerMode" class="connector-card" @click="openImportModal">
+          <div class="connector-icon-wrapper"><FileSpreadsheet class="connector-icon" style="color: var(--color-success)" /></div>
+          <h3>Excel / CSV</h3>
+          <p>Importar archivo local plano</p>
         </div>
 
-        <!-- SQL Databases -->
-        <div class="connector-card" @click="openLiveConnector('postgres')">
-          <div class="connector-icon-wrapper"><Database class="connector-icon" style="color: #336791" /></div>
+        <div v-if="!uiStore.isViewerMode" class="connector-card" @click="openManualModal">
+          <div class="connector-icon-wrapper"><Edit3 class="connector-icon" style="color: var(--color-accent)" /></div>
+          <h3>Dataset Manual</h3>
+          <p>Escribir o pegar datos</p>
+        </div>
+
+        <div v-if="!uiStore.isViewerMode" class="connector-card" @click="openLiveConnector('postgres')">
+          <div class="connector-icon-wrapper"><DatabaseZap class="connector-icon" style="color: #336791" /></div>
           <h3>PostgreSQL</h3>
-          <p>Conexión a servidor remoto</p>
+          <p>Conexión directa segura</p>
         </div>
 
-        <div class="connector-card" @click="openLiveConnector('mysql')">
-          <div class="connector-icon-wrapper"><DatabaseZap class="connector-icon" style="color: #E48E00" /></div>
+        <div v-if="!uiStore.isViewerMode" class="connector-card" @click="openLiveConnector('mysql')">
+          <div class="connector-icon-wrapper"><Database class="connector-icon" style="color: #E48E00" /></div>
           <h3>MySQL</h3>
           <p>Conexión a base de datos MySQL</p>
         </div>
 
-        <div class="connector-card" @click="openLiveConnector('sqlserver')">
+        <div v-if="!uiStore.isViewerMode" class="connector-card" @click="openLiveConnector('sqlserver')">
           <div class="connector-icon-wrapper"><Server class="connector-icon" style="color: #CC292B" /></div>
           <h3>SQL Server</h3>
           <p>Microsoft SQL Server</p>
         </div>
 
         <!-- APIs -->
-        <div class="connector-card" @click="openLiveConnector('api')">
+        <div v-if="!uiStore.isViewerMode" class="connector-card" @click="openLiveConnector('api')">
           <div class="connector-icon-wrapper"><Globe class="connector-icon" style="color: var(--color-success)" /></div>
           <h3>API REST</h3>
           <p>Extraer desde endpoint JSON</p>
         </div>
 
-        <div class="connector-card" @click="openLiveConnector('salesforce')">
+        <div v-if="!uiStore.isViewerMode" class="connector-card" @click="openLiveConnector('salesforce')">
           <div class="connector-icon-wrapper"><Box class="connector-icon" style="color: #00A1E0" /></div>
           <h3>Salesforce</h3>
           <p>Importar CRM empresarial</p>
         </div>
 
-        <div class="connector-card" @click="openLiveConnector('google-analytics')">
+        <div v-if="!uiStore.isViewerMode" class="connector-card" @click="openLiveConnector('google-analytics')">
           <div class="connector-icon-wrapper"><Globe class="connector-icon" style="color: #E37400" /></div>
           <h3>Google Analytics</h3>
           <p>Métricas de tráfico web</p>
@@ -131,11 +185,11 @@ const handleGenerateCalendar = () => {
           <h2>{{ $t('data.datasets') }}</h2>
         </div>
         <div class="header-right">
-          <BaseButton variant="secondary" size="sm" style="margin-right: 8px;" @click="openCalendarModal">
+          <BaseButton v-if="!uiStore.isViewerMode" variant="secondary" size="sm" style="margin-right: 8px;" @click="openCalendarModal">
             <template #icon-left><CalendarDays /></template>
             Crear Calendario
           </BaseButton>
-          <BaseButton variant="primary" size="sm" @click="isAddingSource = true">
+          <BaseButton v-if="!uiStore.isViewerMode" variant="primary" size="sm" @click="isAddingSource = true">
             <template #icon-left><Plus /></template>
             Nuevo Origen
           </BaseButton>
@@ -158,15 +212,38 @@ const handleGenerateCalendar = () => {
       :title="$t('data.importFile')"
       size="md"
     >
-      <ImportWizard @imported="onDatasetImported" />
+      <ImportWizard 
+        @imported="onDatasetImported" 
+        @preview="onPreviewRequested"
+        @cancel="isImportModalOpen = false" 
+      />
     </BaseModal>
+
+    <!-- Data Preview Modal -->
+    <DataPreviewModal
+      v-model="isPreviewModalOpen"
+      :datasetName="previewDatasetName"
+      :rawData="previewRawData"
+      :inferredSchema="previewSchema"
+      @import="handlePreviewImport"
+    />
 
     <!-- Live Connector Modal -->
     <LiveConnectorModal 
-      v-model="isLiveConnectorOpen"
-      :connector-type="activeConnectorType"
+      v-model="isLiveConnectorOpen" 
+      :connectorType="activeConnectorType"
       @imported="onDatasetImported"
+      @preview="onPreviewRequested"
     />
+
+    <!-- Manual Dataset Modal -->
+    <BaseModal
+      v-model="isManualModalOpen"
+      title="Crear Dataset Manual"
+      size="lg"
+    >
+      <ManualDatasetEditor @saved="onManualDatasetSaved" @cancel="isManualModalOpen = false" />
+    </BaseModal>
 
     <!-- Calendar Modal -->
     <BaseModal 

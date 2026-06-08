@@ -1,19 +1,23 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Plus, X, ArrowDownToLine, Presentation, Settings } from '@lucide/vue'
+import { Plus, X, ArrowDownToLine, Presentation, Settings, Monitor, Smartphone } from '@lucide/vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseModal from '@/components/ui/BaseModal.vue'
 import BaseInput from '@/components/ui/BaseInput.vue'
 import { useReportStore } from '@/stores/reportStore'
 import { useDataStore } from '@/stores/dataStore'
+import { useUiStore } from '@/stores/uiStore'
 import DashboardCanvas from '@/modules/dashboard/DashboardCanvas.vue'
 import WidgetConfigurator from '@/modules/visualization/WidgetConfigurator.vue'
 import { exportToPDF, exportToPPTX } from '@/modules/project/ExportManager'
+import { useDashboardStore } from '@/stores/dashboardStore'
 
 const { t } = useI18n()
 const reportStore = useReportStore()
 const dataStore = useDataStore()
+const dashboardStore = useDashboardStore()
+const uiStore = useUiStore()
 
 const editingWidgetId = ref(null)
 const editingPageId = ref(null)
@@ -54,6 +58,11 @@ const closeEditor = () => {
   editingPageId.value = null
 }
 
+const toggleOrientation = (pageId, currentOrientation) => {
+  const newOrientation = currentOrientation === 'portrait' ? 'landscape' : 'portrait'
+  reportStore.updatePageOrientation(pageId, newOrientation)
+}
+
 const handleExportPDF = () => {
   exportToPDF('report-pages-container', 'litebi-report')
 }
@@ -71,6 +80,42 @@ const confirmExportPPTX = () => {
     isExportModalOpen.value = false
   }
 }
+
+const handleExportTemplate = () => {
+  const data = JSON.stringify({ pages: reportStore.pages })
+  const blob = new Blob([data], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `report-template.litebireport`
+  a.click()
+  URL.revokeObjectURL(url)
+  uiStore.addToast({ message: 'Plantilla de reporte exportada', type: 'success' })
+}
+
+const templateInputRef = ref(null)
+
+const handleImportTemplate = (e) => {
+  const file = e.target.files[0]
+  if (!file) return
+  const reader = new FileReader()
+  reader.onload = (evt) => {
+    try {
+      const parsed = JSON.parse(evt.target.result)
+      if (parsed && parsed.pages && Array.isArray(parsed.pages)) {
+        reportStore.pages = parsed.pages
+        reportStore.activePageId = parsed.pages[0]?.id || 'page_1'
+        uiStore.addToast({ message: 'Plantilla de reporte cargada', type: 'success' })
+      } else {
+        throw new Error('Formato inválido')
+      }
+    } catch(err) {
+      uiStore.addToast({ message: 'Error al cargar plantilla de reporte', type: 'error' })
+    }
+  }
+  reader.readAsText(file)
+  if (templateInputRef.value) templateInputRef.value.value = ''
+}
 </script>
 
 <template>
@@ -80,12 +125,38 @@ const confirmExportPPTX = () => {
       <div class="report-toolbar">
         <div class="toolbar-left">
           <h2>Reporte A4</h2>
-          <BaseButton variant="secondary" size="sm" @click="reportStore.addPage()">
+          <BaseButton v-if="!uiStore.isViewerMode" variant="secondary" size="sm" @click="reportStore.addPage()">
             <template #icon-left><Plus /></template>
             Nueva Página
           </BaseButton>
+
+          <!-- Active Filters Bar -->
+          <div v-if="dashboardStore.globalFilters.length > 0" class="active-filters">
+            <span class="filter-label">Filtros Cruzados:</span>
+            <div 
+              v-for="f in dashboardStore.globalFilters" 
+              :key="f.id"
+              class="filter-chip"
+            >
+              <span class="filter-chip-text">{{ f.label }}</span>
+              <button class="filter-chip-close" @click="dashboardStore.removeFilter(f.id)">
+                <X size="12" />
+              </button>
+            </div>
+            <button class="clear-filters-btn" @click="dashboardStore.clearFilters()">Limpiar</button>
+          </div>
         </div>
         <div class="toolbar-right">
+          <input ref="templateInputRef" type="file" accept=".litebireport" style="display: none" @change="handleImportTemplate" />
+          <BaseButton v-if="!uiStore.isViewerMode" variant="ghost" size="sm" @click="templateInputRef.click()" title="Importar Diseño (.litebireport)">
+            <template #icon-left><ArrowDownToLine style="transform: rotate(180deg);" /></template>
+            Importar
+          </BaseButton>
+          <BaseButton v-if="!uiStore.isViewerMode" variant="ghost" size="sm" @click="handleExportTemplate" title="Exportar Diseño (.litebireport)">
+            <template #icon-left><ArrowDownToLine /></template>
+            Exportar
+          </BaseButton>
+          <div class="divider" style="width: 1px; height: 24px; background-color: var(--color-border); margin: 0 var(--space-2);"></div>
           <BaseButton variant="secondary" size="sm" @click="handleExportPPTX">
             <template #icon-left><Presentation /></template>
             Exportar PPTX
@@ -107,12 +178,16 @@ const confirmExportPPTX = () => {
           >
             <div class="page-header is-export-hidden">
               <span>Página {{ index + 1 }}</span>
-              <div class="page-actions">
+              <div class="page-actions" v-if="!uiStore.isViewerMode">
+                <button class="w-btn" :title="page.orientation === 'landscape' ? 'Cambiar a Vertical' : 'Cambiar a Horizontal'" @click="toggleOrientation(page.id, page.orientation)">
+                  <Monitor v-if="page.orientation === 'landscape'" />
+                  <Smartphone v-else />
+                </button>
                 <button class="w-btn" title="Añadir gráfico" @click="handleAddWidget(page.id)"><Plus /></button>
                 <button v-if="reportStore.pages.length > 1" class="w-btn w-btn-danger" title="Eliminar página" @click="reportStore.removePage(page.id)"><X /></button>
               </div>
             </div>
-            <div class="report-page-a4">
+            <div class="report-page-a4" :class="{ 'landscape': page.orientation === 'landscape' }">
               <DashboardCanvas 
                 :layout="page.layout"
                 :tab-id="page.id"
@@ -193,6 +268,61 @@ const confirmExportPPTX = () => {
   color: var(--color-text-primary);
 }
 
+.active-filters {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin-left: var(--space-4);
+}
+
+.filter-label {
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
+  font-weight: var(--font-medium);
+}
+
+.filter-chip {
+  display: flex;
+  align-items: center;
+  background-color: var(--color-accent-light);
+  color: var(--color-accent);
+  border: 1px solid var(--color-accent);
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  font-size: var(--text-xs);
+  font-weight: var(--font-medium);
+}
+
+.filter-chip-close {
+  background: none;
+  border: none;
+  color: var(--color-accent);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  margin-left: 4px;
+  opacity: 0.7;
+}
+
+.filter-chip-close:hover {
+  opacity: 1;
+}
+
+.clear-filters-btn {
+  background: none;
+  border: none;
+  color: var(--color-danger);
+  font-size: var(--text-xs);
+  cursor: pointer;
+}
+
+.clear-filters-btn:hover {
+  text-decoration: underline;
+}
+
 .report-body {
   display: flex;
   flex-grow: 1;
@@ -215,11 +345,27 @@ const confirmExportPPTX = () => {
   display: flex;
   flex-direction: column;
   background-color: white;
-  width: 210mm;
-  min-height: 297mm;
+  width: max-content;
   box-shadow: var(--shadow-md);
   border-radius: var(--radius-md);
   overflow: hidden;
+  transition: width 0.3s ease;
+}
+
+.report-page-a4 {
+  width: 210mm;
+  height: 297mm;
+  background-color: white;
+  margin: 0 auto;
+  box-shadow: var(--shadow-md);
+  position: relative;
+  overflow: hidden;
+  transition: width 0.3s ease, height 0.3s ease;
+}
+
+.report-page-a4.landscape {
+  width: 297mm;
+  height: 210mm;
 }
 
 .page-header {

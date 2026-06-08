@@ -85,12 +85,13 @@ class ErrorLogger {
 
   /**
    * Descarga los logs almacenados como un archivo de texto (.txt).
-   * No realiza ninguna acción si no hay logs registrados.
    */
   downloadLogs() {
-    if (this.logs.length === 0) return
+    if (this.logs.length === 0) {
+      alert("No hay registros (logs) almacenados actualmente.")
+      return
+    }
 
-    // Fix: se usa '\n' en lugar de '\\n' para generar saltos de línea reales en el archivo
     const logText = this.logs.map(log => 
       `[${log.timestamp}] [${log.level}] [${log.context}] ${log.message} ${log.details ? '\nDetalles: ' + log.details : ''}`
     ).join('\n\n')
@@ -109,7 +110,19 @@ class ErrorLogger {
    */
   clear() {
     this.logs = []
+    alert("Registro de errores limpiado.")
   }
 }
 
 export const Logger = new ErrorLogger()
+
+// Interceptar errores globales no capturados
+if (typeof window !== 'undefined') {
+  window.addEventListener('error', (event) => {
+    Logger.error('Global', event.message, event.error ? event.error.stack : null)
+  })
+
+  window.addEventListener('unhandledrejection', (event) => {
+    Logger.error('Promise', event.reason?.message || 'Unhandled Rejection', event.reason?.stack || event.reason)
+  })
+}

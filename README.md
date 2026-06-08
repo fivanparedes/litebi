@@ -15,8 +15,12 @@ LiteBI es una herramienta ágil y moderna de Business Intelligence (BI) diseñad
 *   **Dashboards Interactivos:**
     *   Crea lienzos (canvas) dinámicos y tableros multi-página.
     *   Amplia galería de gráficos renderizados con Apache ECharts (Barras, Líneas, Torta, Dispersión, Embudos, Gauge, Boxplots, Gráficos Combinados).
+    *   **Filtros Cruzados Dinámicos (Cross-Filtering):** Haz clic en los gráficos para filtrar visualmente el resto del Dashboard.
+    *   **Profundización de Jerarquías (Drill-Down):** Navega por niveles de datos (e.g. Año > Mes > Día) dentro de un mismo gráfico.
     *   Filtros interactivos y Segmentadores de datos (Slicers tipo lista y tipo slider continuo).
-*   **Exportación Profesional:** Exporta tus cuadros de mando interactivos a PDF, PNG o directamente como presentaciones interactivas `.pptx` de alta calidad.
+*   **Conexiones Vivas y Actualización Automática (Scheduled Refresh):** Conecta a orígenes externos (SQL Server, Postgres, MySQL) y configura intervalos de actualización en segundo plano para que el tablero nunca se quede atrás.
+*   **Perfilado de Datos (Data Profiling):** Estadísticas de salud, nulos y valores únicos calculados al vuelo e ilustrados en la cabecera de las tablas.
+*   **Exportación Profesional:** Exporta tus cuadros de mando interactivos a PDF, PNG o directamente como presentaciones interactivas `.pptx` de alta calidad (con recolección de basura optimizada).
 *   **Proyectos Portables:** Guarda todo tu trabajo (datos, limpieza, modelos y gráficos) en un solo archivo `.litebi` que puedes compartir o continuar editando más tarde.
 *   **Colaboración en Tiempo Real (WebRTC):** Únete a una sala y edita el tablero simultáneamente con otros usuarios en red local o por internet (P2P descentralizado sin servidor). Observa los cursores de tus compañeros moviéndose en vivo por la pantalla.
 *   **Persistencia y Autoguardado:** LiteBI cuenta con un motor IndexedDB de fondo que resguarda tu trabajo segundo a segundo. Si tu navegador crashea, al volver a la página verás tu dashboard intacto.

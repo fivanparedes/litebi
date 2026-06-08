@@ -20,9 +20,9 @@ LiteBI maneja todo tu trabajo dentro de un **Proyecto**. En la barra superior (c
 
 El primer paso para usar LiteBI es traer tu información a la herramienta. En la barra lateral izquierda, selecciona la vista **Datos**.
 
-1. Haz clic en el botón **"Importar Archivo"**.
-2. Arrastra o selecciona tu archivo Excel (`.xlsx`) o CSV (`.csv`).
-3. El sistema reconocerá automáticamente los delimitadores y los tipos de columna. Confirma la importación.
+1. Haz clic en el botón **"Importar Archivo"** o **"Conexión en Vivo"** (para bases de datos SQL Server, MySQL, Postgres).
+2. Arrastra o selecciona tu archivo Excel (`.xlsx`) o CSV (`.csv`), o configura los credenciales de tu conexión externa.
+3. El sistema reconocerá automáticamente los delimitadores y los tipos de columna. Confirma la importación. Para conexiones externas, puedes configurar el **Intervalo de Actualización Automática (Scheduled Refresh)** para mantener tus datos vivos.
 4. *Opcional:* Si solo deseas probar el programa, puedes importar los datos de ejemplo que vienen en la carpeta `examples/`.
 5. Usa la sección **Preview** (Vista previa) para explorar las primeras 100 líneas de tu tabla importada.
 
@@ -32,6 +32,7 @@ El primer paso para usar LiteBI es traer tu información a la herramienta. En la
 
 A menudo, los datos crudos traen imperfecciones. Ve a la vista **Preparación** (icono de la varita mágica) para arreglarlos:
 
+*   **Perfilado de Datos (Data Profiling):** Al visualizar la tabla, LiteBI calculará automáticamente estadísticas rápidas en la cabecera (porcentaje de completitud, número de nulos, valores únicos y tipo de dato detectado).
 *   **Eliminar Duplicados:** Quita filas repetidas idénticas de todo tu dataset.
 *   **Transformar Texto:** Selecciona una columna de texto (string) y usa opciones como **Recortar espacios**, convertir a **MAYÚSCULAS** o **minúsculas**.
 *   **Manejo de Nulos (Faltantes):** ¿Tienes celdas vacías? Puedes reemplazarlas rellenándolas hacia adelante (Valor Anterior), usando un Valor Fijo (ej. `0`), o métodos estadísticos si la columna es numérica (Media, Moda, Mediana).
@@ -102,9 +103,15 @@ Si importaste múltiples tablas (por ejemplo, *Ventas* y *Clientes*), puedes uni
 2. **Configurar el Gráfico:** En la esquina del cuadro recién agregado haz clic en el engranaje (**Configurar**).
 3. **Seleccionar Datos:** 
     *   **Dataset:** Selecciona la tabla de origen.
-    *   **Eje X / Eje Y:** Configura la dimensión (categoría) y la métrica numérica a graficar.
+    *   **Eje X (Jerarquías):** Configura la dimensión (categoría). Puedes añadir **múltiples niveles de jerarquía** para habilitar el *Drill-Down* (ej. Continente > País > Ciudad).
+    *   **Eje Y:** Configura la métrica numérica a graficar.
     *   **Agrupación:** Elige la operación que se realizará (Suma, Promedio, Conteo).
 4. **Etiquetas Personalizadas:** Puedes darle un *Alias* a los nombres de tus ejes llenando el campo "Etiqueta personalizada". Esto limpiará automáticamente las leyendas visuales (ej. convirtiendo `[tabla].[columna]` en `Ventas Totales`).
+
+### Interacciones de Usuario en el Dashboard
+
+*   **Filtros Cruzados (Cross-Filtering):** Haz clic sobre cualquier barra, segmento de torta o punto en un gráfico. Inmediatamente el resto del dashboard se filtrará para mostrar los datos relativos a tu selección. Verás los filtros activos en la parte superior del lienzo.
+*   **Drill-Down (Profundización):** Si configuraste múltiples niveles en el Eje X, al hacer clic en un dato, el gráfico "bajará" al siguiente nivel de granularidad. Aparecerá un botón "Subir Nivel" para regresar.
 
 ### Catálogo de Visualizaciones Implementadas
 

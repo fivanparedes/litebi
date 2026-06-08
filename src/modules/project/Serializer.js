@@ -115,7 +115,7 @@ const validateProject = (project) => {
  * @param {Object} dashboardStore
  * @returns {Promise<string>} JSON string del proyecto
  */
-export const serializeProject = async (dataStore, formulaStore, dashboardStore) => {
+export const serializeProject = async (dataStore, formulaStore, dashboardStore, reportStore) => {
   // Convert DataStore datasets map to array
   const datasets = []
   
@@ -147,6 +147,10 @@ export const serializeProject = async (dataStore, formulaStore, dashboardStore) 
       activeTabId: dashboardStore.activeTabId,
       layouts: dashboardStore.layouts,
       globalFilters: dashboardStore.globalFilters
+    },
+    report: {
+      pages: reportStore.pages,
+      activePageId: reportStore.activePageId
     }
   }
 
@@ -165,9 +169,10 @@ export const serializeProject = async (dataStore, formulaStore, dashboardStore) 
  * @param {Object} dataStore
  * @param {Object} formulaStore
  * @param {Object} dashboardStore
+ * @param {Object} reportStore
  * @returns {Promise<boolean>} true si la restauración fue exitosa
  */
-export const deserializeProject = async (jsonString, dataStore, formulaStore, dashboardStore) => {
+export const deserializeProject = async (jsonString, dataStore, formulaStore, dashboardStore, reportStore) => {
   // --- Paso 0: Validar tamaño del JSON ---
   if (typeof jsonString !== 'string') {
     throw new Error('El contenido proporcionado no es una cadena de texto válida.')
@@ -213,7 +218,9 @@ export const deserializeProject = async (jsonString, dataStore, formulaStore, da
     tabs: dashboardStore.tabs ? [...dashboardStore.tabs] : [],
     layouts: { ...dashboardStore.layouts },
     activeTabId: dashboardStore.activeTabId,
-    globalFilters: dashboardStore.globalFilters ? [...dashboardStore.globalFilters] : []
+    globalFilters: dashboardStore.globalFilters ? [...dashboardStore.globalFilters] : [],
+    reportPages: reportStore.pages ? [...reportStore.pages] : [],
+    reportActivePageId: reportStore.activePageId
   }
 
   try {
@@ -242,6 +249,15 @@ export const deserializeProject = async (jsonString, dataStore, formulaStore, da
     dashboardStore.activeTabId = project.dashboard.activeTabId || 'tab_1'
     dashboardStore.globalFilters = project.dashboard.globalFilters || []
 
+    // --- Paso 8: Restaurar reporte ---
+    if (project.report) {
+      reportStore.pages = project.report.pages || [{ id: 'page_1', layout: [], orientation: 'portrait' }]
+      reportStore.activePageId = project.report.activePageId || 'page_1'
+    } else {
+      reportStore.pages = [{ id: 'page_1', layout: [], orientation: 'portrait' }]
+      reportStore.activePageId = 'page_1'
+    }
+
     return true
   } catch (restoreError) {
     // Rollback: restaurar estado previo desde el respaldo
@@ -257,7 +273,10 @@ export const deserializeProject = async (jsonString, dataStore, formulaStore, da
       dashboardStore.layouts = backup.layouts
       dashboardStore.activeTabId = backup.activeTabId
       dashboardStore.globalFilters = backup.globalFilters
-    } catch (rollbackError) {
+      
+      reportStore.pages = backup.reportPages
+      reportStore.activePageId = backup.reportActivePageId
+    } catch (fallbackError) {
       console.error('Error crítico: no se pudo revertir al estado anterior:', rollbackError)
     }
 

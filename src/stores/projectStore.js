@@ -4,6 +4,7 @@ import { useUiStore } from './uiStore'
 import { useDataStore } from './dataStore'
 import { useFormulaStore } from './formulaStore'
 import { useDashboardStore } from './dashboardStore'
+import { useReportStore } from './reportStore'
 import { serializeProject, deserializeProject } from '@/modules/project/Serializer'
 import { HistoryManager } from '@/modules/project/HistoryManager'
 import localforage from 'localforage'
@@ -13,6 +14,7 @@ export const useProjectStore = defineStore('project', () => {
   const dataStore = useDataStore()
   const formulaStore = useFormulaStore()
   const dashboardStore = useDashboardStore()
+  const reportStore = useReportStore()
   
   const projectName = ref('Proyecto sin título')
   const fileHandle = ref(null)
@@ -29,7 +31,7 @@ export const useProjectStore = defineStore('project', () => {
   const pushToHistory = async () => {
     if (isRestoringHistory) return
     try {
-      const json = await serializeProject(dataStore, formulaStore, dashboardStore)
+      const json = await serializeProject(dataStore, formulaStore, dashboardStore, reportStore)
       historyManager.pushState(json)
     } catch (e) {
       console.error("Error saving history state:", e)
@@ -67,7 +69,7 @@ export const useProjectStore = defineStore('project', () => {
   const autoSave = async () => {
     try {
       isSaving.value = true
-      const json = await serializeProject(dataStore, formulaStore, dashboardStore)
+      const json = await serializeProject(dataStore, formulaStore, dashboardStore, reportStore)
       await localforage.setItem('litebi_autosave', {
         projectName: projectName.value,
         data: json
@@ -93,7 +95,7 @@ export const useProjectStore = defineStore('project', () => {
     try {
       const saved = await localforage.getItem('litebi_autosave')
       if (saved && saved.data) {
-        await deserializeProject(saved.data, dataStore, formulaStore, dashboardStore)
+        await deserializeProject(saved.data, dataStore, formulaStore, dashboardStore, reportStore)
         projectName.value = saved.projectName || 'Proyecto sin título'
         isDirty.value = false
         console.log("Sesión recuperada desde IndexedDB.")
@@ -115,7 +117,7 @@ export const useProjectStore = defineStore('project', () => {
 
   const saveProject = async (saveAs = false) => {
     try {
-      const json = await serializeProject(dataStore, formulaStore, dashboardStore)
+      const json = await serializeProject(dataStore, formulaStore, dashboardStore, reportStore)
       
       // If we don't have a handle yet, or user requested Save As, prompt for location
       if (!fileHandle.value || saveAs) {
@@ -172,7 +174,7 @@ export const useProjectStore = defineStore('project', () => {
         const file = await handle.getFile()
         const content = await file.text()
         
-        await deserializeProject(content, dataStore, formulaStore, dashboardStore)
+        await deserializeProject(content, dataStore, formulaStore, dashboardStore, reportStore)
         
         const uiStore = useUiStore()
         
@@ -224,10 +226,10 @@ export const useProjectStore = defineStore('project', () => {
     if (!historyManager.canUndo()) return
     isRestoringHistory = true
     try {
-      const currentState = await serializeProject(dataStore, formulaStore, dashboardStore)
+      const currentState = await serializeProject(dataStore, formulaStore, dashboardStore, reportStore)
       const previousState = historyManager.undo(currentState)
       if (previousState) {
-        await deserializeProject(previousState, dataStore, formulaStore, dashboardStore)
+        await deserializeProject(previousState, dataStore, formulaStore, dashboardStore, reportStore)
       }
     } catch (e) {
       console.error("Error undoing:", e)
@@ -240,10 +242,10 @@ export const useProjectStore = defineStore('project', () => {
     if (!historyManager.canRedo()) return
     isRestoringHistory = true
     try {
-      const currentState = await serializeProject(dataStore, formulaStore, dashboardStore)
+      const currentState = await serializeProject(dataStore, formulaStore, dashboardStore, reportStore)
       const nextState = historyManager.redo(currentState)
       if (nextState) {
-        await deserializeProject(nextState, dataStore, formulaStore, dashboardStore)
+        await deserializeProject(nextState, dataStore, formulaStore, dashboardStore, reportStore)
       }
     } catch (e) {
       console.error("Error redoing:", e)

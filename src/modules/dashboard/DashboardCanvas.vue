@@ -29,6 +29,7 @@ const gridElement = ref(null)
 const canvasWrapperRef = ref(null)
 let grid = null
 let isSyncing = false
+const focusedWidgetId = ref(null)
 
 // Initialize GridStack
 const initGrid = () => {
@@ -41,6 +42,7 @@ const initGrid = () => {
       animate: true,
       float: true, // Allow items to be placed anywhere without packing to top
       resizable: { handles: 'e, se, s, sw, w' },
+      handle: '.widget-header',
       staticGrid: uiStore.isViewerMode
     }, gridElement.value)
 
@@ -72,8 +74,15 @@ const initGrid = () => {
   }
 }
 
+const handleOutsideClick = (e) => {
+  if (!e.target.closest('.grid-stack-item')) {
+    focusedWidgetId.value = null
+  }
+}
+
 onMounted(() => {
   initGrid()
+  document.addEventListener('mousedown', handleOutsideClick)
 })
 
 // Watch for tab change or external layout change
@@ -147,6 +156,7 @@ onUnmounted(() => {
     grid.destroy(false)
     grid = null
   }
+  document.removeEventListener('mousedown', handleOutsideClick)
 })
 
 const handleMouseMove = (e) => {
@@ -175,10 +185,14 @@ const handleMouseMove = (e) => {
         :gs-h="widget.h"
       >
         <div
-class="grid-stack-item-content custom-widget" :style="[
-          widget.config?.styles?.backgroundColor ? { backgroundColor: widget.config.styles.backgroundColor } : {},
-          widget.config?.styles?.borderRadius ? { borderRadius: widget.config.styles.borderRadius + 'px' } : {}
-        ]">
+          class="grid-stack-item-content custom-widget"
+          :class="{ 'focused': focusedWidgetId === widget.id }"
+          @mousedown="focusedWidgetId = widget.id"
+          :style="[
+            widget.config?.styles?.backgroundColor ? { backgroundColor: widget.config.styles.backgroundColor } : {},
+            widget.config?.styles?.borderRadius ? { borderRadius: widget.config.styles.borderRadius + 'px' } : {}
+          ]"
+        >
           <div class="widget-header" :style="uiStore.isViewerMode ? { cursor: 'default' } : {}">
             <span class="widget-title">{{ widget.config?.title || (widget.config?.type === 'slicer' ? 'Segmentador' : 'Gráfico') }}</span>
             <div v-if="!uiStore.isViewerMode" class="widget-actions">
@@ -188,7 +202,6 @@ class="grid-stack-item-content custom-widget" :style="[
           </div>
           <div class="widget-body">
             <SlicerRenderer v-if="widget.config?.type === 'slicer'" :config="widget.config" />
-            <!-- FIX: Cambiado de v-else + v-if (inválido, causa doble renderizado) a v-else-if -->
             <ChartRenderer v-else-if="widget.config" :config="{ ...widget.config, dataset: widget.config?.dataset || 'default' }" />
           </div>
         </div>
@@ -217,16 +230,40 @@ class="grid-stack-item-content custom-widget" :style="[
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  position: relative;
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.custom-widget.focused {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 2px rgba(var(--color-accent-rgb, 37, 99, 235), 0.2);
 }
 
 .widget-header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
   padding: var(--space-2) var(--space-3);
   border-bottom: 1px solid var(--color-border);
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background-color: var(--color-bg-surface);
+  background-color: rgba(255, 255, 255, 0.95);
   cursor: grab;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+:deep(.dark) .widget-header {
+  background-color: rgba(30, 41, 59, 0.95);
+}
+
+.custom-widget.focused .widget-header {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .widget-header:active {
@@ -264,7 +301,6 @@ class="grid-stack-item-content custom-widget" :style="[
   color: var(--color-text-tertiary);
   font-size: var(--text-sm);
   text-align: center;
-  font-style: italic;
 }
 
 /* Hide UI on export */

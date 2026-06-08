@@ -211,7 +211,7 @@ const getStepDescription = (step) => {
       <!-- Cast fields -->
       <template v-if="selectedTransform === 'cast'">
         <div class="form-row">
-          <BaseDropdown v-model="stepConfig.castType" :options="[{value:'number', label:'Número'}, {value:'string', label:'Texto'}, {value:'date', label:'Fecha'}]" />
+          <BaseDropdown v-model="stepConfig.castType" :options="[{value:'number', label:'Número'}, {value:'integer', label:'Entero'}, {value:'decimal', label:'Decimal'}, {value:'string', label:'Texto'}, {value:'boolean', label:'Booleano'}, {value:'date', label:'Fecha'}, {value:'datetime', label:'Fecha y Hora'}, {value:'time', label:'Hora'}, {value:'json', label:'JSON / Array'}]" />
         </div>
       </template>
       

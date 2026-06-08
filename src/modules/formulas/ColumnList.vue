@@ -9,12 +9,13 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['insert-column', 'edit-column'])
+const emit = defineEmits(['insert-column', 'edit-column', 'select-dataset'])
 
 
 const expandedDatasets = ref({})
 const toggleDataset = (name) => {
   expandedDatasets.value[name] = !expandedDatasets.value[name]
+  emit('select-dataset', name)
 }
 
 const getTypeIcon = (type) => {
@@ -193,11 +194,11 @@ const getTypeIcon = (type) => {
   border-radius: var(--radius-sm);
   display: flex;
   align-items: center;
-  opacity: 0;
-  transition: opacity var(--transition-fast);
+  opacity: 0.6;
+  transition: opacity var(--transition-fast), background-color var(--transition-fast), color var(--transition-fast);
 }
 
 .column-item:hover .edit-btn { opacity: 1; }
-.edit-btn:hover { background-color: var(--color-bg-surface); color: var(--color-accent); }
+.edit-btn:hover { background-color: var(--color-bg-surface); color: var(--color-accent); opacity: 1; }
 .edit-btn svg { width: 12px; height: 12px; }
 </style>

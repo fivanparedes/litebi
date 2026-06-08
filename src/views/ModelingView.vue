@@ -4,7 +4,7 @@ import { useDataStore } from '@/stores/dataStore'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseDropdown from '@/components/ui/BaseDropdown.vue'
 import BaseModal from '@/components/ui/BaseModal.vue'
-import { Plus, Trash2, Key } from '@lucide/vue'
+import { Plus, Trash2, Key, LayoutGrid, Star } from '@lucide/vue'
 
 const dataStore = useDataStore()
 
@@ -58,7 +58,9 @@ const handleDeleteRel = (id) => {
 // Drawing lines
 const updateLines = () => {
   if (!canvasRef.value) return
-  const canvasRect = canvasRef.value.getBoundingClientRect()
+  const scrollArea = canvasRef.value.querySelector('.canvas-scroll-area')
+  if (!scrollArea) return
+  const canvasRect = scrollArea.getBoundingClientRect()
   
   const newLines = []
   
@@ -84,9 +86,118 @@ const updateLines = () => {
   lines.value = newLines
 }
 
+// Drag and drop logic
+const draggingTable = ref(null)
+const dragOffset = ref({ x: 0, y: 0 })
+
+const onTableMouseDown = (event, dsName) => {
+  const ds = dataStore.datasets.get(dsName)
+  if (!ds) return
+  draggingTable.value = dsName
+  
+  const currentX = ds.ui?.x || 50
+  const currentY = ds.ui?.y || 50
+  
+  dragOffset.value = {
+    x: event.clientX - currentX,
+    y: event.clientY - currentY
+  }
+  
+  window.addEventListener('mousemove', onTableMouseMove)
+  window.addEventListener('mouseup', onTableMouseUp)
+}
+
+const onTableMouseMove = (event) => {
+  if (!draggingTable.value) return
+  
+  const newX = event.clientX - dragOffset.value.x
+  const newY = event.clientY - dragOffset.value.y
+  
+  // Update state immediately for visual feedback
+  dataStore.updateDatasetPosition(draggingTable.value, Math.max(0, newX), Math.max(0, newY))
+  updateLines()
+}
+
+const onTableMouseUp = () => {
+  draggingTable.value = null
+  window.removeEventListener('mousemove', onTableMouseMove)
+  window.removeEventListener('mouseup', onTableMouseUp)
+}
+
+// Layout Algorithms
+const layoutGrid = () => {
+  let x = 50
+  let y = 50
+  const marginX = 350
+  const marginY = 400
+  const maxWidth = 1500
+  
+  datasets.value.forEach((ds) => {
+    dataStore.updateDatasetPosition(ds.name, x, y)
+    x += marginX
+    if (x > maxWidth) {
+      x = 50
+      y += marginY
+    }
+  })
+  setTimeout(updateLines, 100)
+}
+
+const layoutStarSchema = () => {
+  if (datasets.value.length === 0) return
+  
+  const relCount = {}
+  datasets.value.forEach(ds => relCount[ds.name] = 0)
+  relationships.value.forEach(rel => {
+    relCount[rel.fromTable] = (relCount[rel.fromTable] || 0) + 1
+    relCount[rel.toTable] = (relCount[rel.toTable] || 0) + 1
+  })
+  
+  let factTable = datasets.value[0].name
+  let maxRels = -1
+  datasets.value.forEach(ds => {
+    if (relCount[ds.name] > maxRels) {
+      maxRels = relCount[ds.name]
+      factTable = ds.name
+    }
+  })
+  
+  const centerX = 800
+  const centerY = 600
+  dataStore.updateDatasetPosition(factTable, centerX, centerY)
+  
+  const dimensions = datasets.value.filter(ds => ds.name !== factTable)
+  if (dimensions.length > 0) {
+    const radius = 450
+    const angleStep = (2 * Math.PI) / dimensions.length
+    dimensions.forEach((ds, idx) => {
+      const angle = idx * angleStep
+      const x = Math.max(50, centerX + radius * Math.cos(angle))
+      const y = Math.max(50, centerY + radius * Math.sin(angle))
+      dataStore.updateDatasetPosition(ds.name, x, y)
+    })
+  }
+  setTimeout(updateLines, 100)
+}
+
 let resizeObserver = null
 
+const autoLayout = () => {
+  // Detect if multiple tables are at the default position (overlapping at 50,50)
+  const defaultPosCount = datasets.value.filter(ds => !ds.meta.ui || (ds.meta.ui.x === 50 && ds.meta.ui.y === 50)).length
+  
+  if (datasets.value.length > 1 && defaultPosCount > 1) {
+    // If there are relationships, Star Schema looks better. Otherwise, Grid.
+    if (relationships.value.length > 0) {
+      layoutStarSchema()
+    } else {
+      layoutGrid()
+    }
+  }
+}
+
 onMounted(() => {
+  autoLayout()
   updateLines()
   window.addEventListener('resize', updateLines)
   
@@ -102,8 +213,13 @@ onUnmounted(() => {
 })
 
 // Update lines when dataset count changes
-watch(() => datasets.value.length, () => {
-  nextTick(() => setTimeout(updateLines, 100))
+watch(() => datasets.value.length, (newLen, oldLen) => {
+  if (newLen > oldLen) {
+    autoLayout()
+  }
+  nextTick(() => {
+    updateLines()
+  })
 })
 </script>
 
@@ -111,16 +227,27 @@ watch(() => datasets.value.length, () => {
   <div class="modeling-view">
     <div class="toolbar">
       <h2>Modelado de Datos</h2>
-      <BaseButton @click="isModalOpen = true">
-        <template #icon-left><Plus /></template>
-        Añadir Relación
-      </BaseButton>
+      <div class="toolbar-actions">
+        <BaseButton variant="secondary" @click="layoutGrid">
+          <template #icon-left><LayoutGrid /></template>
+          Auto Layout
+        </BaseButton>
+        <BaseButton variant="secondary" @click="layoutStarSchema">
+          <template #icon-left><Star /></template>
+          Esquema Estrella
+        </BaseButton>
+        <BaseButton @click="isModalOpen = true">
+          <template #icon-left><Plus /></template>
+          Añadir Relación
+        </BaseButton>
+      </div>
     </div>
 
     <!-- The Canvas -->
-    <div ref="canvasRef" class="canvas-container">
-      <!-- SVG Layer for Connections -->
-      <svg class="connections-layer" width="100%" height="100%">
+    <div ref="canvasRef" class="canvas-container" @scroll="updateLines">
+      <div class="canvas-scroll-area">
+        <!-- SVG Layer for Connections -->
+        <svg class="connections-layer" width="100%" height="100%">
         <path 
           v-for="line in lines" 
           :key="line.id"
@@ -134,12 +261,20 @@ watch(() => datasets.value.length, () => {
 
       <!-- Tables Layer -->
       <div class="tables-layer">
-        <div v-for="ds in datasets" :id="`table-${ds.name}`" :key="ds.name" class="table-card">
+        <div 
+          v-for="ds in datasets" 
+          :id="`table-${ds.name}`" 
+          :key="ds.name" 
+          class="table-card"
+          :class="{ 'is-dragging': draggingTable === ds.name }"
+          :style="{ left: `${ds.meta.ui?.x || 50}px`, top: `${ds.meta.ui?.y || 50}px` }"
+          @mousedown.stop="onTableMouseDown($event, ds.name)"
+        >
           <div class="table-header">
             <h3>{{ ds.meta.originalName }}</h3>
             <span class="badge">{{ ds.meta.rowCount }} rows</span>
           </div>
-          <div class="table-columns">
+          <div class="table-columns" @mousedown.stop>
             <div 
               v-for="col in ds.meta.schema" 
               :id="`col-${ds.name}-${col.name}`"
@@ -152,6 +287,7 @@ watch(() => datasets.value.length, () => {
             </div>
           </div>
         </div>
+      </div>
       </div>
     </div>
 
@@ -220,6 +356,11 @@ watch(() => datasets.value.length, () => {
   border-bottom: 1px solid var(--color-border);
 }
 
+.toolbar-actions {
+  display: flex;
+  gap: var(--space-3);
+}
+
 .toolbar h2 {
   margin: 0;
   font-size: var(--text-lg);
@@ -230,9 +371,14 @@ watch(() => datasets.value.length, () => {
   flex-grow: 1;
   position: relative;
   overflow: auto;
-  padding: var(--space-8);
   background-image: radial-gradient(var(--color-border) 1px, transparent 1px);
   background-size: 20px 20px;
+}
+
+.canvas-scroll-area {
+  width: 4000px;
+  height: 4000px;
+  position: relative;
 }
 
 .connections-layer {
@@ -256,12 +402,12 @@ watch(() => datasets.value.length, () => {
 }
 
 .tables-layer {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-8);
-  position: relative;
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
   z-index: 2;
-  align-items: flex-start;
 }
 
 .table-card {
@@ -271,6 +417,17 @@ watch(() => datasets.value.length, () => {
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-md);
   overflow: hidden;
+  position: absolute;
+  cursor: grab;
+  user-select: none;
+  transition: box-shadow 0.2s;
+}
+
+.table-card.is-dragging {
+  cursor: grabbing;
+  z-index: 100;
+  box-shadow: var(--shadow-xl);
+  opacity: 0.95;
 }
 
 .table-header {

@@ -9,6 +9,7 @@ import { useProjectStore } from '@/stores/projectStore'
 import { TransformPipeline } from '@/modules/cleaning/TransformPipeline'
 import DataGrid from '@/modules/cleaning/DataGrid.vue'
 import TransformPanel from '@/modules/cleaning/TransformPanel.vue'
+import ColumnList from '@/modules/formulas/ColumnList.vue'
 
 const { t } = useI18n()
 const router = useRouter()
@@ -98,7 +99,15 @@ const handleToggleStep = async (stepId) => {
     </div>
     
     <div v-else class="cleaning-workspace">
-      <!-- Left Panel: Transform Pipeline -->
+      <!-- Left Panel: Dataset Selection -->
+      <aside class="cleaning-datasets-sidebar">
+        <ColumnList 
+          :datasets="Array.from(dataStore.datasets.values())"
+          @select-dataset="(name) => dataStore.setActiveDataset(name)"
+        />
+      </aside>
+
+      <!-- Middle Panel: Transform Pipeline -->
       <aside class="cleaning-sidebar">
         <TransformPanel 
           :pipeline-steps="pipelineSteps"
@@ -177,6 +186,12 @@ const handleToggleStep = async (stepId) => {
   width: 100%;
   height: 100%;
   overflow: hidden;
+}
+
+.cleaning-datasets-sidebar {
+  width: 250px;
+  flex-shrink: 0;
+  height: 100%;
 }
 
 .cleaning-sidebar {

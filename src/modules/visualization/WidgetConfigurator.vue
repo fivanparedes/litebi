@@ -82,7 +82,9 @@ const chartTypeOptions = [
   { value: 'combo', label: 'Combinado (Barras + Líneas)' },
   { value: 'funnel', label: 'Embudo (Funnel)' },
   { value: 'gauge', label: 'Medidor de Metas (Gauge)' },
-  { value: 'map', label: 'Mapa Político (Map)' }
+  { value: 'scorecard', label: 'Scorecard (Objetivos)' },
+  { value: 'map', label: 'Mapa Político (Map)' },
+  { value: 'image', label: 'Imagen' }
 ]
 
 const aggregationOptions = [
@@ -98,6 +100,45 @@ const updateField = (field, value) => {
     emit('update:config', { ...props.config, [field]: value, xAxis: '', yAxis: '', secondaryYAxis: '' })
   } else {
     emit('update:config', { ...props.config, [field]: value })
+  }
+}
+
+const handleImageUpload = (e) => {
+  const file = e.target.files[0]
+  if (!file) return
+  if (file.size > 2 * 1024 * 1024) {
+    alert("La imagen es demasiado grande. Máximo 2MB.")
+    return
+  }
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    updateField('imageUrl', e.target.result)
+  }
+  reader.readAsDataURL(file)
+}
+
+const addHierarchyLevel = (val) => {
+  if (!val) return
+  let currentX = props.config.xAxis
+  if (!currentX) {
+    updateField('xAxis', [val])
+  } else if (typeof currentX === 'string') {
+    updateField('xAxis', [currentX, val])
+  } else if (Array.isArray(currentX)) {
+    if (!currentX.includes(val)) {
+      updateField('xAxis', [...currentX, val])
+    }
+  }
+}
+
+const removeHierarchyLevel = (idx) => {
+  let currentX = props.config.xAxis
+  if (Array.isArray(currentX)) {
+    const newX = [...currentX]
+    newX.splice(idx, 1)
+    updateField('xAxis', newX.length === 1 ? newX[0] : newX.length === 0 ? '' : newX)
+  } else if (typeof currentX === 'string') {
+    updateField('xAxis', '')
   }
 }
 </script>
@@ -137,7 +178,7 @@ const updateField = (field, value) => {
         />
       </div>
       
-      <div v-if="config.type !== 'kpi' && config.type !== 'pie' && config.type !== 'scatter' && config.type !== 'slicer'" class="form-group">
+      <div v-if="config.type !== 'kpi' && config.type !== 'pie' && config.type !== 'scatter' && config.type !== 'slicer' && config.type !== 'image'" class="form-group">
         <label>Orientación</label>
         <BaseDropdown 
           :model-value="config.orientation || 'vertical'" 
@@ -147,12 +188,29 @@ const updateField = (field, value) => {
       </div>
       
       <hr class="divider" />
+
+      <div v-if="config.type === 'image'" class="form-group">
+        <label>Imagen</label>
+        <BaseInput 
+          :model-value="config.imageUrl || ''" 
+          placeholder="URL de imagen..."
+          @update:model-value="val => updateField('imageUrl', val)"
+        />
+        <label style="margin-top: 8px;">O subir archivo (Max 2MB):</label>
+        <input type="file" accept="image/*" @change="handleImageUpload" />
+        <label style="margin-top: 8px;">Ajuste de Imagen</label>
+        <BaseDropdown 
+          :model-value="config.imageFit || 'contain'" 
+          :options="[{value:'contain', label:'Contener (No recortar)'}, {value:'cover', label:'Cubrir (Recortar)'}, {value:'fill', label:'Rellenar (Estirar)'}]"
+          @update:model-value="val => updateField('imageFit', val)" 
+        />
+      </div>
       
       <div v-if="config.type === 'slicer'" class="form-group">
         <label>Tipo de Segmentador</label>
         <BaseDropdown 
           :model-value="config.slicerType || 'list'" 
-          :options="[{value:'list', label:'Lista (Botones)'}, {value:'slider', label:'Rango (Slider Numérico/Fechas)'}]"
+          :options="[{value:'list', label:'Lista (Checkboxes)'}, {value:'button', label:'Botones (Píldoras)'}, {value:'slider', label:'Rango Numérico'}, {value:'input', label:'Buscador de Texto'}]"
           @update:model-value="val => updateField('slicerType', val)" 
         />
       </div>
@@ -167,16 +225,31 @@ const updateField = (field, value) => {
       </div>
 
       <!-- Dimensión (X) -->
-      <div v-if="config.type !== 'kpi' && config.type !== 'gauge'" class="form-group">
-        <label>{{ config.type === 'scatter' ? 'Eje X (Numérico)' : config.type === 'slicer' ? 'Campo a Filtrar' : config.type === 'map' ? (config.mapMode === 'scatter' ? 'Longitud (X)' : 'Región (Nombre del País)') : 'Dimensión (Categoría)' }}</label>
+      <div v-if="config.type !== 'kpi' && config.type !== 'gauge' && config.type !== 'image'" class="form-group">
+        <label>{{ config.type === 'scatter' ? 'Eje X (Numérico)' : config.type === 'slicer' ? 'Campo a Filtrar' : config.type === 'map' ? (config.mapMode === 'scatter' ? 'Longitud (X)' : 'Región (Nombre del País)') : 'Dimensión (Jerarquía X)' }}</label>
+        
+        <!-- Jerarquía List -->
+        <div v-if="Array.isArray(config.xAxis) && config.xAxis.length > 0" class="hierarchy-list">
+          <div v-for="(col, idx) in config.xAxis" :key="idx" class="hierarchy-item">
+            <span class="hierarchy-label">{{ idx + 1 }}. {{ col }}</span>
+            <button class="remove-btn" @click="removeHierarchyLevel(idx)">&times;</button>
+          </div>
+        </div>
+        <div v-else-if="typeof config.xAxis === 'string' && config.xAxis" class="hierarchy-list">
+          <div class="hierarchy-item">
+            <span class="hierarchy-label">1. {{ config.xAxis }}</span>
+            <button class="remove-btn" @click="removeHierarchyLevel(0)">&times;</button>
+          </div>
+        </div>
+
         <BaseDropdown 
-          :model-value="config.xAxis || ''" 
+          :model-value="''" 
           :options="(config.type === 'scatter' || (config.type === 'map' && config.mapMode === 'scatter')) ? numericColumnOptions : columnOptions"
-          placeholder="Seleccionar columna..." 
-          @update:model-value="val => updateField('xAxis', val)"
+          placeholder="Añadir nivel de jerarquía..." 
+          @update:model-value="addHierarchyLevel"
         />
         <BaseInput 
-          v-if="config.xAxis"
+          v-if="config.xAxis && config.xAxis.length > 0"
           :model-value="config.xAxisLabel || ''" 
           placeholder="Etiqueta personalizada (Opcional)"
           @update:model-value="val => updateField('xAxisLabel', val)"
@@ -184,9 +257,9 @@ const updateField = (field, value) => {
       </div>
       
       <!-- Métrica (Y) -->
-      <template v-if="config.type !== 'slicer'">
+      <template v-if="config.type !== 'slicer' && config.type !== 'image'">
         <div class="form-group">
-          <label>{{ config.type === 'kpi' ? 'Métrica a Calcular' : config.type === 'scatter' ? 'Eje Y (Numérico)' : config.type === 'map' && config.mapMode === 'scatter' ? 'Latitud (Y)' : 'Métrica (Eje Y)' }}</label>
+          <label>{{ config.type === 'kpi' || config.type === 'scorecard' ? 'Métrica a Calcular' : config.type === 'scatter' ? 'Eje Y (Numérico)' : config.type === 'map' && config.mapMode === 'scatter' ? 'Latitud (Y)' : 'Métrica (Eje Y)' }}</label>
           <BaseDropdown 
             :model-value="config.yAxis || ''" 
             :options="numericColumnOptions"
@@ -202,8 +275,8 @@ const updateField = (field, value) => {
         </div>
         
         <!-- Combo Chart Secondary Y Axis or Heatmap Y Axis -->
-        <div v-if="config.type === 'combo' || config.type === 'line' || config.type === 'heatmap' || (config.type === 'map' && config.mapMode === 'scatter')" class="form-group">
-          <label>{{ config.type === 'heatmap' ? 'Eje Y (Categoría Secundaria)' : config.type === 'map' ? 'Métrica (Tamaño/Color)' : 'Métrica Secundaria (Opcional)' }}</label>
+        <div v-if="config.type === 'combo' || config.type === 'line' || config.type === 'heatmap' || config.type === 'scorecard' || (config.type === 'map' && config.mapMode === 'scatter')" class="form-group">
+          <label>{{ config.type === 'heatmap' ? 'Eje Y (Categoría Secundaria)' : config.type === 'map' ? 'Métrica (Tamaño/Color)' : config.type === 'scorecard' ? 'Métrica Objetivo (Target)' : 'Métrica Secundaria (Opcional)' }}</label>
           <BaseDropdown 
             :model-value="config.secondaryYAxis || ''" 
             :options="config.type === 'heatmap' ? columnOptions : numericColumnOptions"
@@ -244,9 +317,19 @@ const updateField = (field, value) => {
       <div v-if="config.type === 'line'" class="form-group">
         <label>Rellenar Área bajo la Curva</label>
         <BaseDropdown 
-          :model-value="config.styles?.fillArea === true ? 'true' : 'false'" 
-          :options="[{value:'true', label:'Sí'}, {value:'false', label:'No'}]"
-          @update:model-value="val => updateField('styles', { ...(config.styles || {}), fillArea: val === 'true' })" 
+          :model-value="config.styles?.areaType || 'none'" 
+          :options="[{value:'none', label:'Ninguna'}, {value:'axis', label:'Hasta el Eje'}, {value:'between', label:'Entre Métricas (Stack)'}]"
+          @update:model-value="val => updateField('styles', { ...(config.styles || {}), areaType: val })" 
+        />
+      </div>
+      <div v-if="config.type === 'pie'" class="form-group">
+        <label>Radio Interno (Donut %)</label>
+        <BaseInput 
+          :model-value="config.styles?.innerRadius ?? 40" 
+          type="number"
+          min="0"
+          max="90"
+          @update:model-value="val => updateField('styles', { ...(config.styles || {}), innerRadius: Number(val) })"
         />
       </div>
       <div class="form-group">
@@ -387,6 +470,45 @@ const updateField = (field, value) => {
 .divider {
   border: none;
   border-top: 1px solid var(--color-border);
-  margin: var(--space-2) 0;
+  margin: var(--space-4) 0;
+}
+
+.hierarchy-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.hierarchy-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: var(--color-bg-secondary);
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  font-size: var(--text-xs);
+}
+
+.hierarchy-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 220px;
+}
+
+.remove-btn {
+  background: none;
+  border: none;
+  color: var(--color-text-secondary);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+.remove-btn:hover {
+  color: var(--color-danger);
 }
 </style>

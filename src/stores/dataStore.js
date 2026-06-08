@@ -15,8 +15,52 @@ export const useDataStore = defineStore('data', () => {
   const relationships = ref([])
   const dataVersion = ref(0)
   
+  // Scheduled Refresh Tasks
+  const refreshTimers = new Map()
+
+  const scheduleRefresh = (datasetName) => {
+    const ds = datasets.value.get(datasetName)
+    if (!ds || !ds.refreshInterval || !ds.connectorConfig) return
+    
+    if (refreshTimers.has(datasetName)) {
+      clearInterval(refreshTimers.get(datasetName))
+    }
+    
+    const intervalMs = ds.refreshInterval * 60 * 1000
+    const timerId = setInterval(async () => {
+      try {
+        const { LiveConnector } = await import('@/modules/data/LiveConnector')
+        const resultData = await LiveConnector.query(ds.connectorConfig.type, ds.connectorConfig.credentials)
+        if (resultData && resultData.length > 0) {
+          // Replace data (using internal SQL Client since table exists)
+          let targetData = resultData
+          if (!Array.isArray(resultData)) {
+            const arrayProp = Object.values(resultData).find(val => Array.isArray(val))
+            targetData = arrayProp || [resultData]
+          }
+          const finalSchema = ds.schema || inferSchema(targetData)
+          const cleanedData = coerceData(targetData, finalSchema)
+          
+          await sqlClient.dropTable(datasetName)
+          await sqlClient.createTable(datasetName, cleanedData)
+          
+          ds.rowCount = cleanedData.length
+          ds.importedAt = new Date()
+          dataVersion.value++
+          
+          console.log(`[ScheduledRefresh] Dataset ${datasetName} refreshed automatically.`)
+          uiStore.addToast({ message: `Dataset ${ds.originalName} actualizado automáticamente.`, type: 'info' })
+        }
+      } catch (e) {
+        console.error(`[ScheduledRefresh] Failed to refresh ${datasetName}:`, e)
+      }
+    }, intervalMs)
+    
+    refreshTimers.set(datasetName, timerId)
+  }
+  
   // Actions
-  const addDataset = async (name, data, schema) => {
+  const addDataset = async (name, data, schema, connectorConfig = null, refreshInterval = 0) => {
     try {
       if (!data || typeof data !== 'object') {
         throw new Error("El resultado no es un conjunto de datos válido.")
@@ -50,10 +94,17 @@ export const useDataStore = defineStore('data', () => {
         rowCount: cleanedData.length,
         colCount: finalSchema.length,
         importedAt: new Date(),
-        transformations: []
+        transformations: [],
+        ui: { x: 50, y: 50 }, // Posición inicial para Modelado
+        connectorConfig,
+        refreshInterval
       }
       
       datasets.value.set(safeName, datasetMeta)
+      
+      if (refreshInterval > 0) {
+        scheduleRefresh(safeName)
+      }
       
       // 6. Set as active if it's the first one
       if (!activeDatasetName.value || datasets.value.size === 1) {
@@ -82,6 +133,10 @@ export const useDataStore = defineStore('data', () => {
   const removeDataset = async (name) => {
     try {
       if (datasets.value.has(name)) {
+        if (refreshTimers.has(name)) {
+          clearInterval(refreshTimers.get(name))
+          refreshTimers.delete(name)
+        }
         await sqlClient.dropTable(name)
         datasets.value.delete(name)
         
@@ -118,6 +173,16 @@ export const useDataStore = defineStore('data', () => {
     } catch (e) {
       console.error(e)
       return []
+    }
+  }
+
+  const updateDatasetPosition = (name, x, y) => {
+    const ds = datasets.value.get(name)
+    if (ds) {
+      if (!ds.ui) ds.ui = {}
+      ds.ui.x = x
+      ds.ui.y = y
+      dataVersion.value++
     }
   }
 
@@ -261,6 +326,25 @@ export const useDataStore = defineStore('data', () => {
     }
   }
 
+  const saveManualDataset = async (name, data, schema) => {
+    try {
+      return await addDataset(name, data, schema)
+    } catch (error) {
+      Logger.error('DataStore', 'Error saving manual dataset', error)
+      throw error
+    }
+  }
+
+  const getAllData = async (name) => {
+    try {
+      return await sqlClient.query(`SELECT * FROM [${name}]`)
+    } catch (e) {
+      console.error(e)
+      return []
+    }
+  }
+
+
   // Getters
   const datasetNames = computed(() => Array.from(datasets.value.keys()))
   
@@ -283,10 +367,13 @@ export const useDataStore = defineStore('data', () => {
     removeDataset,
     setActiveDataset,
     getPreviewData,
+    updateDatasetPosition,
     addRelationship,
     removeRelationship,
     buildJoinQuery,
     generateCalendarTable,
+    saveManualDataset,
+    getAllData,
     dataVersion,
     
     // Getters exported via destructuring implicitly

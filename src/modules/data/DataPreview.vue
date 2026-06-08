@@ -1,11 +1,16 @@
 <script setup>
 import { computed, ref, watchEffect } from 'vue'
 import { useDataStore } from '@/stores/dataStore'
+import { FileText, FileSpreadsheet } from '@lucide/vue'
+import Papa from 'papaparse'
+import * as XLSX from 'xlsx'
+import BaseButton from '@/components/ui/BaseButton.vue'
 
 const dataStore = useDataStore()
 
 const activeDataset = computed(() => dataStore.activeDatasetMeta)
 const previewData = ref([])
+const isExporting = ref(false)
 
 watchEffect(async () => {
   if (!activeDataset.value) {
@@ -20,6 +25,48 @@ const formatValue = (val) => {
   if (typeof val === 'boolean') return `<span class="cell-bool">${val}</span>`
   return val
 }
+
+const exportCSV = async () => {
+  if (!activeDataset.value) return
+  try {
+    isExporting.value = true
+    const allData = await dataStore.getAllData(activeDataset.value.name)
+    if (!allData || !allData.length) return
+    
+    const csv = Papa.unparse(allData)
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    const url = URL.createObjectURL(blob)
+    link.setAttribute('href', url)
+    link.setAttribute('download', `${activeDataset.value.name}.csv`)
+    link.style.visibility = 'hidden'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  } catch (error) {
+    console.error('Error exporting CSV:', error)
+  } finally {
+    isExporting.value = false
+  }
+}
+
+const exportExcel = async () => {
+  if (!activeDataset.value) return
+  try {
+    isExporting.value = true
+    const allData = await dataStore.getAllData(activeDataset.value.name)
+    if (!allData || !allData.length) return
+
+    const ws = XLSX.utils.json_to_sheet(allData)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Datos')
+    XLSX.writeFile(wb, `${activeDataset.value.name}.xlsx`)
+  } catch (error) {
+    console.error('Error exporting Excel:', error)
+  } finally {
+    isExporting.value = false
+  }
+}
 </script>
 
 <template>
@@ -28,6 +75,16 @@ const formatValue = (val) => {
       <div class="preview-title">
         <h3>{{ $t('data.preview') }}: {{ activeDataset.originalName }}</h3>
         <span class="badge">Top 100 filas</span>
+      </div>
+      <div class="preview-actions">
+        <BaseButton variant="secondary" size="sm" @click="exportCSV" :disabled="isExporting">
+          <template #icon-left><FileText size="14" /></template>
+          Exportar a CSV
+        </BaseButton>
+        <BaseButton variant="secondary" size="sm" @click="exportExcel" :disabled="isExporting">
+          <template #icon-left><FileSpreadsheet size="14" /></template>
+          Exportar a Excel
+        </BaseButton>
       </div>
     </div>
     
@@ -76,6 +133,14 @@ const formatValue = (val) => {
   padding: var(--space-4);
   border-bottom: 1px solid var(--color-border);
   background-color: var(--color-bg-primary);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.preview-actions {
+  display: flex;
+  gap: var(--space-2);
 }
 
 .preview-title {

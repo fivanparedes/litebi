@@ -19,7 +19,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['update:modelValue', 'imported'])
+const emit = defineEmits(['update:modelValue', 'imported', 'preview'])
 
 const dataStore = useDataStore()
 const uiStore = useUiStore()
@@ -27,6 +27,8 @@ const uiStore = useUiStore()
 const isLoading = ref(false)
 const error = ref(null)
 const previewData = ref(null)
+const isFastImport = ref(false)
+const refreshInterval = ref(0)
 
 const credentials = ref({
   datasetName: '',
@@ -83,12 +85,22 @@ const handleConnect = async () => {
     const resultData = await LiveConnector.query(props.connectorType, credentials.value)
     
     if (resultData && resultData.length > 0) {
-      await dataStore.addDataset(credentials.value.datasetName, resultData)
-      uiStore.addToast({
-        message: `Importados ${resultData.length} registros exitosamente.`,
-        type: 'success'
-      })
-      emit('imported', credentials.value.datasetName)
+      const config = { type: props.connectorType, credentials: { ...credentials.value } }
+      if (isFastImport.value) {
+        await dataStore.addDataset(credentials.value.datasetName, resultData, null, config, refreshInterval.value)
+        uiStore.addToast({
+          message: `Importados ${resultData.length} registros exitosamente.`,
+          type: 'success'
+        })
+        emit('imported', credentials.value.datasetName)
+      } else {
+        emit('preview', { 
+          datasetName: credentials.value.datasetName, 
+          parsedData: { data: resultData, schema: null },
+          connectorConfig: config,
+          refreshInterval: refreshInterval.value
+        })
+      }
       emit('update:modelValue', false)
     } else {
       error.value = "La consulta no arrojó resultados."
@@ -217,6 +229,20 @@ const handleTest = async () => {
         </div>
         <div v-else class="preview-empty">
           El origen no retornó datos o no tiene un formato tabular.
+        </div>
+      </div>
+      
+      <div style="display: flex; gap: var(--space-4); margin-top: var(--space-2); align-items: center; justify-content: space-between;">
+        <div style="flex: 1;">
+          <label style="font-size: var(--text-sm); font-weight: 500; display: block; margin-bottom: 4px;">Actualización Automática (minutos)</label>
+          <BaseInput v-model.number="refreshInterval" type="number" min="0" placeholder="0 = Sin actualización" />
+        </div>
+        
+        <div style="display: flex; align-items: center; gap: var(--space-2); flex: 1; justify-content: flex-end; margin-top: 18px;">
+          <input type="checkbox" id="fast-import-live" v-model="isFastImport" />
+          <label for="fast-import-live" style="font-size: var(--text-sm); color: var(--color-text-secondary); cursor: pointer;">
+            Importación Rápida
+          </label>
         </div>
       </div>
 

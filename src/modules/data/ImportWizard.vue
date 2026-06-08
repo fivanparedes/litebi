@@ -4,14 +4,13 @@ import { Upload, FileSpreadsheet, AlertTriangle, Loader2 } from '@lucide/vue'
 import { parseCsv } from './CsvParser'
 import { parseXlsx } from './XlsxParser'
 import { useDataStore } from '@/stores/dataStore'
-import BaseButton from '@/components/ui/BaseButton.vue'
-
-const emit = defineEmits(['imported', 'cancel'])
+const emit = defineEmits(['imported', 'cancel', 'preview'])
 
 const dataStore = useDataStore()
 
 const isDragging = ref(false)
 const isLoading = ref(false)
+const isFastImport = ref(false)
 const error = ref(null)
 const fileInput = ref(null)
 
@@ -40,17 +39,17 @@ const handleDrop = (e) => {
   isDragging.value = false
   
   if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-    processFile(e.dataTransfer.files[0])
+    processFile(e.dataTransfer.files[0], isFastImport.value)
   }
 }
 
 const handleFileSelect = (e) => {
   if (e.target.files && e.target.files.length > 0) {
-    processFile(e.target.files[0])
+    processFile(e.target.files[0], isFastImport.value)
   }
 }
 
-const processFile = async (file) => {
+const processFile = async (file, isFastImport = false) => {
   error.value = null
   
   // Basic validation
@@ -74,8 +73,12 @@ const processFile = async (file) => {
     // Clean up filename to use as dataset name
     const datasetName = file.name.replace(/\.[^/.]+$/, "")
     
-    dataStore.addDataset(datasetName, parsedData.data, parsedData.schema)
-    emit('imported', datasetName)
+    if (isFastImport) {
+      dataStore.addDataset(datasetName, parsedData.data, parsedData.schema)
+      emit('imported', datasetName)
+    } else {
+      emit('preview', { datasetName, parsedData })
+    }
   } catch (err) {
     console.error('Error procesando archivo:', err)
     error.value = err.message || 'Error desconocido al procesar el archivo'
@@ -97,7 +100,7 @@ const loadExampleData = async () => {
     const blob = await response.blob()
     const file = new File([blob], 'Ventas_Ejemplo.csv', { type: 'text/csv' })
     
-    await processFile(file)
+    await processFile(file, isFastImport.value)
   } catch (err) {
     error.value = 'Error al cargar los datos de ejemplo: ' + err.message
     isLoading.value = false
@@ -137,6 +140,13 @@ const loadExampleData = async () => {
       </div>
     </div>
     
+    <div style="display: flex; align-items: center; justify-content: center; gap: var(--space-2); margin-top: var(--space-2);">
+      <input type="checkbox" id="fast-import" v-model="isFastImport" />
+      <label for="fast-import" style="font-size: var(--text-sm); color: var(--color-text-secondary); cursor: pointer;">
+        Importación Rápida (Omitir selección de columnas)
+      </label>
+    </div>
+
     <div v-if="error" class="error-msg">
       <AlertTriangle class="error-msg__icon" />
       <span>{{ error }}</span>

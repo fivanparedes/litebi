@@ -2,7 +2,7 @@
 import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
-import { Calculator, ArrowRight, Play, Save } from '@lucide/vue'
+import { Calculator, ArrowRight, Play, Save, Zap } from '@lucide/vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseInput from '@/components/ui/BaseInput.vue'
 import BaseDropdown from '@/components/ui/BaseDropdown.vue'
@@ -11,6 +11,7 @@ import { useFormulaStore } from '@/stores/formulaStore'
 import { testSqlExpression } from '@/modules/formulas/SqlEngine'
 import FormulaEditor from '@/modules/formulas/FormulaEditor.vue'
 import ColumnList from '@/modules/formulas/ColumnList.vue'
+import QuickMeasuresModal from '@/modules/formulas/QuickMeasuresModal.vue'
 
 const { t } = useI18n()
 const router = useRouter()
@@ -25,12 +26,24 @@ const expression = ref('')
 const columnName = ref('')
 const columnType = ref('number')
 const testResult = ref(null)
+const isQuickMeasuresModalOpen = ref(false)
+const formulaMode = ref('columna')
+
+const modeOptions = [
+  { value: 'columna', label: 'Nueva Columna Computada' },
+  { value: 'metrica', label: 'Nueva Métrica Agrupada' }
+]
 
 const typeOptions = [
   { value: 'number', label: 'Número' },
+  { value: 'integer', label: 'Entero' },
+  { value: 'decimal', label: 'Decimal' },
   { value: 'string', label: 'Texto' },
   { value: 'boolean', label: 'Booleano' },
-  { value: 'date', label: 'Fecha' }
+  { value: 'date', label: 'Fecha' },
+  { value: 'datetime', label: 'Fecha y Hora' },
+  { value: 'time', label: 'Hora' },
+  { value: 'json', label: 'JSON / Array' }
 ]
 
 const handleInsertColumn = (colStr) => {
@@ -70,6 +83,10 @@ const handleSave = () => {
     // Error is handled in store (Toast)
   }
 }
+
+const handleQuickMeasureGenerate = (generatedExpression) => {
+  expression.value = generatedExpression
+}
 </script>
 
 <template>
@@ -103,16 +120,31 @@ const handleSave = () => {
       
       <!-- Right Panel: Editor -->
       <main class="formulas-main">
-        <div class="editor-header">
-          <h2>Nueva Columna Calculada</h2>
-          <div class="dataset-badge">
-            {{ activeDatasetMeta?.originalName }}
+        <div class="editor-header" style="align-items: flex-start;">
+          <div style="display: flex; flex-direction: column; gap: var(--space-1); max-width: 70%;">
+            <div style="display: flex; align-items: center; gap: var(--space-3)">
+              <h2>Editor de Fórmulas</h2>
+              <div class="dataset-badge">
+                {{ activeDatasetMeta?.originalName }}
+              </div>
+            </div>
+            <p style="font-size: var(--text-sm); color: var(--color-text-secondary); margin: 0;">
+              Crea nuevas columnas calculadas (filas) o métricas agrupadas (agregaciones) utilizando sintaxis SQL. Puedes construir la fórmula seleccionando las opciones del listado o utilizando las medidas rápidas.
+            </p>
           </div>
+          <BaseButton variant="secondary" size="sm" @click="isQuickMeasuresModalOpen = true">
+            <template #icon-left><Zap /></template>
+            Medidas Rápidas
+          </BaseButton>
         </div>
         
         <div class="form-row">
+          <div class="form-group flex-1">
+            <label>Tipo de creación</label>
+            <BaseDropdown v-model="formulaMode" :options="modeOptions" />
+          </div>
           <div class="form-group flex-2">
-            <label>Nombre de la columna</label>
+            <label>Nombre de la {{ formulaMode === 'columna' ? 'columna' : 'métrica' }}</label>
             <BaseInput v-model="columnName" placeholder="Ej: Ingresos Totales" />
           </div>
           <div class="form-group flex-1">
@@ -158,12 +190,19 @@ const handleSave = () => {
             </BaseButton>
             <BaseButton variant="primary" :disabled="!expression || !columnName" @click="handleSave">
               <template #icon-left><Save /></template>
-              Guardar Columna
+              Guardar {{ formulaMode === 'columna' ? 'Columna' : 'Métrica' }}
             </BaseButton>
           </div>
         </div>
       </main>
     </div>
+    
+    <QuickMeasuresModal 
+      v-model="isQuickMeasuresModalOpen"
+      :schema="activeDatasetMeta?.schema || []"
+      :datasetName="dataStore.activeDatasetName"
+      @generate="handleQuickMeasureGenerate"
+    />
   </div>
 </template>
 

@@ -21,9 +21,35 @@ const props = defineProps({
 const tableElement = ref(null)
 let tabulatorInstance = null
 
+// Helper to calculate column stats for profiling
+const calculateStats = (data, colName) => {
+  let nulls = 0
+  let total = data.length || 0
+  let unique = new Set()
+  
+  if (total > 0) {
+    for (let i = 0; i < total; i++) {
+      const val = data[i][colName]
+      if (val === null || val === undefined || val === '') {
+        nulls++
+      }
+      unique.add(val)
+    }
+  }
+  
+  return {
+    nullPct: total ? Math.round((nulls / total) * 100) : 0,
+    uniqueCount: unique.size
+  }
+}
+
 // Define Tabulator columns based on schema
-const buildColumns = (schema) => {
+const buildColumns = (schema, data) => {
   return schema.map(col => {
+    const stats = calculateStats(data, col.name)
+    const validPct = 100 - stats.nullPct
+    const qualityColor = validPct < 50 ? 'var(--color-danger, #ef4444)' : validPct < 90 ? 'var(--color-warning, #eab308)' : 'var(--color-success, #10b981)'
+    
     return {
       title: col.name,
       field: col.name,
@@ -31,7 +57,21 @@ const buildColumns = (schema) => {
       headerFilter: true, // Enable basic quick filtering
       headerFilterPlaceholder: 'Filtrar...',
       formatter: col.type === 'boolean' ? 'tickCross' : 'plaintext',
-      hozAlign: col.type === 'number' ? 'right' : 'left'
+      hozAlign: col.type === 'number' ? 'right' : 'left',
+      titleFormatter: (cell) => {
+        return `
+          <div style="display:flex; flex-direction:column; width:100%; padding:2px 0;">
+            <span style="font-weight:600;">${col.name}</span>
+            <div style="display:flex; justify-content:space-between; font-size:10px; color:var(--color-text-secondary); margin-top:4px; font-weight:normal;">
+              <span title="Valores únicos">U: ${stats.uniqueCount}</span>
+              <span style="color:${qualityColor}" title="Porcentaje de datos no nulos">${validPct}% Válido</span>
+            </div>
+            <div style="width:100%; height:3px; background:var(--color-border); margin-top:2px; border-radius:2px; overflow:hidden;">
+              <div style="width:${validPct}%; height:100%; background:${qualityColor};"></div>
+            </div>
+          </div>
+        `
+      }
     }
   })
 }
@@ -44,7 +84,7 @@ const initTabulator = () => {
   if (tableElement.value) {
     tabulatorInstance = new Tabulator(tableElement.value, {
       data: props.data,
-      columns: buildColumns(props.schema),
+      columns: buildColumns(props.schema, props.data),
       height: props.height,
       layout: "fitDataFill",
       reactiveData: false, // We handle reactivity manually to improve perf with huge datasets

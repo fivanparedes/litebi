@@ -3,14 +3,14 @@ import { ref } from 'vue'
 
 export const useReportStore = defineStore('report', () => {
   const pages = ref([
-    { id: 'page_1', layout: [] }
+    { id: 'page_1', layout: [], orientation: 'portrait' }
   ])
   
   const activePageId = ref('page_1')
 
   const addPage = () => {
     const newId = `page_${Date.now()}`
-    pages.value.push({ id: newId, layout: [] })
+    pages.value.push({ id: newId, layout: [], orientation: 'portrait' })
     activePageId.value = newId
   }
 
@@ -61,6 +61,13 @@ export const useReportStore = defineStore('report', () => {
     }
   }
 
+  const updatePageOrientation = (pageId, orientation) => {
+    const page = pages.value.find(p => p.id === pageId)
+    if (page) {
+      page.orientation = orientation
+    }
+  }
+
   return {
     pages,
     activePageId,
@@ -69,6 +76,7 @@ export const useReportStore = defineStore('report', () => {
     addWidget,
     updateLayout,
     removeWidget,
-    updateWidget
+    updateWidget,
+    updatePageOrientation
   }
 })

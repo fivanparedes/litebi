@@ -1,22 +1,25 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useUiStore } from '@/stores/uiStore'
 import { useDashboardStore } from '@/stores/dashboardStore'
 import { useProjectStore } from '@/stores/projectStore'
 import { useCollaborationStore } from '@/stores/collaborationStore'
-import { Save, SaveAll, FolderOpen, FilePlus, Image, FileText, Pencil, RefreshCw, Share2, LayoutTemplate } from '@lucide/vue'
+import { useReportStore } from '@/stores/reportStore'
+import { Save, SaveAll, FolderOpen, FilePlus, Image, FileText, Pencil, RefreshCw, Share2, LayoutTemplate, LayoutDashboard, Database, FileSpreadsheet } from '@lucide/vue'
 import LanguageSwitch from '@/components/ui/LanguageSwitch.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import { exportToPNG, exportToPDF } from '@/modules/project/ExportManager'
 
 const { t } = useI18n()
 const route = useRoute()
+const router = useRouter()
 const uiStore = useUiStore()
 const dashboardStore = useDashboardStore()
 const projectStore = useProjectStore()
 const collabStore = useCollaborationStore()
+const reportStore = useReportStore()
 
 const isEditingName = ref(false)
 const tempName = ref('')
@@ -64,7 +67,14 @@ const handleNewProject = async () => {
 const handleOpenProject = async (e) => {
   // If the browser supports native picker, we use the button directly
   if ('showOpenFilePicker' in window && !e.target?.files?.length) {
-    await projectStore.loadProject()
+    const success = await projectStore.loadProject()
+    if (success && uiStore.isViewerMode) {
+      if (uiStore.viewerType === 'report') {
+        router.push('/reports')
+      } else {
+        router.push('/dashboard')
+      }
+    }
     return
   }
   
@@ -78,15 +88,30 @@ const handleOpenProject = async (e) => {
       const { deserializeProject } = await import('@/modules/project/Serializer')
       const { useDataStore } = await import('@/stores/dataStore')
       const { useFormulaStore } = await import('@/stores/formulaStore')
-      await deserializeProject(evt.target.result, useDataStore(), useFormulaStore(), dashboardStore)
+      await deserializeProject(evt.target.result, useDataStore(), useFormulaStore(), dashboardStore, reportStore)
       
       if (file.name.endsWith('.litebi-template')) {
         projectStore.projectName = "Nuevo desde Plantilla"
         projectStore.isDirty = true
         uiStore.setViewerMode(false)
+        uiStore.viewerType = null
       } else {
-        const isViewer = file.name.endsWith('.litebi-view') || file.name.endsWith('.litebiview')
+        const isViewer = file.name.endsWith('.litebi-view') || file.name.endsWith('.litebiview') || file.name.endsWith('.litebireportview')
         uiStore.setViewerMode(isViewer)
+        
+        if (file.name.endsWith('.litebireportview')) {
+          uiStore.viewerType = 'report'
+        } else {
+          uiStore.viewerType = 'dashboard'
+        }
+
+        if (isViewer) {
+          if (uiStore.viewerType === 'report') {
+            router.push('/reports')
+          } else {
+            router.push('/dashboard')
+          }
+        }
       }
       
       uiStore.addToast({ message: 'Proyecto cargado correctamente', type: 'success' })
@@ -112,7 +137,7 @@ const handleExportViewer = async () => {
     const { serializeProject } = await import('@/modules/project/Serializer')
     const { useDataStore } = await import('@/stores/dataStore')
     const { useFormulaStore } = await import('@/stores/formulaStore')
-    const json = await serializeProject(useDataStore(), useFormulaStore(), dashboardStore)
+    const json = await serializeProject(useDataStore(), useFormulaStore(), dashboardStore, reportStore)
     
     if ('showSaveFilePicker' in window) {
       const handle = await window.showSaveFilePicker({
@@ -143,13 +168,50 @@ const handleExportViewer = async () => {
   }
 }
 
+const handleExportReportViewer = async () => {
+  try {
+    uiStore.addToast({ message: 'Exportando a Visor de Reporte...', type: 'info' })
+    const { serializeProject } = await import('@/modules/project/Serializer')
+    const { useDataStore } = await import('@/stores/dataStore')
+    const { useFormulaStore } = await import('@/stores/formulaStore')
+    const json = await serializeProject(useDataStore(), useFormulaStore(), dashboardStore, reportStore)
+    
+    if ('showSaveFilePicker' in window) {
+      const handle = await window.showSaveFilePicker({
+        suggestedName: `${projectStore.projectName || 'proyecto'}-viewer.litebireportview`,
+        types: [{
+          description: 'Visor de Reporte LiteBI',
+          accept: { 'application/json': ['.litebireportview'] },
+        }],
+      })
+      const writable = await handle.createWritable()
+      await writable.write(json)
+      await writable.close()
+    } else {
+      // Fallback
+      const blob = new Blob([json], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${projectStore.projectName || 'proyecto'}-viewer.litebireportview`
+      a.click()
+      URL.revokeObjectURL(url)
+    }
+    uiStore.addToast({ message: 'Reporte exportado como Visor', type: 'success' })
+  } catch (e) {
+    if (e.name !== 'AbortError') {
+      uiStore.addToast({ message: 'Error exportando a Visor de Reporte', type: 'error' })
+    }
+  }
+}
+
 const handleExportTemplate = async () => {
   try {
     uiStore.addToast({ message: 'Generando Plantilla...', type: 'info' })
     const { serializeProject } = await import('@/modules/project/Serializer')
     const { useDataStore } = await import('@/stores/dataStore')
     const { useFormulaStore } = await import('@/stores/formulaStore')
-    const json = await serializeProject(useDataStore(), useFormulaStore(), dashboardStore)
+    const json = await serializeProject(useDataStore(), useFormulaStore(), dashboardStore, reportStore)
     
     if ('showSaveFilePicker' in window) {
       const handle = await window.showSaveFilePicker({
@@ -220,7 +282,20 @@ const handleExportPDF = async () => {
           <Pencil v-if="!uiStore.isViewerMode" class="edit-icon" size="14" />
         </div>
       </div>
-      <div v-if="viewTitle" class="view-subtitle">/ {{ viewTitle }}</div>
+      <div v-if="viewTitle && !uiStore.isViewerMode" class="view-subtitle">/ {{ viewTitle }}</div>
+      
+      <!-- Viewer Mode Navigation -->
+      <div v-if="uiStore.isViewerMode" class="viewer-nav">
+        <BaseButton v-if="uiStore.viewerType !== 'report'" :variant="route.name === 'dashboard' ? 'primary' : 'ghost'" size="sm" @click="router.push('/dashboard')">
+          <LayoutDashboard /> Dashboards
+        </BaseButton>
+        <BaseButton :variant="route.name === 'reports' ? 'primary' : 'ghost'" size="sm" @click="router.push('/reports')">
+          <FileText /> Reportes A4
+        </BaseButton>
+        <BaseButton v-if="uiStore.viewerType !== 'report'" :variant="route.name === 'data' ? 'primary' : 'ghost'" size="sm" @click="router.push('/data')">
+          <Database /> Datos
+        </BaseButton>
+      </div>
     </div>
 
     <div class="app-header__right">
@@ -239,8 +314,11 @@ const handleExportPDF = async () => {
         <BaseButton v-if="!uiStore.isViewerMode" variant="ghost" size="sm" title="Guardar como..." @click="handleSaveAs">
           <SaveAll />
         </BaseButton>
-        <BaseButton v-if="!uiStore.isViewerMode" variant="ghost" size="sm" title="Compartir a Visor" @click="handleExportViewer">
+        <BaseButton v-if="!uiStore.isViewerMode" variant="ghost" size="sm" title="Compartir a Visor Total" @click="handleExportViewer">
           <Share2 />
+        </BaseButton>
+        <BaseButton v-if="!uiStore.isViewerMode" variant="ghost" size="sm" title="Exportar como Visor de Reporte" @click="handleExportReportViewer">
+          <FileSpreadsheet />
         </BaseButton>
         <BaseButton v-if="!uiStore.isViewerMode" variant="ghost" size="sm" title="Guardar como Plantilla" @click="handleExportTemplate">
           <LayoutTemplate />
@@ -301,7 +379,15 @@ const handleExportPDF = async () => {
 .app-header__left {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-4);
+}
+
+.viewer-nav {
+  display: flex;
+  gap: var(--space-2);
+  margin-left: var(--space-4);
+  padding-left: var(--space-4);
+  border-left: 1px solid var(--color-border);
 }
 
 .project-name-container {
