@@ -13,6 +13,7 @@ import {
   PanelLeftOpen,
   Network,
   Presentation,
+  Terminal,
   HelpCircle,
   Info,
   Settings
@@ -32,7 +33,8 @@ const navItems = computed(() => [
   { name: 'modeling', icon: Network, label: t('nav.modeling') },
   { name: 'formulas', icon: Calculator, label: t('nav.formulas') },
   { name: 'dashboard', icon: LayoutDashboard, label: t('nav.dashboard') },
-  { name: 'reports', icon: Presentation, label: t('nav.reports') }
+  { name: 'reports', icon: Presentation, label: t('nav.reports') },
+  { name: 'python', icon: Terminal, label: 'Consola Python' }
 ])
 </script>
 
@@ -90,7 +92,7 @@ const navItems = computed(() => [
 
     <!-- About Modal -->
     <BaseModal v-model="isAboutModalOpen" title="Acerca de LiteBI" size="sm">
-      <div class="about-content">
+      <div class="about-content" style="max-height: 400px; overflow-y: auto;">
         <div class="about-logo">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" class="about-logo-icon">
             <rect width="32" height="32" rx="6" fill="#2563EB"/>
@@ -100,10 +102,23 @@ const navItems = computed(() => [
           <p class="version">v0.1.0</p>
         </div>
         
-        <div class="about-info">
+        <div class="about-info" style="margin-bottom: 16px;">
           <p>Desarrollado por:</p>
           <h3>Fernando Ivan Paredes</h3>
           <a href="https://github.com/fivanparedes" target="_blank" rel="noopener noreferrer">github.com/fivanparedes</a>
+        </div>
+
+        <div class="about-tech" style="text-align: left; font-size: 12px; border-top: 1px solid var(--color-border); padding-top: 12px;">
+          <p style="font-weight: 600; margin-bottom: 8px;">Tecnologías Open Source:</p>
+          <ul style="padding-left: 20px; color: var(--color-text-secondary); line-height: 1.5; margin-bottom: 16px;">
+            <li><strong>Vue 3</strong> (MIT License)</li>
+            <li><strong>Apache ECharts</strong> (Apache 2.0 License)</li>
+            <li><strong>AlaSQL</strong> (MIT License)</li>
+            <li><strong>Pyodide & Python</strong> (MPL 2.0 / PSF License)</li>
+            <li><strong>MapLibre GL JS</strong> (BSD 3-Clause License)</li>
+            <li><strong>Vite</strong> (MIT License)</li>
+            <li><strong>Lucide Icons</strong> (ISC License)</li>
+          </ul>
         </div>
         
         <div class="about-footer">

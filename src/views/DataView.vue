@@ -11,6 +11,7 @@ import DatasetList from '@/modules/data/DatasetList.vue'
 import DataPreview from '@/modules/data/DataPreview.vue'
 import LiveConnectorModal from '@/modules/data/LiveConnectorModal.vue'
 import ManualDatasetEditor from '@/modules/data/ManualDatasetEditor.vue'
+import PythonConnectorModal from '@/modules/data/PythonConnectorModal.vue'
 import DataPreviewModal from '@/modules/data/DataPreviewModal.vue'
 import { useUiStore } from '@/stores/uiStore'
 
@@ -23,6 +24,7 @@ const isLiveConnectorOpen = ref(false)
 const activeConnectorType = ref('postgres')
 const isCalendarModalOpen = ref(false)
 const isManualModalOpen = ref(false)
+const isPythonModalOpen = ref(false)
 const calendarStartYear = ref(new Date().getFullYear() - 3)
 const calendarEndYear = ref(new Date().getFullYear() + 2)
 
@@ -49,6 +51,7 @@ const openLiveConnector = (type) => {
 const onDatasetImported = (name) => {
   isImportModalOpen.value = false
   isLiveConnectorOpen.value = false
+  isPythonModalOpen.value = false
   isAddingSource.value = false
 }
 
@@ -62,6 +65,7 @@ const onPreviewRequested = ({ datasetName, parsedData, connectorConfig, refreshI
   // Close the import wizard modal since preview takes over
   isImportModalOpen.value = false
   isLiveConnectorOpen.value = false
+  isPythonModalOpen.value = false
   
   // Open the preview modal
   isPreviewModalOpen.value = true
@@ -137,6 +141,14 @@ const handleGenerateCalendar = () => {
           <div class="connector-icon-wrapper"><Edit3 class="connector-icon" style="color: var(--color-accent)" /></div>
           <h3>Dataset Manual</h3>
           <p>Escribir o pegar datos</p>
+        </div>
+
+        <div v-if="!uiStore.isViewerMode" class="connector-card" @click="isPythonModalOpen = true">
+          <div class="connector-icon-wrapper">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: #3776AB;" class="connector-icon"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
+          </div>
+          <h3>Script Python</h3>
+          <p>Extraer datos vía código</p>
         </div>
 
         <div v-if="!uiStore.isViewerMode" class="connector-card" @click="openLiveConnector('postgres')">
@@ -244,6 +256,12 @@ const handleGenerateCalendar = () => {
     >
       <ManualDatasetEditor @saved="onManualDatasetSaved" @cancel="isManualModalOpen = false" />
     </BaseModal>
+
+    <!-- Python Script Modal -->
+    <PythonConnectorModal
+      v-model="isPythonModalOpen"
+      @preview="onPreviewRequested"
+    />
 
     <!-- Calendar Modal -->
     <BaseModal 
@@ -398,8 +416,9 @@ const handleGenerateCalendar = () => {
 
 .datasets-section {
   flex-shrink: 0;
-  max-height: 250px;
+  max-height: 45%;
   overflow-y: auto;
+  padding-bottom: 8px; /* give some room for expansion */
 }
 
 .preview-section {

@@ -46,6 +46,9 @@ export const useSettingsStore = defineStore('settings', () => {
     return palettes[chartPaletteId.value].colors
   })
 
+  // Escala de Interfaz
+  const uiScale = ref(100) // Percentage
+
   // Setters
   const setTheme = (newTheme) => {
     theme.value = newTheme
@@ -74,6 +77,16 @@ export const useSettingsStore = defineStore('settings', () => {
     companyLogo.value = base64
   }
 
+  const setUiScale = (scale) => {
+    uiScale.value = scale
+    // En lugar de usar CSS 'zoom' que escala todo literalmente y rompe los layouts,
+    // cambiamos el font-size base del documento. Todo el diseño en index.css
+    // usa 'rem' para márgenes, paddings y fuentes, por lo que se ajustará proporcionalmente,
+    // pero los componentes estructurados que usan 'px' (barras, navbars) mantendrán su forma.
+    document.documentElement.style.zoom = '' // Limpiar cualquier zoom residual
+    document.documentElement.style.fontSize = `${(16 * scale) / 100}px`
+  }
+
   return {
     theme,
     username,
@@ -82,10 +95,12 @@ export const useSettingsStore = defineStore('settings', () => {
     chartPaletteId,
     palettes,
     currentChartColors,
+    uiScale,
     setTheme,
     setChartPalette,
     setUsername,
     setRoomName,
-    setCompanyLogo
+    setCompanyLogo,
+    setUiScale
   }
 })

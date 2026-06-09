@@ -12,9 +12,9 @@ import { testSqlExpression } from '@/modules/formulas/SqlEngine'
 import FormulaEditor from '@/modules/formulas/FormulaEditor.vue'
 import ColumnList from '@/modules/formulas/ColumnList.vue'
 import QuickMeasuresModal from '@/modules/formulas/QuickMeasuresModal.vue'
-
-import { BookOpen } from '@lucide/vue'
+import { BookOpen, PanelLeftClose, PanelLeft } from '@lucide/vue'
 import FormulaManualModal from '@/modules/formulas/FormulaManualModal.vue'
+import DragResizer from '@/components/ui/DragResizer.vue'
 
 const { t } = useI18n()
 const router = useRouter()
@@ -33,6 +33,9 @@ const isQuickMeasuresModalOpen = ref(false)
 const isFormulaManualModalOpen = ref(false)
 const formulaMode = ref('columna')
 const attemptedSave = ref(false)
+
+const sidebarWidth = ref(280)
+const isSidebarCollapsed = ref(false)
 
 const allAvailableColumns = computed(() => {
   const baseSchema = activeDatasetMeta.value?.schema || []
@@ -143,12 +146,25 @@ const handleQuickMeasureGenerate = (generatedExpression) => {
     
     <div v-else class="formulas-workspace">
       <!-- Left Panel: Columns -->
-      <aside class="formulas-sidebar">
-        <ColumnList 
-          :datasets="Array.from(dataStore.datasets.values())"
-          @insert-column="handleInsertColumn"
-          @edit-column="handleEditColumn"
-        />
+      <aside 
+        class="formulas-sidebar"
+        :style="{ width: isSidebarCollapsed ? '48px' : sidebarWidth + 'px', position: 'relative' }"
+      >
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--color-border); height: 48px; box-sizing: border-box;">
+          <h2 v-if="!isSidebarCollapsed" style="font-size: 14px; margin: 0; font-weight: 600;">Columnas</h2>
+          <button @click="isSidebarCollapsed = !isSidebarCollapsed" :title="isSidebarCollapsed ? 'Expandir' : 'Colapsar'" style="background: none; border: none; cursor: pointer; display: flex; color: var(--color-text-secondary); padding: 4px; margin-left: auto;">
+            <PanelLeft v-if="isSidebarCollapsed" />
+            <PanelLeftClose v-else />
+          </button>
+        </div>
+        <div v-show="!isSidebarCollapsed" style="flex-grow: 1; overflow: hidden; display: flex; flex-direction: column;">
+          <ColumnList 
+            :datasets="Array.from(dataStore.datasets.values())"
+            @insert-column="handleInsertColumn"
+            @edit-column="handleEditColumn"
+          />
+        </div>
+        <DragResizer v-if="!isSidebarCollapsed" v-model:width="sidebarWidth" :is-right="true" />
       </aside>
       
       <!-- Right Panel: Editor -->
@@ -304,9 +320,13 @@ const handleQuickMeasureGenerate = (generatedExpression) => {
 }
 
 .formulas-sidebar {
-  width: 280px;
+  background-color: var(--color-bg-primary);
+  border-right: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
   flex-shrink: 0;
   height: 100%;
+  transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .formulas-main {

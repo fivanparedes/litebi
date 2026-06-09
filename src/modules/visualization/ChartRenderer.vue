@@ -5,6 +5,7 @@ import { useDashboardStore } from '@/stores/dashboardStore'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { useFormulaStore } from '@/stores/formulaStore'
 import { sqlClient } from '@/modules/data/SqlWorkerClient'
+import { pythonClient } from '@/modules/python/PythonClient'
 import { use, registerTheme, registerMap, getMap, registerTransform } from 'echarts/core'
 import { Loader } from '@lucide/vue'
 import { CanvasRenderer } from 'echarts/renderers'
@@ -25,7 +26,10 @@ import VChart from 'vue-echarts'
 import { businessTheme } from './themes/businessTheme'
 import { businessThemeDark } from './themes/businessThemeDark'
 import ecStat from 'echarts-stat'
+import 'echarts-wordcloud'
 import DataGrid from '@/modules/cleaning/DataGrid.vue'
+import MapRenderer from './MapRenderer.vue'
+import { generateForecastDataset } from '@/modules/analytics/forecasting'
 import { useUiStore } from '@/stores/uiStore'
 
 registerTransform(ecStat.transform.regression)
@@ -84,6 +88,10 @@ const isLoading = ref(false)
 const datasetMissing = ref(false)
 const sqlError = ref(null)
 
+// Python state
+const pythonImgBase64 = ref(null)
+const pythonError = ref(null)
+
 // Drill-down State
 const drillLevel = ref(0)
 const drillPath = ref([])
@@ -119,6 +127,8 @@ const loadData = async () => {
 
   isLoading.value = true
   sqlError.value = null
+  pythonError.value = null
+  
   // Permitir que el hilo de UI se libere antes de cálculos pesados
   await new Promise(resolve => setTimeout(resolve, 0))
 
@@ -227,7 +237,7 @@ const loadData = async () => {
   }
 
   // Not KPI/Scorecard
-  if (!props.config.dataset || !currentXAxis.value || !props.config.yAxis) {
+  if (!props.config.dataset || (!currentXAxis.value && props.config.type !== 'python') || (!props.config.yAxis && props.config.type !== 'python' && props.config.type !== 'image')) {
     chartData.value = []
     isLoading.value = false
     return
@@ -307,12 +317,33 @@ const loadData = async () => {
   const uniqueRequiredTables = [...new Set(requiredTables)]
 
   try {
+    const fromClause = dataStore.buildJoinQuery(dsName, uniqueRequiredTables)
+
+    // Execute Python Script for Visuals (must be done before trying to parse rawX)
+    if (props.config.type === 'python') {
+      try {
+        const q = `SELECT * FROM ${fromClause} WHERE 1=1${globalWhere} LIMIT 10000`
+        const rawDataForPython = await sqlClient.query(q)
+        
+        if (props.config.pythonCode) {
+          const b64 = await pythonClient.runPythonPlot(props.config.pythonCode, rawDataForPython, dsName)
+          pythonImgBase64.value = b64
+          pythonError.value = null
+        }
+      } catch (e) {
+        console.error(e)
+        pythonError.value = e.message || 'Error en Python'
+        pythonImgBase64.value = null
+      }
+      isLoading.value = false
+      return
+    }
+
     const xSafe = parseCol(rawX)
     const ySafeExp = resolveY(rawY, agg)
     const baseColExp = rawY.startsWith('__METRIC__') ? '1' : parseCol(rawY)
     const yNullCheck = baseColExp === '1' ? '' : ` AND ${baseColExp} IS NOT NULL`
     
-    const fromClause = dataStore.buildJoinQuery(dsName, uniqueRequiredTables)
     
     if ((props.config.type === 'map' && props.config.mapMode === 'scatter') || props.config.type === 'scatter' || props.config.type === 'boxplot') {
       const isMapScatter = props.config.type === 'map'
@@ -811,6 +842,37 @@ const chartStrategies = {
 
     return option
   },
+  wordcloud: (baseOption, data, props) => {
+    return {
+      ...baseOption,
+      tooltip: { show: true },
+      series: [{
+        type: 'wordCloud',
+        shape: 'circle',
+        left: 'center',
+        top: 'center',
+        width: '90%',
+        height: '90%',
+        sizeRange: [12, 60],
+        rotationRange: [-90, 90],
+        rotationStep: 45,
+        gridSize: 8,
+        drawOutOfBound: false,
+        textStyle: {
+          fontFamily: props.config.styles?.fontFamily || 'sans-serif',
+          fontWeight: 'bold',
+          color: function () {
+            return 'rgb(' + [
+              Math.round(Math.random() * 160),
+              Math.round(Math.random() * 160),
+              Math.round(Math.random() * 160)
+            ].join(',') + ')';
+          }
+        },
+        data: data.map(d => ({ name: String(d.name), value: Number(d.value) }))
+      }]
+    }
+  },
   map: (baseOption, data, props, xAxisData, seriesData) => {
     const getMapName = () => {
       if (props.config.mapMode === 'custom' && props.config.customGeoJson) {
@@ -942,6 +1004,23 @@ const getDefaultStrategy = (baseOption, data, props, xAxisData, seriesData, ctyp
     }
   ]
 
+  let finalXAxisData = xAxisData
+
+  if ((ctype === 'line' || ctype === 'bar') && props.config.ml?.forecasting) {
+    const forecast = generateForecastDataset(data, xAxisData, props.config.ml.forecastPeriods || 3)
+    finalXAxisData = forecast.extendedXAxis
+    defaultSeries[0].data = forecast.baseSeries
+    
+    defaultSeries.push({
+      name: 'Pronóstico',
+      type: 'line', // Siempre línea para predicciones
+      data: forecast.predictionSeries,
+      lineStyle: { type: 'dashed', width: 2 },
+      itemStyle: { color: '#ff7f50' },
+      smooth: true
+    })
+  }
+
   if ((ctype === 'line' || ctype === 'bar') && props.config.secondaryYAxis && data[0] && 'value2' in data[0]) {
     const data2 = data.map(d => d.value2)
     defaultSeries.push({
@@ -956,8 +1035,8 @@ const getDefaultStrategy = (baseOption, data, props, xAxisData, seriesData, ctyp
 
   const baseResult = {
     ...baseOption,
-    xAxis: isHorizontal ? { type: 'value', show: showXAxis } : { type: 'category', data: xAxisData, show: showXAxis, axisLabel: { interval: 'auto', rotate: 30 } },
-    yAxis: isHorizontal ? { type: 'category', data: xAxisData, show: showYAxis, axisLabel: { interval: 'auto', width: 100, overflow: 'truncate' } } : { type: 'value', show: showYAxis },
+    xAxis: isHorizontal ? { type: 'value', show: showXAxis } : { type: 'category', data: finalXAxisData, show: showXAxis, axisLabel: { interval: 'auto', rotate: 30 } },
+    yAxis: isHorizontal ? { type: 'category', data: finalXAxisData, show: showYAxis, axisLabel: { interval: 'auto', width: 100, overflow: 'truncate' } } : { type: 'value', show: showYAxis },
     series: defaultSeries
   }
 
@@ -1173,7 +1252,7 @@ defineExpose({
         <p style="font-size: 12px; font-family: monospace; opacity: 0.8; word-break: break-all;">{{ sqlError }}</p>
       </div>
     </div>
-    <div v-else-if="!config.dataset || !config.xAxis || (!config.yAxis && config.type !== 'image')" class="chart-empty">
+    <div v-else-if="!config.dataset || (!config.xAxis && config.type !== 'python') || (!config.yAxis && config.type !== 'image' && config.type !== 'python')" class="chart-empty">
       <p>Configura el widget para visualizar datos.</p>
     </div>
     
@@ -1199,9 +1278,26 @@ defineExpose({
       <div v-else class="chart-empty">Sin imagen seleccionada.</div>
     </div>
 
+    <div v-else-if="config.type === 'python'" class="image-container" style="display: flex; justify-content: center; align-items: center;">
+      <div v-if="pythonError" class="chart-empty" style="flex-direction: column; border: 1px solid var(--color-danger); color: var(--color-danger); background-color: var(--color-danger-light);">
+        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 8px;"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+        <strong>Código Inválido</strong>
+        <p style="font-size: 11px; font-family: monospace; opacity: 0.8; word-break: break-all; margin-top: 8px; max-height: 100px; overflow-y: auto;">{{ pythonError }}</p>
+      </div>
+      <img v-else-if="pythonImgBase64" :src="pythonImgBase64" style="max-width: 100%; max-height: 100%; width: 100%; height: 100%; object-fit: contain;" />
+      <div v-else class="chart-empty">No hay gráfica para mostrar. Ejecuta el script.</div>
+    </div>
+
     <div v-else-if="config.type === 'grid'" class="data-grid-container">
       <DataGrid :data="gridData" :schema="gridSchema" />
     </div>
+
+    <MapRenderer 
+      v-else-if="config.type === 'map'"
+      :config="config" 
+      :chartData="chartData" 
+      @chart-click="handleChartClick" 
+    />
 
     <v-chart 
       v-else-if="echartOptions" 

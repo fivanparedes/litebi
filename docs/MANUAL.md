@@ -173,7 +173,10 @@ LiteBI dispone de un amplio abanico de gráficos profesionales:
 *   **Cascada (Waterfall):** Demuestra cómo un valor inicial se ve afectado positiva o negativamente hasta llegar a un valor final.
 *   **Embudo (Funnel):** Ilustra etapas de un proceso y la tasa de retención.
 *   **Cajas y Bigotes (Boxplot):** Gráfico estadístico para representar la distribución.
-*   **Mapas (Personalizables):** Importa cualquier GeoJSON para armar mapas coropléticos.
+*   **Mapas (Interactivos con MapLibre):** Visualiza puntos y mapas temáticos sobre un lienzo geográfico real e interactivo.
+*   **Nube de Palabras (Word Cloud):** Genera una nube donde el tamaño de cada palabra depende de su frecuencia o de la métrica que elijas.
+*   **Parámetro (What-If):** Agrega un deslizador (slider) a tu dashboard para manipular una variable global y observar cómo impactan los distintos escenarios en tiempo real sobre tus fórmulas.
+*   **Python (PyPlot):** Ejecuta código escrito en Python utilizando `matplotlib.pyplot` o `pandas` dentro del propio navegador para crear las visualizaciones más avanzadas imaginables directamente desde tus datos crudos.
 
 ---
 
@@ -186,6 +189,9 @@ Predice la línea de tendencia de tu serie temporal o dispersión de datos. Los 
 *   **Lineal:** Busca el mejor ajuste recto.
 *   **Exponencial:** Ideal para datos que crecen o decrecen a ritmo acelerado (ej. crecimiento viral).
 *   **Polinómica:** Se curva para ajustarse a fluctuaciones estacionales o de mayor complejidad geométrica.
+
+### Forecasting (Pronósticos de Series Temporales)
+Al activar la función **"Forecasting"** en gráficos de series de tiempo (Líneas), LiteBI simula un motor estadístico estilo *Holt-Winters / Prophet* en tiempo real para extender tu gráfica hacia el futuro. Puedes decidir el número de "Periodos" hacia adelante que quieres pronosticar.
 
 ### Agrupamiento (Clustering K-Means)
 Disponible para los gráficos de **Dispersión (Scatter)**. LiteBI procesará tus datos y agrupará tus puntos numéricos en conjuntos estadísticamente similares.

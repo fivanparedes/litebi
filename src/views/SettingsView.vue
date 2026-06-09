@@ -1,8 +1,9 @@
 <script setup>
 import { computed } from 'vue'
-import { Palette, Settings, Moon, Sun, Users, Image as ImageIcon } from '@lucide/vue'
+import { Palette, Settings, Moon, Sun, Users, Image as ImageIcon, ZoomIn } from '@lucide/vue'
 import { useSettingsStore } from '@/stores/settingsStore'
 import BaseInput from '@/components/ui/BaseInput.vue'
+import BaseDropdown from '@/components/ui/BaseDropdown.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import { Logger } from '@/utils/Logger'
 import { FileText } from '@lucide/vue'
@@ -24,6 +25,14 @@ const selectPalette = (id) => {
 const toggleTheme = () => {
   settingsStore.setTheme(settingsStore.theme === 'light' ? 'dark' : 'light')
 }
+
+const scaleOptions = [
+  { value: 80, label: '80% (Pequeño)' },
+  { value: 90, label: '90%' },
+  { value: 100, label: '100% (Por defecto)' },
+  { value: 110, label: '110%' },
+  { value: 120, label: '120% (Grande)' }
+]
 
 const handleLogoUpload = (e) => {
   const file = e.target.files[0]
@@ -87,6 +96,19 @@ const removeLogo = () => settingsStore.setCompanyLogo(null)
         >
           <Moon class="icon-sm" /> Oscuro
         </button>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <h3><ZoomIn class="icon-h3" /> Escala de la Interfaz</h3>
+      <p class="section-desc">Ajusta el tamaño global de los textos e interfaces para adaptarse mejor a tu pantalla.</p>
+
+      <div style="max-width: 300px;">
+        <BaseDropdown 
+          :model-value="settingsStore.uiScale" 
+          :options="scaleOptions" 
+          @update:model-value="settingsStore.setUiScale"
+        />
       </div>
     </div>
 

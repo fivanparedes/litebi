@@ -68,15 +68,28 @@ class SqlClient {
    * @returns {Promise<Array>} Resultado de la consulta.
    */
   async query(sql, params = []) {
-    const cacheKey = JSON.stringify({ sql, params })
+    let finalSql = sql
+    try {
+      const { useDashboardStore } = await import('@/stores/dashboardStore')
+      const dashStore = useDashboardStore()
+      const globalParams = dashStore.globalParameters || {}
+      
+      for (const [key, value] of Object.entries(globalParams)) {
+        const regex = new RegExp(`@${key}\\b`, 'gi')
+        finalSql = finalSql.replace(regex, typeof value === 'number' ? value : `'${value}'`)
+      }
+    } catch (e) {
+      // Ignorar si el store no está listo
+    }
+
+    const cacheKey = JSON.stringify({ sql: finalSql, params })
     if (this.cache.has(cacheKey)) {
       return this.cache.get(cacheKey)
     }
     
-    const result = await this._post('QUERY', { sql, params })
+    const result = await this._post('QUERY', { sql: finalSql, params })
     this.cache.set(cacheKey, result)
 
-    // Evicción LRU: si se supera el tamaño máximo, eliminar la entrada más antigua
     if (this.cache.size > MAX_CACHE_SIZE) {
       const firstKey = this.cache.keys().next().value
       this.cache.delete(firstKey)

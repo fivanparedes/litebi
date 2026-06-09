@@ -42,6 +42,12 @@ const routes = [
     meta: { icon: 'FileText', titleKey: 'nav.reports' }
   },
   {
+    path: '/python',
+    name: 'python',
+    component: () => import('@/views/PythonView.vue'),
+    meta: { icon: 'Terminal', titleKey: 'nav.python' }
+  },
+  {
     path: '/help',
     name: 'help',
     component: () => import('@/views/HelpView.vue'),

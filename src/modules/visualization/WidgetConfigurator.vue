@@ -1,10 +1,19 @@
 <script setup>
 import { computed, ref } from 'vue'
+import { useDataStore } from '@/stores/dataStore'
+import { useDashboardStore } from '@/stores/dashboardStore'
+import { useFormulaStore } from '@/stores/formulaStore'
 import BaseInput from '@/components/ui/BaseInput.vue'
 import BaseDropdown from '@/components/ui/BaseDropdown.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
-import { useDataStore } from '@/stores/dataStore'
-import { useFormulaStore } from '@/stores/formulaStore'
+import DragResizer from '@/components/ui/DragResizer.vue'
+import { 
+  BarChart3, LineChart, PieChart, ScatterChart, Grid3X3, LayoutGrid, 
+  Radar, AlignEndHorizontal, Hash, Filter, SlidersHorizontal, 
+  AlignVerticalSpaceBetween, Table, AreaChart, AlignCenter, 
+  Gauge, Target, Map, CalendarDays, Cloud, Code, Image as ImageIcon,
+  PanelRight, PanelRightClose
+} from '@lucide/vue'
 
 const props = defineProps({
   config: {
@@ -89,26 +98,32 @@ const numericColumnOptions = computed(() => {
 })
 
 const chartTypeOptions = [
-  { value: 'bar', label: 'Gráfico de Barras' },
-  { value: 'line', label: 'Gráfico de Líneas' },
-  { value: 'pie', label: 'Gráfico de Torta' },
-  { value: 'scatter', label: 'Dispersión (Scatter)' },
-  { value: 'heatmap', label: 'Mapa de Calor (Heatmap)' },
-  { value: 'treemap', label: 'Mapa de Árbol (Treemap)' },
-  { value: 'radar', label: 'Radar' },
-  { value: 'waterfall', label: 'Cascada (Waterfall)' },
-  { value: 'kpi', label: 'Tarjeta KPI' },
-  { value: 'slicer', label: 'Segmentador (Filtro)' },
-  { value: 'boxplot', label: 'Cajas y Bigotes (Boxplot)' },
-  { value: 'grid', label: 'Tabla de Datos (Grid)' },
-  { value: 'combo', label: 'Combinado (Barras + Líneas)' },
-  { value: 'funnel', label: 'Embudo (Funnel)' },
-  { value: 'gauge', label: 'Medidor de Metas (Gauge)' },
-  { value: 'scorecard', label: 'Scorecard (Objetivos)' },
-  { value: 'map', label: 'Mapa Político (Map)' },
-  { value: 'calendar', label: 'Calendario (Calendar)' },
-  { value: 'image', label: 'Imagen' }
+  { value: 'bar', label: 'Barras', icon: BarChart3 },
+  { value: 'line', label: 'Líneas', icon: LineChart },
+  { value: 'pie', label: 'Torta', icon: PieChart },
+  { value: 'scatter', label: 'Dispersión', icon: ScatterChart },
+  { value: 'heatmap', label: 'Heatmap', icon: Grid3X3 },
+  { value: 'treemap', label: 'Treemap', icon: LayoutGrid },
+  { value: 'radar', label: 'Radar', icon: Radar },
+  { value: 'waterfall', label: 'Cascada', icon: AlignEndHorizontal },
+  { value: 'kpi', label: 'KPI', icon: Hash },
+  { value: 'slicer', label: 'Filtro', icon: Filter },
+  { value: 'parameter', label: 'What-If', icon: SlidersHorizontal },
+  { value: 'boxplot', label: 'Cajas', icon: AlignVerticalSpaceBetween },
+  { value: 'grid', label: 'Tabla', icon: Table },
+  { value: 'combo', label: 'Combinado', icon: AreaChart },
+  { value: 'funnel', label: 'Embudo', icon: AlignCenter },
+  { value: 'gauge', label: 'Medidor', icon: Gauge },
+  { value: 'scorecard', label: 'Scorecard', icon: Target },
+  { value: 'map', label: 'Mapa', icon: Map },
+  { value: 'calendar', label: 'Calendario', icon: CalendarDays },
+  { value: 'wordcloud', label: 'Word Cloud', icon: Cloud },
+  { value: 'python', label: 'Python', icon: Code },
+  { value: 'image', label: 'Imagen', icon: ImageIcon }
 ]
+
+const sidebarWidth = ref(320)
+const isCollapsed = ref(false)
 
 const aggregationOptions = [
   { value: 'SUM', label: 'Suma (SUM)' },
@@ -205,9 +220,24 @@ const advancedJsonString = computed({
       const parsed = JSON.parse(val)
       updateField('advancedOptions', parsed)
     } catch (e) {
-      // Ignorar
+      // Ignorar error hasta que termine de escribir
     }
   }
+})
+
+const defaultPythonCode = computed(() => {
+  const safeName = props.config.dataset ? props.config.dataset.replace(/[^a-zA-Z0-9_]/g, '_') : 'dataset'
+  return `import matplotlib.pyplot as plt
+import pandas as pd
+
+# Los datos filtrados se inyectan en 'input_data'
+df_${safeName} = pd.DataFrame(input_data)
+
+# Dibuja tu gráfico usando la data actual
+if not df_${safeName}.empty:
+    plt.plot(df_${safeName}.iloc[:, 0], df_${safeName}.iloc[:, 1])
+    plt.title('Mi Gráfico de ${props.config.dataset || 'Datos'}')
+`
 })
 
 const handleGeoJsonUpload = (e) => {
@@ -232,20 +262,29 @@ const handleGeoJsonUpload = (e) => {
 </script>
 
 <template>
-  <div class="configurator">
+  <div 
+    class="configurator" 
+    :style="{ width: isCollapsed ? '48px' : sidebarWidth + 'px', position: 'relative' }"
+  >
+    <DragResizer v-if="!isCollapsed" v-model:width="sidebarWidth" :is-right="false" />
+
     <div class="config-header">
       <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
-        <h3>Configurar Widget</h3>
-        <button class="close-btn" @click="emit('close')">&times;</button>
+        <button class="icon-btn" @click="isCollapsed = !isCollapsed" :title="isCollapsed ? 'Expandir' : 'Colapsar'" style="background: none; border: none; cursor: pointer; display: flex; color: var(--color-text-secondary); padding: 4px; margin-right: 8px;">
+          <PanelRight v-if="isCollapsed" />
+          <PanelRightClose v-else />
+        </button>
+        <h3 v-if="!isCollapsed" style="flex-grow: 1;">Configurar Widget</h3>
+        <button v-if="!isCollapsed" class="close-btn" @click="emit('close')">&times;</button>
       </div>
-      <div class="config-tabs">
+      <div v-show="!isCollapsed" class="config-tabs" style="margin-top: 16px;">
         <button :class="{ active: activeTab === 'data' }" @click="activeTab = 'data'">Datos</button>
         <button :class="{ active: activeTab === 'style' }" @click="activeTab = 'style'">Estilo</button>
         <button :class="{ active: activeTab === 'advanced' }" @click="activeTab = 'advanced'">Avanzado</button>
       </div>
     </div>
     
-    <div class="config-body">
+    <div v-show="!isCollapsed" class="config-body">
       <div v-if="activeTab === 'data'" class="tab-content">
         <div class="form-group">
         <label>Dataset Origen</label>
@@ -266,15 +305,23 @@ const handleGeoJsonUpload = (e) => {
       </div>
       
       <div class="form-group">
-        <label>Tipo de Gráfico</label>
-        <BaseDropdown 
-          :model-value="config.type || 'bar'" 
-          :options="chartTypeOptions"
-          @update:model-value="val => updateField('type', val)" 
-        />
+        <label>Tipo de Visualización</label>
+        <div class="chart-type-grid">
+          <button
+            v-for="opt in chartTypeOptions"
+            :key="opt.value"
+            class="chart-type-btn"
+            :class="{ active: config.type === opt.value }"
+            @click="updateField('type', opt.value)"
+            :title="opt.label"
+          >
+            <component :is="opt.icon" class="chart-type-icon" />
+            <span class="chart-type-label">{{ opt.label }}</span>
+          </button>
+        </div>
       </div>
       
-      <div v-if="config.type !== 'kpi' && config.type !== 'pie' && config.type !== 'scatter' && config.type !== 'slicer' && config.type !== 'image' && config.type !== 'calendar'" class="form-group">
+      <div v-if="config.type !== 'kpi' && config.type !== 'pie' && config.type !== 'scatter' && config.type !== 'slicer' && config.type !== 'parameter' && config.type !== 'image' && config.type !== 'calendar'" class="form-group">
         <label>Orientación</label>
         <BaseDropdown 
           :model-value="config.orientation || 'vertical'" 
@@ -310,6 +357,19 @@ const handleGeoJsonUpload = (e) => {
           @update:model-value="val => updateField('imageFit', val)" 
         />
       </div>
+
+      <div v-if="config.type === 'python'" class="form-group">
+        <label>Código Python (PyPlot)</label>
+        <p style="font-size: var(--text-xs); color: var(--color-text-secondary); margin: 0 0 8px 0;">
+          Usa <code>df_{{ config.dataset ? config.dataset.replace(/[^a-zA-Z0-9_]/g, '_') : 'dataset' }}</code> para acceder a los datos de este widget.
+        </p>
+        <textarea 
+          :value="config.pythonCode || defaultPythonCode" 
+          @input="e => updateField('pythonCode', e.target.value)"
+          style="width: 100%; min-height: 250px; background-color: var(--color-bg-secondary); color: var(--color-text-primary); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-3); font-family: monospace; font-size: var(--text-xs); resize: vertical;"
+          spellcheck="false"
+        ></textarea>
+      </div>
       
       <div v-if="config.type === 'slicer'" class="form-group">
         <label>Tipo de Segmentador</label>
@@ -318,6 +378,23 @@ const handleGeoJsonUpload = (e) => {
           :options="[{value:'list', label:'Lista (Checkboxes)'}, {value:'button', label:'Botones (Píldoras)'}, {value:'slider', label:'Rango Numérico'}, {value:'input', label:'Buscador de Texto'}]"
           @update:model-value="val => updateField('slicerType', val)" 
         />
+      </div>
+
+      <div v-if="config.type === 'parameter'" class="form-group">
+        <label>Nombre del Parámetro</label>
+        <BaseInput 
+          :model-value="config.parameterName || ''" 
+          placeholder="Ej: Descuento"
+          @update:model-value="val => updateField('parameterName', val)"
+        />
+        <label style="margin-top: 8px;">Rango Numérico</label>
+        <div style="display: flex; gap: 8px;">
+          <BaseInput :model-value="config.min || 0" type="number" placeholder="Min" @update:model-value="val => updateField('min', Number(val))" />
+          <BaseInput :model-value="config.max || 100" type="number" placeholder="Max" @update:model-value="val => updateField('max', Number(val))" />
+          <BaseInput :model-value="config.step || 1" type="number" placeholder="Step" @update:model-value="val => updateField('step', Number(val))" />
+        </div>
+        <label style="margin-top: 8px;">Valor por Defecto</label>
+        <BaseInput :model-value="config.defaultValue || 0" type="number" placeholder="Default" @update:model-value="val => updateField('defaultValue', Number(val))" />
       </div>
 
       <div v-if="config.type === 'map'" class="form-group">
@@ -344,7 +421,7 @@ const handleGeoJsonUpload = (e) => {
       </div>
 
       <!-- Dimensión (X) -->
-      <div v-if="config.type !== 'kpi' && config.type !== 'gauge' && config.type !== 'image'" class="form-group">
+      <div v-if="config.type !== 'kpi' && config.type !== 'gauge' && config.type !== 'image' && config.type !== 'parameter' && config.type !== 'python'" class="form-group">
         <label>{{ config.type === 'scatter' ? 'Eje X (Numérico)' : config.type === 'slicer' ? 'Campo a Filtrar' : config.type === 'map' ? (config.mapMode === 'scatter' ? 'Longitud (X)' : 'Región (Nombre del País)') : 'Dimensión (Jerarquía X)' }}</label>
         
         <!-- Jerarquía List -->
@@ -376,7 +453,7 @@ const handleGeoJsonUpload = (e) => {
       </div>
       
       <!-- Métrica (Y) -->
-      <template v-if="config.type !== 'slicer' && config.type !== 'image'">
+      <template v-if="config.type !== 'slicer' && config.type !== 'image' && config.type !== 'parameter' && config.type !== 'python'">
         <div class="form-group">
           <label>{{ config.type === 'kpi' || config.type === 'scorecard' ? 'Métrica a Calcular' : config.type === 'scatter' ? 'Eje Y (Numérico)' : config.type === 'map' && config.mapMode === 'scatter' ? 'Latitud (Y)' : 'Métrica (Eje Y)' }}</label>
           <BaseDropdown 
@@ -574,6 +651,26 @@ const handleGeoJsonUpload = (e) => {
             @update:model-value="val => updateField('ml', { ...(config.ml || {}), clusterCount: val })" 
           />
         </div>
+
+        <div v-if="config.type === 'line' || config.type === 'bar'" class="form-group">
+          <label>Predicción (Forecasting JS)</label>
+          <div style="display: flex; gap: 8px;">
+            <BaseDropdown 
+              :model-value="config.ml?.forecasting ? 'true' : 'false'" 
+              :options="[{value:'false', label:'Desactivado'}, {value:'true', label:'Activado (Holt-Winters)'}]"
+              @update:model-value="val => updateField('ml', { ...(config.ml || {}), forecasting: val === 'true' })" 
+              style="flex-grow: 1;"
+            />
+            <BaseInput 
+              v-if="config.ml?.forecasting"
+              :model-value="config.ml?.forecastPeriods || 3" 
+              type="number"
+              placeholder="Periodos"
+              @update:model-value="val => updateField('ml', { ...(config.ml || {}), forecastPeriods: Number(val) })"
+              style="width: 80px;"
+            />
+          </div>
+        </div>
       </template>
 
       <hr class="divider" />
@@ -602,7 +699,8 @@ const handleGeoJsonUpload = (e) => {
   height: 100%;
   background-color: var(--color-bg-surface);
   border-left: 1px solid var(--color-border);
-  width: 320px;
+  transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: visible;
 }
 
 .config-header {
@@ -610,9 +708,56 @@ const handleGeoJsonUpload = (e) => {
   flex-direction: column;
   padding: var(--space-4);
   padding-bottom: 0;
-  border-bottom: 1px solid var(--color-border);
 }
 
+.chart-type-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.chart-type-btn {
+  background-color: var(--color-bg-primary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 8px 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--color-text-secondary);
+  transition: all 0.2s;
+  height: 64px;
+}
+
+.chart-type-btn:hover {
+  background-color: var(--color-bg-secondary);
+  color: var(--color-text-primary);
+  border-color: var(--color-border-hover);
+}
+
+.chart-type-btn.active {
+  background-color: var(--color-accent-light);
+  color: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+.chart-type-icon {
+  width: 20px;
+  height: 20px;
+  margin-bottom: 4px;
+}
+
+.chart-type-label {
+  font-size: 10px;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 100%;
+}
 .config-header h3 {
   margin: 0;
   font-size: var(--text-base);

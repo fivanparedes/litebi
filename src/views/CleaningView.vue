@@ -2,10 +2,12 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
-import { Sparkles, ArrowRight } from '@lucide/vue'
+import { Download, Sparkles, Filter, MoreVertical, X, Eye, EyeOff, FileDown, PanelLeftClose, PanelRightClose, PanelLeft, PanelRight, ArrowRight } from '@lucide/vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import { useDataStore } from '@/stores/dataStore'
 import { useProjectStore } from '@/stores/projectStore'
+import { useUiStore } from '@/stores/uiStore'
+import DragResizer from '@/components/ui/DragResizer.vue'
 import { TransformPipeline } from '@/modules/cleaning/TransformPipeline'
 import DataGrid from '@/modules/cleaning/DataGrid.vue'
 import TransformPanel from '@/modules/cleaning/TransformPanel.vue'
@@ -13,14 +15,21 @@ import ColumnList from '@/modules/formulas/ColumnList.vue'
 import FormulaEditor from '@/modules/formulas/FormulaEditor.vue'
 import { Check } from '@lucide/vue'
 
-const { t } = useI18n()
-const router = useRouter()
 const dataStore = useDataStore()
 const projectStore = useProjectStore()
+const uiStore = useUiStore()
+const { t } = useI18n()
+const router = useRouter()
 
 const hasData = computed(() => !!dataStore.activeDatasetName)
 
 // Pipeline state
+const isExporting = ref(false)
+
+const leftSidebarWidth = ref(250)
+const rightSidebarWidth = ref(300)
+const isLeftCollapsed = ref(false)
+const isRightCollapsed = ref(false)
 const pipeline = ref(null)
 const previewData = ref([])
 const currentSchema = ref([])
@@ -157,22 +166,48 @@ const handleNewColumn = () => {
     
     <div v-else class="cleaning-workspace">
       <!-- Left Panel: Dataset Selection -->
-      <aside class="cleaning-datasets-sidebar">
-        <ColumnList 
-          :datasets="Array.from(dataStore.datasets.values())"
-          @select-dataset="(name) => dataStore.setActiveDataset(name)"
-        />
+      <aside 
+        class="cleaning-datasets-sidebar"
+        :style="{ width: isLeftCollapsed ? '48px' : leftSidebarWidth + 'px', position: 'relative' }"
+      >
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--color-border); height: 48px; box-sizing: border-box;">
+          <h2 v-if="!isLeftCollapsed" style="font-size: 14px; margin: 0; font-weight: 600;">Datasets</h2>
+          <button @click="isLeftCollapsed = !isLeftCollapsed" :title="isLeftCollapsed ? 'Expandir' : 'Colapsar'" style="background: none; border: none; cursor: pointer; display: flex; color: var(--color-text-secondary); padding: 4px; margin-left: auto;">
+            <PanelLeft v-if="isLeftCollapsed" />
+            <PanelLeftClose v-else />
+          </button>
+        </div>
+        <div v-show="!isLeftCollapsed" style="flex-grow: 1; overflow: hidden; display: flex; flex-direction: column;">
+          <ColumnList 
+            :datasets="Array.from(dataStore.datasets.values())"
+            @select-dataset="(name) => dataStore.setActiveDataset(name)"
+          />
+        </div>
+        <DragResizer v-if="!isLeftCollapsed" v-model:width="leftSidebarWidth" :is-right="true" />
       </aside>
 
       <!-- Middle Panel: Transform Pipeline -->
-      <aside class="cleaning-sidebar">
-        <TransformPanel 
-          :pipeline-steps="pipelineSteps"
-          :schema="currentSchema"
-          @add-step="handleAddStep"
-          @remove-step="handleRemoveStep"
-          @toggle-step="handleToggleStep"
-        />
+      <aside 
+        class="cleaning-sidebar"
+        :style="{ width: isRightCollapsed ? '48px' : rightSidebarWidth + 'px', position: 'relative' }"
+      >
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--color-border); height: 48px; box-sizing: border-box;">
+          <button @click="isRightCollapsed = !isRightCollapsed" :title="isRightCollapsed ? 'Expandir' : 'Colapsar'" style="background: none; border: none; cursor: pointer; display: flex; color: var(--color-text-secondary); padding: 4px; margin-right: 8px;">
+            <PanelRight v-if="isRightCollapsed" />
+            <PanelRightClose v-else />
+          </button>
+          <h2 v-if="!isRightCollapsed" style="font-size: 14px; margin: 0; font-weight: 600; flex-grow: 1;">Transformaciones</h2>
+        </div>
+        <div v-show="!isRightCollapsed" style="flex-grow: 1; overflow: hidden; display: flex; flex-direction: column;">
+          <TransformPanel 
+            :pipeline-steps="pipelineSteps"
+            :schema="currentSchema"
+            @add-step="handleAddStep"
+            @remove-step="handleRemoveStep"
+            @toggle-step="handleToggleStep"
+          />
+        </div>
+        <DragResizer v-if="!isRightCollapsed" v-model:width="rightSidebarWidth" :is-right="true" />
       </aside>
       
       <!-- Right Panel: Data Grid -->
@@ -281,15 +316,23 @@ const handleNewColumn = () => {
 }
 
 .cleaning-datasets-sidebar {
-  width: 250px;
+  background-color: var(--color-bg-primary);
+  border-right: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
   flex-shrink: 0;
   height: 100%;
+  transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .cleaning-sidebar {
-  width: 300px;
+  background-color: var(--color-bg-primary);
+  border-left: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
   flex-shrink: 0;
   height: 100%;
+  transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .cleaning-main {

@@ -3,8 +3,10 @@ import { onMounted, onUnmounted } from 'vue'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import BaseToast from '@/components/ui/BaseToast.vue'
 import { useProjectStore } from '@/stores/projectStore'
+import { useSettingsStore } from '@/stores/settingsStore'
 
 const projectStore = useProjectStore()
+const settingsStore = useSettingsStore()
 
 const handleKeydown = (e) => {
   if (e.ctrlKey && e.key === 's') {
@@ -24,6 +26,8 @@ const handleKeydown = (e) => {
 
 onMounted(() => {
   projectStore.autoLoad()
+  settingsStore.setTheme(settingsStore.theme)
+  settingsStore.setUiScale(settingsStore.uiScale)
   window.addEventListener('keydown', handleKeydown)
 })
 

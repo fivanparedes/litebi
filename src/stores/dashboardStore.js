@@ -19,6 +19,9 @@ export const useDashboardStore = defineStore('dashboard', () => {
   // Filtros globales interactivos
   const globalFilters = ref([])
 
+  // Parámetros globales (What-If)
+  const globalParameters = ref({})
+
   // Getters
   const activeLayout = computed(() => layouts.value[activeTabId.value] || [])
 
@@ -159,6 +162,11 @@ export const useDashboardStore = defineStore('dashboard', () => {
     globalFilters.value = []
   }
 
+  // Actions - Parameters
+  const setParameter = (key, value) => {
+    globalParameters.value = { ...globalParameters.value, [key]: value }
+  }
+
   // --- WebRTC Collaboration Sync ---
   let isSyncingFromRemote = false
 
@@ -212,6 +220,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
     layouts,
     editMode,
     globalFilters,
+    globalParameters,
     activeLayout,
     addTab,
     removeTab,
@@ -226,6 +235,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
     setEditMode,
     addFilter,
     removeFilter,
-    clearFilters
+    clearFilters,
+    setParameter
   }
 })

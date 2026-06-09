@@ -109,6 +109,7 @@ const getTypeIcon = (type) => {
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: var(--space-4);
   padding: var(--space-4) 0;
+  align-items: start;
 }
 
 .dataset-card {

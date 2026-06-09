@@ -5,6 +5,7 @@ import { GridStack } from 'gridstack'
 import { X, Settings, Pause, Play, RefreshCw, Copy, Download } from '@lucide/vue'
 import ChartRenderer from '@/modules/visualization/ChartRenderer.vue'
 import SlicerRenderer from '@/modules/visualization/SlicerRenderer.vue'
+import ParameterRenderer from '@/modules/visualization/ParameterRenderer.vue'
 import CollaboratorCursors from '@/components/collaboration/CollaboratorCursors.vue'
 import { useCollaborationStore } from '@/stores/collaborationStore'
 import { useUiStore } from '@/stores/uiStore'
@@ -233,7 +234,7 @@ const exportCsv = (widgetId) => {
         >
           <div class="widget-header" :style="uiStore.isViewerMode ? { cursor: 'default' } : {}">
             <span class="widget-title">
-              {{ widget.config?.title || (widget.config?.type === 'slicer' ? 'Segmentador' : 'Gráfico') }}
+              {{ widget.config?.title || (widget.config?.type === 'slicer' ? 'Segmentador' : widget.config?.type === 'parameter' ? 'Parámetro' : 'Gráfico') }}
               <span v-if="widget.config?.isPaused" class="paused-badge">(Pausado)</span>
             </span>
             <div v-if="!uiStore.isViewerMode" class="widget-actions">
@@ -250,6 +251,7 @@ const exportCsv = (widgetId) => {
           </div>
           <div class="widget-body">
             <SlicerRenderer v-if="widget.config?.type === 'slicer'" :config="widget.config" />
+            <ParameterRenderer v-else-if="widget.config?.type === 'parameter'" :config="widget.config" />
             <ChartRenderer 
               v-else-if="widget.config" 
               ref="renderers"
