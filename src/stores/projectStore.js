@@ -31,7 +31,7 @@ export const useProjectStore = defineStore('project', () => {
   const pushToHistory = async () => {
     if (isRestoringHistory) return
     try {
-      const json = await serializeProject(dataStore, formulaStore, dashboardStore, reportStore)
+      const json = await serializeProject(dataStore, formulaStore, dashboardStore, reportStore, { includeData: false })
       historyManager.pushState(json)
     } catch (e) {
       console.error("Error saving history state:", e)
@@ -88,7 +88,7 @@ export const useProjectStore = defineStore('project', () => {
       if (fileHandle.value) {
         saveProject()
       }
-    }, 3000)
+    }, 5000)
   }
 
   const autoLoad = async () => {
@@ -226,10 +226,10 @@ export const useProjectStore = defineStore('project', () => {
     if (!historyManager.canUndo()) return
     isRestoringHistory = true
     try {
-      const currentState = await serializeProject(dataStore, formulaStore, dashboardStore, reportStore)
+      const currentState = await serializeProject(dataStore, formulaStore, dashboardStore, reportStore, { includeData: false })
       const previousState = historyManager.undo(currentState)
       if (previousState) {
-        await deserializeProject(previousState, dataStore, formulaStore, dashboardStore, reportStore)
+        await deserializeProject(previousState, dataStore, formulaStore, dashboardStore, reportStore, { includeData: false })
       }
     } catch (e) {
       console.error("Error undoing:", e)
@@ -242,10 +242,10 @@ export const useProjectStore = defineStore('project', () => {
     if (!historyManager.canRedo()) return
     isRestoringHistory = true
     try {
-      const currentState = await serializeProject(dataStore, formulaStore, dashboardStore, reportStore)
+      const currentState = await serializeProject(dataStore, formulaStore, dashboardStore, reportStore, { includeData: false })
       const nextState = historyManager.redo(currentState)
       if (nextState) {
-        await deserializeProject(nextState, dataStore, formulaStore, dashboardStore, reportStore)
+        await deserializeProject(nextState, dataStore, formulaStore, dashboardStore, reportStore, { includeData: false })
       }
     } catch (e) {
       console.error("Error redoing:", e)

@@ -113,17 +113,22 @@ const validateProject = (project) => {
  * @param {Object} dataStore
  * @param {Object} formulaStore
  * @param {Object} dashboardStore
+ * @param {Object} reportStore
+ * @param {Object} options - { includeData: boolean }
  * @returns {Promise<string>} JSON string del proyecto
  */
-export const serializeProject = async (dataStore, formulaStore, dashboardStore, reportStore) => {
+export const serializeProject = async (dataStore, formulaStore, dashboardStore, reportStore, options = { includeData: true }) => {
   // Convert DataStore datasets map to array
   const datasets = []
   
-  // Get actual table data from AlaSQL Worker
-  const allTables = await sqlClient.exportDb()
+  // Get actual table data from AlaSQL Worker solo si se requiere (ahorro de RAM en History)
+  let allTables = {}
+  if (options.includeData) {
+    allTables = await sqlClient.exportDb()
+  }
 
   dataStore.datasets.forEach((meta, name) => {
-    const tableData = allTables[name] || []
+    const tableData = options.includeData ? (allTables[name] || []) : []
     datasets.push({
       name,
       meta,
@@ -172,7 +177,7 @@ export const serializeProject = async (dataStore, formulaStore, dashboardStore, 
  * @param {Object} reportStore
  * @returns {Promise<boolean>} true si la restauración fue exitosa
  */
-export const deserializeProject = async (jsonString, dataStore, formulaStore, dashboardStore, reportStore) => {
+export const deserializeProject = async (jsonString, dataStore, formulaStore, dashboardStore, reportStore, options = { includeData: true }) => {
   // --- Paso 0: Validar tamaño del JSON ---
   if (typeof jsonString !== 'string') {
     throw new Error('El contenido proporcionado no es una cadena de texto válida.')
@@ -196,7 +201,10 @@ export const deserializeProject = async (jsonString, dataStore, formulaStore, da
   }
 
   // --- Paso 2: Validar estructura completa ANTES de modificar estado ---
-  validateProject(project)
+  // If we are restoring from history, data arrays might be empty, so skip data array validation
+  if (options.includeData) {
+    validateProject(project)
+  }
 
   // --- Paso 3: Migrar versión si es necesario ---
   if (project.version !== CURRENT_VERSION) {
@@ -225,17 +233,26 @@ export const deserializeProject = async (jsonString, dataStore, formulaStore, da
 
   try {
     // --- Paso 5: Restaurar datos ---
-    // Limpiar datasets actuales (seguro porque ya validamos todo arriba)
-    dataStore.datasets.clear()
+    if (options.includeData) {
+      // Limpiar datasets actuales
+      dataStore.datasets.clear()
 
-    const tablesToImport = {}
-    project.data.datasets.forEach(ds => {
-      tablesToImport[ds.name] = ds.data
-      dataStore.datasets.set(ds.name, ds.meta)
-    })
+      const tablesToImport = {}
+      project.data.datasets.forEach(ds => {
+        tablesToImport[ds.name] = ds.data
+        dataStore.datasets.set(ds.name, ds.meta)
+      })
 
-    // Import into worker
-    await sqlClient.importDb(tablesToImport)
+      // Import into worker
+      await sqlClient.importDb(tablesToImport)
+    } else {
+      // Only restore metadata for existing datasets
+      project.data.datasets.forEach(ds => {
+        if (dataStore.datasets.has(ds.name)) {
+          dataStore.datasets.set(ds.name, ds.meta)
+        }
+      })
+    }
 
     dataStore.activeDatasetName = project.data.activeDatasetName || null
     dataStore.relationships = project.data.relationships || []

@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, watch, onMounted } from 'vue'
+import { computed, ref, shallowRef, watch, onMounted } from 'vue'
 import { useDataStore } from '@/stores/dataStore'
 import { useDashboardStore } from '@/stores/dashboardStore'
 import { useSettingsStore } from '@/stores/settingsStore'
@@ -82,7 +82,7 @@ const settingsStore = useSettingsStore()
 const uiStore = useUiStore()
 const formulaStore = useFormulaStore()
 
-const chartData = ref([])
+const chartData = shallowRef([])
 const kpiValue = ref(0)
 const isLoading = ref(false)
 const datasetMissing = ref(false)
