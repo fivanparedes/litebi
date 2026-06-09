@@ -37,7 +37,7 @@ const getTypeIcon = (type) => {
     
     <div class="columns-scroll">
       <div v-for="dataset in datasets" :key="dataset.name" class="dataset-group">
-        <div class="dataset-group__header" @click="toggleDataset(dataset.name)">
+        <div class="dataset-group__header" tabindex="0" @click="toggleDataset(dataset.name)" @keydown.enter="toggleDataset(dataset.name)">
           <span class="dataset-group__icon">
             <svg v-if="!expandedDatasets[dataset.name]" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
             <svg v-else xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
@@ -51,7 +51,9 @@ const getTypeIcon = (type) => {
             v-for="col in dataset.schema" 
             :key="col.name"
             class="column-item"
+            tabindex="0"
             @click="emit('insert-column', `[${dataset.name}].[${col.name}]`)"
+            @keydown.enter="emit('insert-column', `[${dataset.name}].[${col.name}]`)"
           >
             <div class="column-item__left">
               <div class="column-item__icon-wrapper">

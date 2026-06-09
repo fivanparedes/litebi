@@ -13,7 +13,7 @@ import DataGrid from '@/modules/cleaning/DataGrid.vue'
 import TransformPanel from '@/modules/cleaning/TransformPanel.vue'
 import ColumnList from '@/modules/formulas/ColumnList.vue'
 import FormulaEditor from '@/modules/formulas/FormulaEditor.vue'
-import { Check } from '@lucide/vue'
+import { Check, Play, Plus } from '@lucide/vue'
 
 const dataStore = useDataStore()
 const projectStore = useProjectStore()
@@ -103,11 +103,10 @@ const selectedColumn = ref('')
 const isComputedColumn = ref(false)
 const formulaExpression = ref('')
 const newColumnName = ref('')
-const showNewColumnInput = ref(false)
 
 const handleColumnSelected = (colName) => {
   selectedColumn.value = colName
-  showNewColumnInput.value = false
+  newColumnName.value = colName
   
   const step = pipelineSteps.value.find(s => s.transformId === 'add_formula' && s.config.newColumnName === colName)
   if (step) {
@@ -119,28 +118,29 @@ const handleColumnSelected = (colName) => {
   }
 }
 
-const handleSaveFormula = () => {
-  if (showNewColumnInput.value) {
-    if (!newColumnName.value || !formulaExpression.value) return
+const handleExecuteFormula = () => {
+  if (!newColumnName.value || !formulaExpression.value) return
+  
+  // Si la columna ya tiene una formula asociada en el pipeline, la actualizamos
+  const stepIndex = pipeline.value.steps.findIndex(s => s.transformId === 'add_formula' && s.config.newColumnName === newColumnName.value)
+  if (stepIndex !== -1) {
+    pipeline.value.steps[stepIndex].config.expression = formulaExpression.value
+    updatePreview()
+  } else {
+    // Es una nueva columna o sobrescribiendo una que no tenía paso
     handleAddStep('add_formula', {
       newColumnName: newColumnName.value,
       expression: formulaExpression.value
     })
-    showNewColumnInput.value = false
-  } else if (isComputedColumn.value && selectedColumn.value) {
-    const stepIndex = pipeline.value.steps.findIndex(s => s.transformId === 'add_formula' && s.config.newColumnName === selectedColumn.value)
-    if (stepIndex !== -1) {
-      pipeline.value.steps[stepIndex].config.expression = formulaExpression.value
-      updatePreview()
-    }
+    isComputedColumn.value = true
+    selectedColumn.value = newColumnName.value
   }
 }
 
 const handleNewColumn = () => {
   selectedColumn.value = ''
   isComputedColumn.value = false
-  showNewColumnInput.value = true
-  newColumnName.value = 'Nueva Columna'
+  newColumnName.value = ''
   formulaExpression.value = ''
 }
 </script>
@@ -228,12 +228,12 @@ const handleNewColumn = () => {
             <div class="formula-bar">
               <span class="formula-icon"><i>fx</i></span>
               
-              <div v-if="showNewColumnInput" class="new-col-inputs">
-                <input v-model="newColumnName" class="new-col-name" placeholder="Nombre..." />
+              <div class="new-col-inputs">
+                <input v-focus v-model="newColumnName" class="new-col-name" placeholder="Nombre de columna..." />
                 <span>=</span>
               </div>
               
-              <div class="formula-editor-wrapper" :class="{'is-readonly': !isComputedColumn && !showNewColumnInput}">
+              <div class="formula-editor-wrapper">
                 <FormulaEditor 
                   v-model="formulaExpression" 
                   :schema="currentSchema" 
@@ -242,14 +242,16 @@ const handleNewColumn = () => {
               
               <button 
                 class="formula-save-btn" 
-                :disabled="(!isComputedColumn && !showNewColumnInput) || !formulaExpression"
-                @click="handleSaveFormula"
-                title="Guardar Fórmula"
+                :disabled="!newColumnName || !formulaExpression"
+                @click="handleExecuteFormula"
+                title="Ejecutar Fórmula"
               >
-                <Check />
+                <Play />
               </button>
             </div>
-            <BaseButton variant="ghost" size="sm" @click="handleNewColumn" style="flex-shrink: 0;">+ Nueva Columna</BaseButton>
+            <BaseButton variant="ghost" size="sm" @click="handleNewColumn" style="flex-shrink: 0;" title="Limpiar y crear nueva">
+              <Plus />
+            </BaseButton>
           </div>
 
           <div class="cleaning-main__grid">
@@ -451,10 +453,6 @@ const handleNewColumn = () => {
   display: flex;
 }
 
-.formula-editor-wrapper.is-readonly {
-  opacity: 0.7;
-  pointer-events: none;
-}
 
 .formula-save-btn {
   display: flex;

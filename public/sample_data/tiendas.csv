@@ -1,0 +1,51 @@
+TiendaID,Region,Ciudad,TipoTienda
+T-001,Sur,Palma,Aeropuerto
+T-002,Sur,Zaragoza,Mall
+T-003,Este,Barcelona,Mall
+T-004,Norte,Bilbao,Aeropuerto
+T-005,Sur,Valencia,Mall
+T-006,Centro,Zaragoza,Calle Principal
+T-007,Norte,Palma,Mall
+T-008,Oeste,Bilbao,Outlet
+T-009,Norte,Valencia,Calle Principal
+T-010,Sur,Las Palmas,Outlet
+T-011,Centro,Murcia,Aeropuerto
+T-012,Sur,Madrid,Outlet
+T-013,Centro,Valencia,Mall
+T-014,Este,Bilbao,Aeropuerto
+T-015,Centro,Sevilla,Calle Principal
+T-016,Sur,Murcia,Calle Principal
+T-017,Este,Zaragoza,Aeropuerto
+T-018,Oeste,Murcia,Aeropuerto
+T-019,Centro,Palma,Aeropuerto
+T-020,Oeste,Palma,Aeropuerto
+T-021,Centro,Zaragoza,Calle Principal
+T-022,Este,Madrid,Calle Principal
+T-023,Centro,Barcelona,Aeropuerto
+T-024,Sur,Zaragoza,Aeropuerto
+T-025,Norte,Valencia,Aeropuerto
+T-026,Sur,Zaragoza,Calle Principal
+T-027,Centro,Barcelona,Calle Principal
+T-028,Norte,Sevilla,Aeropuerto
+T-029,Centro,Las Palmas,Aeropuerto
+T-030,Oeste,Palma,Calle Principal
+T-031,Este,Murcia,Mall
+T-032,Sur,Zaragoza,Outlet
+T-033,Oeste,Murcia,Calle Principal
+T-034,Oeste,Madrid,Calle Principal
+T-035,Norte,Malaga,Mall
+T-036,Sur,Las Palmas,Outlet
+T-037,Centro,Murcia,Aeropuerto
+T-038,Oeste,Madrid,Mall
+T-039,Este,Valencia,Calle Principal
+T-040,Este,Madrid,Aeropuerto
+T-041,Oeste,Madrid,Aeropuerto
+T-042,Centro,Murcia,Outlet
+T-043,Oeste,Bilbao,Outlet
+T-044,Oeste,Valencia,Calle Principal
+T-045,Este,Madrid,Calle Principal
+T-046,Norte,Sevilla,Aeropuerto
+T-047,Sur,Barcelona,Outlet
+T-048,Este,Murcia,Outlet
+T-049,Sur,Valencia,Aeropuerto
+T-050,Oeste,Murcia,Aeropuerto

@@ -50,8 +50,10 @@ const handleImageUpload = (e) => {
         <div class="form-group">
           <label>Nombre de la Pestaña</label>
           <BaseInput 
+            v-focus
             :model-value="tab?.name || ''" 
             @update:model-value="val => dashboardStore.renameTab(tabId, val)"
+            @keyup.enter="emit('close')"
           />
         </div>
         

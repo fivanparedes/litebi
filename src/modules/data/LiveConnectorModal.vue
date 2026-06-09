@@ -162,9 +162,11 @@ const handleTest = async () => {
       </div>
       
       <BaseInput 
+        v-focus
         v-model="credentials.datasetName" 
         label="Nombre del Dataset Resultante" 
         placeholder="Ej: Ventas_Actuales" 
+        @keyup.enter="handleConnect"
       />
       
       <!-- SQL Form -->

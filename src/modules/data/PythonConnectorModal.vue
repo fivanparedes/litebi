@@ -99,7 +99,7 @@ const handleClose = () => {
     <div class="python-connector">
       <div class="form-group">
         <label>Nombre del Dataset</label>
-        <BaseInput v-model="datasetName" placeholder="ej. Ventas_Pandas" />
+        <BaseInput v-focus v-model="datasetName" placeholder="ej. Ventas_Pandas" @keyup.enter="handleExecuteAndPreview" />
       </div>
       
       <div class="form-group">

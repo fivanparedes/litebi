@@ -11,12 +11,14 @@ import DashboardTabs from '@/modules/dashboard/DashboardTabs.vue'
 import DashboardCanvas from '@/modules/dashboard/DashboardCanvas.vue'
 import WidgetConfigurator from '@/modules/visualization/WidgetConfigurator.vue'
 import DashboardTabSettingsModal from '@/modules/dashboard/DashboardTabSettingsModal.vue'
+import { useSettingsStore } from '@/stores/settingsStore'
 
 const { t } = useI18n()
 const router = useRouter()
 const dataStore = useDataStore()
 const dashboardStore = useDashboardStore()
 const uiStore = useUiStore()
+const settingsStore = useSettingsStore()
 
 const hasData = computed(() => !!dataStore.activeDatasetName)
 
@@ -42,6 +44,15 @@ const workspaceStyle = computed(() => {
     styles.backgroundPosition = 'center'
     styles.backgroundRepeat = 'no-repeat'
   }
+  
+  // Fallback to palette specific dashboardBg if no custom background is set
+  if (!styles.backgroundColor && !styles.backgroundImage) {
+    const palette = settingsStore.palettes[settingsStore.chartPaletteId]
+    if (palette && palette.dashboardBg) {
+      styles.backgroundColor = palette.dashboardBg
+    }
+  }
+  
   return styles
 })
 

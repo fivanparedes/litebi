@@ -4,6 +4,7 @@ import { Upload, FileSpreadsheet, AlertTriangle, Loader2 } from '@lucide/vue'
 import { parseCsv } from './CsvParser'
 import { parseXlsx } from './XlsxParser'
 import { useDataStore } from '@/stores/dataStore'
+import BaseButton from '@/components/ui/BaseButton.vue'
 const emit = defineEmits(['imported', 'cancel', 'preview'])
 
 const dataStore = useDataStore()
@@ -39,23 +40,35 @@ const handleDrop = (e) => {
   isDragging.value = false
   
   if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-    processFile(e.dataTransfer.files[0], isFastImport.value)
+    processFiles(Array.from(e.dataTransfer.files))
   }
 }
 
 const handleFileSelect = (e) => {
   if (e.target.files && e.target.files.length > 0) {
-    processFile(e.target.files[0], isFastImport.value)
+    processFiles(Array.from(e.target.files))
   }
 }
 
-const processFile = async (file, isFastImport = false) => {
+const processFiles = async (files) => {
+  if (files.length === 0) return
+  
+  const forceFastImport = files.length > 1 || isFastImport.value
+  
+  for (const file of files) {
+    await processFile(file, forceFastImport)
+  }
+  
+  if (fileInput.value) fileInput.value.value = ''
+}
+
+const processFile = async (file, fastImport) => {
   error.value = null
   
   // Basic validation
   const extension = file.name.split('.').pop().toLowerCase()
   if (!['csv', 'xlsx', 'xls'].includes(extension)) {
-    error.value = 'Formato de archivo no soportado. Por favor usa CSV o Excel.'
+    error.value = `El archivo ${file.name} no es soportado.`
     return
   }
 
@@ -73,19 +86,17 @@ const processFile = async (file, isFastImport = false) => {
     // Clean up filename to use as dataset name
     const datasetName = file.name.replace(/\.[^/.]+$/, "")
     
-    if (isFastImport) {
-      dataStore.addDataset(datasetName, parsedData.data, parsedData.schema)
+    if (fastImport) {
+      await dataStore.addDataset(datasetName, parsedData.data, parsedData.schema)
       emit('imported', datasetName)
     } else {
       emit('preview', { datasetName, parsedData })
     }
   } catch (err) {
-    console.error('Error procesando archivo:', err)
-    error.value = err.message || 'Error desconocido al procesar el archivo'
+    console.error(`Error procesando archivo ${file.name}:`, err)
+    error.value = err.message || `Error desconocido al procesar ${file.name}`
   } finally {
     isLoading.value = false
-    // Reset file input
-    if (fileInput.value) fileInput.value.value = ''
   }
 }
 
@@ -123,6 +134,7 @@ const loadExampleData = async () => {
         type="file" 
         class="file-input" 
         accept=".csv, .xlsx, .xls"
+        multiple
         @change="handleFileSelect"
       >
       

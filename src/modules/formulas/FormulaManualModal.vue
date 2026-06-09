@@ -94,7 +94,7 @@ END</code></pre>
     </div>
     
     <template #footer>
-      <BaseButton variant="primary" @click="close">Entendido</BaseButton>
+      <BaseButton variant="primary" v-focus @click="close">Entendido</BaseButton>
     </template>
   </BaseModal>
 </template>
