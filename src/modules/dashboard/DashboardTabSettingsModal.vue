@@ -82,7 +82,7 @@ const handleImageUpload = (e) => {
           <input type="file" accept="image/*" @change="handleImageUpload" />
         </div>
         
-        <div class="form-group" v-if="settings.backgroundImage">
+        <div v-if="settings.backgroundImage" class="form-group">
           <label>Ajuste de Imagen</label>
           <BaseDropdown 
             :model-value="settings.backgroundSize || 'cover'" 
@@ -118,7 +118,7 @@ const handleImageUpload = (e) => {
 }
 
 .modal-content {
-  background-color: var(--color-bg-surface);
+  background-color: var(--background);
   border-radius: var(--radius-lg);
   width: 100%;
   max-width: 450px;
@@ -147,7 +147,7 @@ const handleImageUpload = (e) => {
   border: none;
   font-size: 1.5rem;
   line-height: 1;
-  color: var(--color-text-secondary);
+  color: var(--muted-foreground);
   cursor: pointer;
 }
 
@@ -168,7 +168,7 @@ const handleImageUpload = (e) => {
 .form-group label {
   font-size: var(--text-sm);
   font-weight: var(--font-medium);
-  color: var(--color-text-secondary);
+  color: var(--muted-foreground);
 }
 
 .divider {

@@ -18,6 +18,11 @@ const props = defineProps({
   disabled: {
     type: Boolean,
     default: false
+  },
+  size: {
+    type: String,
+    default: 'default',
+    validator: (v) => ['default', 'compact'].includes(v)
   }
 })
 
@@ -58,7 +63,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div ref="dropdownRef" class="dropdown" :class="{ 'dropdown--disabled': disabled }">
+  <div ref="dropdownRef" class="dropdown" :class="[{ 'dropdown--disabled': disabled }, `dropdown--size-${size}`]">
     <div 
       class="dropdown__trigger" 
       role="combobox"
@@ -111,13 +116,13 @@ onUnmounted(() => {
   align-items: center;
   justify-content: space-between;
   height: 36px;
-  padding: 0 var(--space-3);
-  background-color: var(--color-bg-surface);
+  padding: 0 var(--space-4);
+  background-color: var(--card);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   cursor: pointer;
   font-size: var(--text-sm);
-  color: var(--color-text-primary);
+  color: var(--foreground);
   transition: all var(--transition-fast);
 }
 
@@ -136,7 +141,7 @@ onUnmounted(() => {
 }
 
 .dropdown__placeholder {
-  color: var(--color-text-secondary);
+  color: var(--muted-foreground);
 }
 
 .dropdown__selected {
@@ -148,7 +153,7 @@ onUnmounted(() => {
 .dropdown__chevron {
   width: 16px;
   height: 16px;
-  color: var(--color-text-secondary);
+  color: var(--muted-foreground);
   transition: transform var(--transition-fast);
 }
 
@@ -161,7 +166,7 @@ onUnmounted(() => {
   top: calc(100% + var(--space-1));
   left: 0;
   width: 100%;
-  background-color: var(--color-bg-surface);
+  background-color: var(--background);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);
@@ -174,15 +179,15 @@ onUnmounted(() => {
 .dropdown__item {
   display: flex;
   align-items: center;
-  padding: var(--space-2) var(--space-3);
+  padding: var(--space-2) var(--space-4);
   cursor: pointer;
   font-size: var(--text-sm);
-  color: var(--color-text-primary);
+  color: var(--foreground);
   transition: background-color var(--transition-fast);
 }
 
 .dropdown__item:hover {
-  background-color: var(--color-bg-secondary);
+  background-color: var(--muted);
 }
 
 .dropdown__item--selected {
@@ -212,8 +217,32 @@ onUnmounted(() => {
 
 .dropdown__empty {
   padding: var(--space-2) var(--space-3);
-  color: var(--color-text-secondary);
+  color: var(--muted-foreground);
   font-size: var(--text-sm);
   text-align: center;
+}
+
+/* Compact dropdown styles */
+.dropdown--size-compact .dropdown__trigger {
+  height: 28px;
+  padding: 0 var(--space-2);
+  font-size: var(--text-xs);
+}
+.dropdown--size-compact .dropdown__chevron {
+  width: 12px;
+  height: 12px;
+}
+.dropdown--size-compact .dropdown__item {
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-xs);
+}
+.dropdown--size-compact .dropdown__item-icon,
+.dropdown--size-compact .dropdown__item-check {
+  width: 12px;
+  height: 12px;
+}
+.dropdown--size-compact .dropdown__empty {
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-xs);
 }
 </style>

@@ -1,290 +1,272 @@
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed } from 'vue'
+import { Sigma, CalendarClock, Percent, Calculator, Filter, X } from '@lucide/vue'
 import BaseModal from '@/components/ui/BaseModal.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
-import BaseDropdown from '@/components/ui/BaseDropdown.vue'
+import CodeEditor from '@/components/ui/CodeEditor.vue'
 
 const props = defineProps({
-  modelValue: {
-    type: Boolean,
-    default: false
-  },
-  schema: {
-    type: Array,
-    default: () => []
-  },
-  datasetName: {
-    type: String,
-    default: ''
-  }
+  modelValue: { type: Boolean, default: false },
+  schema: { type: Array, default: () => [] }
 })
 
-const emit = defineEmits(['update:modelValue', 'generate'])
+const emit = defineEmits(['update:modelValue', 'insert-measure'])
 
-const categoryOptions = [
-  { value: 'agregacion', label: 'Agregación' },
-  { value: 'matematicas', label: 'Matemáticas' },
-  { value: 'texto', label: 'Texto' },
-  { value: 'tiempo', label: 'Inteligencia de Tiempo' }
+const categories = [
+  { id: 'aggregations', label: 'Aggregations per category', icon: Sigma },
+  { id: 'time', label: 'Time intelligence', icon: CalendarClock },
+  { id: 'totals', label: '% Totals & ratios', icon: Percent },
+  { id: 'math', label: 'Mathematical operations', icon: Calculator },
+  { id: 'filters', label: 'Filters', icon: Filter }
 ]
 
-const measuresMap = {
-  agregacion: [
-    {
-      value: 'running_total', label: 'Suma Acumulada',
-      description: 'Calcula la suma de un valor a lo largo de un orden.',
-      parameters: [
-        { id: 'valor', label: 'Valor a sumar', type: 'column' },
-        { id: 'orden', label: 'Ordenar por', type: 'column' }
-      ],
-      template: (p, ds) => `(SELECT SUM([${p.valor}]) FROM [${ds}] b WHERE b.[${p.orden}] <= [${ds}].[${p.orden}])`
-    }
+const measures = {
+  aggregations: [
+    { id: 'sum', name: 'Sum', desc: 'Calculates the sum of a column.' },
+    { id: 'avg', name: 'Average', desc: 'Calculates the average of a column.' },
+    { id: 'min', name: 'Minimum', desc: 'Finds the minimum value of a column.' },
+    { id: 'max', name: 'Maximum', desc: 'Finds the maximum value of a column.' },
+    { id: 'count', name: 'Count', desc: 'Counts the number of rows.' },
+    { id: 'distinct', name: 'Count Distinct', desc: 'Counts the number of unique values.' }
   ],
-  matematicas: [
-    {
-      value: 'ratio', label: 'Ratio',
-      description: 'Divide un valor base por un valor a comparar.',
-      parameters: [
-        { id: 'base', label: 'Valor Base', type: 'column' },
-        { id: 'compare', label: 'Valor a Comparar', type: 'column' }
-      ],
-      template: (p) => `IFNULL([${p.base}] / NULLIF([${p.compare}], 0), 0)`
-    },
-    {
-      value: 'percent_diff', label: 'Diferencia Porcentual',
-      description: 'Calcula la diferencia porcentual entre dos valores.',
-      parameters: [
-        { id: 'actual', label: 'Valor Actual', type: 'column' },
-        { id: 'anterior', label: 'Valor Anterior', type: 'column' }
-      ],
-      template: (p) => `([${p.actual}] - [${p.anterior}]) / NULLIF([${p.anterior}], 0)`
-    },
-    {
-      value: 'multiplicacion', label: 'Multiplicación',
-      description: 'Multiplica dos columnas.',
-      parameters: [
-        { id: 'val1', label: 'Valor 1', type: 'column' },
-        { id: 'val2', label: 'Valor 2', type: 'column' }
-      ],
-      template: (p) => `[${p.val1}] * [${p.val2}]`
-    }
+  time: [
+    { id: 'yoy', name: 'Year-over-year change', desc: 'Compares a measure to the same period last year.' },
+    { id: 'ytd', name: 'Year-to-date total', desc: 'Cumulative sum from the start of the fiscal year.' },
+    { id: 'rolling', name: 'Rolling average', desc: 'Trailing N-period average of a measure.' }
   ],
-  texto: [
-    {
-      value: 'concat', label: 'Concatenar',
-      description: 'Une dos columnas de texto con un espacio entre ellas.',
-      parameters: [
-        { id: 't1', label: 'Texto 1', type: 'column' },
-        { id: 't2', label: 'Texto 2', type: 'column' }
-      ],
-      template: (p) => `[${p.t1}] || ' ' || [${p.t2}]`
-    },
-    {
-      value: 'upper', label: 'Mayúsculas',
-      description: 'Convierte un texto a mayúsculas.',
-      parameters: [
-        { id: 'text', label: 'Texto', type: 'column' }
-      ],
-      template: (p) => `UPPER([${p.text}])`
-    }
+  totals: [
+    { id: 'pct_total', name: '% of grand total', desc: 'Percentage over the total sum.' },
+    { id: 'ratio', name: 'Ratio', desc: 'Divides one measure by another.' }
   ],
-  tiempo: [
-    {
-      value: 'year_over_year', label: 'Año sobre Año (Year-over-Year)',
-      description: 'Variación de un valor respecto al registro anterior basado en el orden de fecha.',
-      parameters: [
-        { id: 'val', label: 'Valor', type: 'column' },
-        { id: 'date', label: 'Columna de Fecha (Orden)', type: 'column' }
-      ],
-      template: (p, ds) => `([${p.val}] - (SELECT TOP 1 [${p.val}] FROM [${ds}] b WHERE b.[${p.date}] < [${ds}].[${p.date}] ORDER BY b.[${p.date}] DESC)) / NULLIF((SELECT TOP 1 [${p.val}] FROM [${ds}] b WHERE b.[${p.date}] < [${ds}].[${p.date}] ORDER BY b.[${p.date}] DESC), 0)`
-    },
-    {
-      value: 'year', label: 'Año',
-      description: 'Extrae el año de una columna de fecha.',
-      parameters: [
-        { id: 'date', label: 'Fecha', type: 'column' }
-      ],
-      template: (p) => `YEAR([${p.date}])`
-    },
-    {
-      value: 'datediff', label: 'Diferencia en Días',
-      description: 'Días transcurridos entre dos fechas.',
-      parameters: [
-        { id: 'start', label: 'Fecha Inicio', type: 'column' },
-        { id: 'end', label: 'Fecha Fin', type: 'column' }
-      ],
-      template: (p) => `DATEDIFF('day', [${p.start}], [${p.end}])`
-    }
+  math: [
+    { id: 'add', name: 'Addition', desc: 'Adds two values.' },
+    { id: 'sub', name: 'Subtraction', desc: 'Subtracts one value from another.' },
+    { id: 'mul', name: 'Multiplication', desc: 'Multiplies two values.' },
+    { id: 'div', name: 'Division', desc: 'Divides one value by another.' }
+  ],
+  filters: [
+    { id: 'filtered', name: 'Filtered measure', desc: 'Applies a condition to the calculation.' }
   ]
 }
 
-const selectedCategory = ref(null)
-const selectedMeasureValue = ref(null)
-const parameterValues = ref({})
+const activeCategory = ref('time')
+const activeMeasure = ref('yoy')
 
-const columnOptions = computed(() => {
-  return props.schema.map(col => ({ value: col.name, label: col.name }))
+const baseMeasure = ref('')
+const compareMeasure = ref('')
+const dateColumn = ref('')
+const filterColumn = ref('')
+const filterValue = ref('Value')
+
+const currentMeasureList = computed(() => measures[activeCategory.value] || [])
+const activeMeasureDetails = computed(() => currentMeasureList.value.find(m => m.id === activeMeasure.value))
+
+const requiredInputs = computed(() => {
+  const m = activeMeasure.value
+  const c = activeCategory.value
+  
+  if (c === 'time') return ['base', 'date']
+  if (c === 'math' || m === 'ratio') return ['base', 'compare']
+  if (c === 'filters') return ['base', 'filterCol', 'filterVal']
+  
+  return ['base']
 })
 
-const currentMeasureOptions = computed(() => {
-  if (!selectedCategory.value) return []
-  return measuresMap[selectedCategory.value] || []
+const customPreview = ref(null)
+
+import { watch } from 'vue'
+watch([activeMeasure, baseMeasure, compareMeasure, dateColumn, filterColumn, filterValue], () => {
+  customPreview.value = null
 })
 
-const activeMeasure = computed(() => {
-  if (!selectedCategory.value || !selectedMeasureValue.value) return null
-  return currentMeasureOptions.value.find(m => m.value === selectedMeasureValue.value)
-})
+const previewDax = computed({
+  get() {
+    if (customPreview.value !== null) return customPreview.value
+    
+    const m = activeMeasure.value
+    const b = baseMeasure.value || '"Column"'
+    const c = compareMeasure.value || '"Other Column"'
+    const d = dateColumn.value || '"dim_date"."date"'
+    const fc = filterColumn.value || '"Category"'
+    const fv = filterValue.value || 'Value'
 
-watch(selectedCategory, () => {
-  selectedMeasureValue.value = null
-  parameterValues.value = {}
-})
+    // Aggregations
+  if (m === 'sum') return `SUM( ${b} )`
+  if (m === 'avg') return `AVG( ${b} )`
+  if (m === 'min') return `MIN( ${b} )`
+  if (m === 'max') return `MAX( ${b} )`
+  if (m === 'count') return `COUNT( ${b} )`
+  if (m === 'distinct') return `COUNT( DISTINCT ${b} )`
 
-watch(selectedMeasureValue, () => {
-  parameterValues.value = {}
-  if (activeMeasure.value) {
-    activeMeasure.value.parameters.forEach(p => {
-      parameterValues.value[p.id] = null
-    })
+  // Totals & Ratios
+  if (m === 'pct_total') return `SUM( ${b} ) / NULLIF(SUM(SUM( ${b} )) OVER (), 0)`
+  if (m === 'ratio') return `SUM( ${b} ) / NULLIF(SUM( ${c} ), 0)`
+
+  // Math
+  if (m === 'add') return `SUM( ${b} ) + SUM( ${c} )`
+  if (m === 'sub') return `SUM( ${b} ) - SUM( ${c} )`
+  if (m === 'mul') return `SUM( ${b} ) * SUM( ${c} )`
+  if (m === 'div') return `SUM( ${b} ) / NULLIF(SUM( ${c} ), 0)`
+
+  // Filters
+  if (m === 'filtered') return `SUM( CASE WHEN ${fc} = '${fv}' THEN ${b} ELSE 0 END )`
+
+  // Time Intelligence (SQL approach using Window Functions or basic lag)
+  if (m === 'yoy') {
+    return `-- Requiere que la consulta esté agrupada por año
+-- y utiliza funciones de ventana (LAG)
+(SUM( ${b} ) - LAG(SUM( ${b} ), 1) OVER (ORDER BY ${d}))
+/ NULLIF(LAG(SUM( ${b} ), 1) OVER (ORDER BY ${d}), 0)`
   }
-})
+  if (m === 'ytd') {
+    return `-- Suma acumulativa en el año actual
+SUM(SUM( ${b} )) OVER (
+  PARTITION BY DATE_TRUNC('year', ${d}) 
+  ORDER BY ${d}
+  ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+)`
+  }
+  if (m === 'rolling') {
+    return `-- Promedio móvil de 3 periodos
+AVG(SUM( ${b} )) OVER (
+  ORDER BY ${d}
+  ROWS BETWEEN 2 PRECEDING AND CURRENT ROW
+)`
+  }
 
-const generatedExpression = computed(() => {
-  if (!activeMeasure.value) return ''
-  
-  const isComplete = activeMeasure.value.parameters.every(p => parameterValues.value[p.id])
-  if (!isComplete) return ''
-  
-  return activeMeasure.value.template(parameterValues.value, props.datasetName)
-})
-
-const canGenerate = computed(() => {
-  return generatedExpression.value !== ''
+  return '-- SQL Preview will appear here'
+  },
+  set(val) {
+    customPreview.value = val
+  }
 })
 
 const close = () => {
   emit('update:modelValue', false)
 }
 
-const handleGenerate = () => {
-  if (canGenerate.value) {
-    emit('generate', generatedExpression.value)
-    close()
-  }
+const insert = () => {
+  emit('insert-measure', previewDax.value)
+  close()
 }
 </script>
 
 <template>
-  <BaseModal
-    :model-value="modelValue"
-    @update:model-value="val => emit('update:modelValue', val)"
-    title="Medidas Rápidas"
-    size="md"
-  >
-    <div class="quick-measures">
-      <div class="form-group">
-        <label>Categoría</label>
-        <BaseDropdown 
-          v-model="selectedCategory" 
-          :options="categoryOptions" 
-          placeholder="Seleccionar categoría..." 
-        />
-      </div>
+  <!-- Render custom modal layout to perfectly match mockup, skipping BaseModal if it adds padding we don't want, but BaseModal is fine if we hide header -->
+  <div v-if="modelValue" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+    <div class="bg-card w-[1000px] h-[550px] rounded-lg shadow-xl flex flex-col overflow-hidden border border-border">
       
-      <div class="form-group" v-if="selectedCategory">
-        <label>Medida</label>
-        <BaseDropdown 
-          v-model="selectedMeasureValue" 
-          :options="currentMeasureOptions" 
-          placeholder="Seleccionar medida..." 
-        />
+      <!-- Header -->
+      <div class="h-14 border-b border-border flex items-center justify-between px-4 shrink-0 bg-muted/10">
+        <div class="flex items-center gap-2 text-foreground font-medium">
+          <Sigma class="w-5 h-5 text-primary" />
+          Quick measures
+          <span class="text-muted-foreground font-normal text-sm ml-2">Build a measure from a template</span>
+        </div>
+        <button class="text-muted-foreground hover:bg-muted p-1 rounded" @click="close">
+          <X class="w-5 h-5" />
+        </button>
       </div>
 
-      <div v-if="activeMeasure" class="measure-details">
-        <p class="measure-description">{{ activeMeasure.description }}</p>
+      <!-- Content -->
+      <div class="flex-1 flex overflow-hidden">
+        
+        <!-- Left Sidebar: Categories -->
+        <div class="w-[200px] shrink-0 border-r border-border flex flex-col overflow-y-auto bg-muted/5 py-2">
+          <button 
+            v-for="cat in categories" 
+            :key="cat.id"
+            class="flex items-center gap-2.5 px-3 py-2 text-xs transition-colors text-left"
+            :class="activeCategory === cat.id ? 'bg-primary/10 text-primary font-medium border-l-2 border-primary' : 'text-muted-foreground hover:bg-muted hover:text-foreground border-l-2 border-transparent'"
+            @click="activeCategory = cat.id; activeMeasure = measures[cat.id]?.[0]?.id"
+          >
+            <component :is="cat.icon" class="w-3.5 h-3.5 shrink-0" />
+            <span class="truncate">{{ cat.label }}</span>
+          </button>
+        </div>
 
-        <div class="parameters">
-          <div class="form-group" v-for="param in activeMeasure.parameters" :key="param.id">
-            <label>{{ param.label }}</label>
-            <BaseDropdown 
-              v-if="param.type === 'column'"
-              v-model="parameterValues[param.id]" 
-              :options="columnOptions" 
-              placeholder="Seleccionar columna..." 
-            />
+        <!-- Middle: Measures List -->
+        <div class="w-[240px] shrink-0 border-r border-border flex flex-col bg-background">
+          <div class="px-3 py-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider bg-muted/20 border-b border-border">
+            Calculation
+          </div>
+          <div class="flex-1 overflow-y-auto p-2 space-y-1">
+            <button 
+              v-for="m in currentMeasureList" 
+              :key="m.id"
+              class="w-full text-left p-2 rounded-md transition-colors"
+              :class="activeMeasure === m.id ? 'bg-primary/10 text-primary' : 'hover:bg-muted'"
+              @click="activeMeasure = m.id"
+            >
+              <div class="text-xs font-medium mb-0.5">{{ m.name }}</div>
+              <div class="text-[10px] leading-tight" :class="activeMeasure === m.id ? 'text-primary/70' : 'text-muted-foreground'">
+                {{ m.desc }}
+              </div>
+            </button>
           </div>
         </div>
 
-        <div class="preview" v-if="generatedExpression">
-          <label>Expresión generada:</label>
-          <pre><code>{{ generatedExpression }}</code></pre>
+        <!-- Right: Config & Preview -->
+        <div class="flex-1 flex flex-col bg-card">
+          <div v-if="activeMeasureDetails" class="p-4 border-b border-border">
+            <h3 class="font-medium text-foreground text-sm">{{ activeMeasureDetails.name }}</h3>
+            <p class="text-[12px] text-muted-foreground mt-0.5">{{ activeMeasureDetails.desc }}</p>
+            
+            <div class="mt-4 grid grid-cols-2 gap-4">
+              <div v-if="requiredInputs.includes('base')">
+                <label class="text-[10px] font-semibold text-muted-foreground uppercase mb-1 block">Base Measure</label>
+                <select v-model="baseMeasure" class="w-full h-8 px-2 text-xs border border-border rounded focus:outline-none focus:border-primary bg-background text-foreground">
+                  <option disabled value="">Select a column...</option>
+                  <option v-for="col in schema" :key="col.name" :value="'&quot;' + col.name + '&quot;'">{{ col.name }}</option>
+                </select>
+              </div>
+              <div v-if="requiredInputs.includes('compare')">
+                <label class="text-[10px] font-semibold text-muted-foreground uppercase mb-1 block">Compare Measure</label>
+                <select v-model="compareMeasure" class="w-full h-8 px-2 text-xs border border-border rounded focus:outline-none focus:border-primary bg-background text-foreground">
+                  <option disabled value="">Select a column...</option>
+                  <option v-for="col in schema" :key="col.name" :value="'&quot;' + col.name + '&quot;'">{{ col.name }}</option>
+                </select>
+              </div>
+              <div v-if="requiredInputs.includes('date')">
+                <label class="text-[10px] font-semibold text-muted-foreground uppercase mb-1 block">Date Column</label>
+                <select v-model="dateColumn" class="w-full h-8 px-2 text-xs border border-border rounded focus:outline-none focus:border-primary bg-background text-foreground">
+                  <option disabled value="">Select a column...</option>
+                  <option v-for="col in schema" :key="col.name" :value="'&quot;' + col.name + '&quot;'">{{ col.name }}</option>
+                </select>
+              </div>
+              <div v-if="requiredInputs.includes('filterCol')">
+                <label class="text-[10px] font-semibold text-muted-foreground uppercase mb-1 block">Filter Column</label>
+                <select v-model="filterColumn" class="w-full h-8 px-2 text-xs border border-border rounded focus:outline-none focus:border-primary bg-background text-foreground">
+                  <option disabled value="">Select a column...</option>
+                  <option v-for="col in schema" :key="col.name" :value="'&quot;' + col.name + '&quot;'">{{ col.name }}</option>
+                </select>
+              </div>
+              <div v-if="requiredInputs.includes('filterVal')">
+                <label class="text-[10px] font-semibold text-muted-foreground uppercase mb-1 block">Filter Value</label>
+                <input v-model="filterValue" type="text" class="w-full h-8 px-2 text-xs border border-border rounded focus:outline-none focus:border-primary bg-background text-foreground" />
+              </div>
+            </div>
+          </div>
+          
+          <div class="p-4 flex-1 flex flex-col min-h-0">
+            <label class="text-[10px] font-semibold text-muted-foreground uppercase mb-2 block">Preview</label>
+            <div class="flex-1 border border-border rounded-md overflow-hidden relative shadow-inner">
+              <CodeEditor v-model="previewDax" language="sql" />
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Footer -->
+      <div class="h-14 border-t border-border flex items-center justify-between px-4 bg-muted/10 shrink-0">
+        <span class="text-xs text-muted-foreground">Inserts a SQL-compatible expression at the cursor position.</span>
+        <div class="flex gap-2">
+          <BaseButton variant="ghost" @click="close">Cancel</BaseButton>
+          <BaseButton variant="primary" @click="insert">Insert measure</BaseButton>
         </div>
       </div>
-    </div>
-    
-    <template #footer>
-      <BaseButton variant="ghost" @click="close">Cancelar</BaseButton>
-      <BaseButton variant="primary" :disabled="!canGenerate" @click="handleGenerate">Insertar</BaseButton>
-    </template>
-  </BaseModal>
-</template>
 
-<style scoped>
-.quick-measures {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  min-height: 450px;
-}
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-.form-group label {
-  font-size: var(--text-sm);
-  font-weight: var(--font-medium);
-  color: var(--color-text-primary);
-}
-.measure-details {
-  margin-top: var(--space-2);
-  padding-top: var(--space-4);
-  border-top: 1px solid var(--color-border);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-}
-.measure-description {
-  font-size: var(--text-sm);
-  color: var(--color-text-secondary);
-}
-.parameters {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  background-color: var(--color-bg-secondary);
-  padding: var(--space-4);
-  border-radius: var(--radius-md);
-}
-.preview {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-.preview label {
-  font-size: var(--text-sm);
-  font-weight: var(--font-medium);
-}
-.preview pre {
-  margin: 0;
-  padding: var(--space-3);
-  background-color: var(--color-bg-secondary);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  font-family: var(--font-mono);
-  font-size: var(--text-sm);
-  white-space: pre-wrap;
-  word-wrap: break-word;
-}
-</style>
+    </div>
+  </div>
+</template>

@@ -1,6 +1,7 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute, useRouter } from 'vue-router'
 import { Database, Upload, FileSpreadsheet, Plus, CalendarDays, Server, Globe, Box, DatabaseZap, Edit3 } from '@lucide/vue'
 import { useDataStore } from '@/stores/dataStore'
 import BaseButton from '@/components/ui/BaseButton.vue'
@@ -18,6 +19,8 @@ import { useUiStore } from '@/stores/uiStore'
 const { t } = useI18n()
 const dataStore = useDataStore()
 const uiStore = useUiStore()
+const route = useRoute()
+const router = useRouter()
 
 const isImportModalOpen = ref(false)
 const isLiveConnectorOpen = ref(false)
@@ -37,7 +40,22 @@ const previewConnectorConfig = ref(null)
 const previewRefreshInterval = ref(0)
 
 const isAddingSource = ref(false)
+
+onMounted(() => {
+  if (route.query.action === 'new') {
+    isAddingSource.value = true
+    router.replace({ path: '/data', query: {} })
+  }
+})
+
+watch(() => route.query.action, (newAction) => {
+  if (newAction === 'new') {
+    isAddingSource.value = true
+    router.replace({ path: '/data', query: {} })
+  }
+})
 const hasDatasets = computed(() => dataStore.datasetNames.length > 0)
+const searchQuery = ref('')
 
 const openImportModal = () => {
   isImportModalOpen.value = true
@@ -117,102 +135,111 @@ const handleGenerateCalendar = () => {
     <div v-if="!hasDatasets || isAddingSource" class="connectors-wrapper">
       <div class="connectors-header">
         <div class="connectors-header-text">
-          <h2>Conectar Origen de Datos</h2>
-          <p>Seleccione el tipo de fuente de datos que desea importar.</p>
+          <h2>{{ $t('data.connectSource') }}</h2>
+          <p>{{ $t('data.connectSourceDesc') }}</p>
         </div>
-        <BaseButton v-if="hasDatasets" variant="ghost" @click="isAddingSource = false">Cancelar</BaseButton>
+        <BaseButton v-if="hasDatasets" variant="ghost" @click="isAddingSource = false">{{ $t('data.cancel') }}</BaseButton>
       </div>
 
       <div class="connectors-grid">
         <!-- Local Files -->
         <div v-if="!uiStore.isViewerMode" class="connector-card" @click="openImportModal">
           <div class="connector-icon-wrapper"><Upload class="connector-icon" /></div>
-          <h3>Archivos Locales</h3>
-          <p>Importar CSV o Excel (XLSX)</p>
+          <h3>{{ $t('data.localFiles') }}</h3>
+          <p>{{ $t('data.localFilesDesc') }}</p>
         </div>
         
         <div v-if="!uiStore.isViewerMode" class="connector-card" @click="openImportModal">
           <div class="connector-icon-wrapper"><FileSpreadsheet class="connector-icon" style="color: var(--color-success)" /></div>
-          <h3>Excel / CSV</h3>
-          <p>Importar archivo local plano</p>
+          <h3>{{ $t('data.excelCsv') }}</h3>
+          <p>{{ $t('data.excelCsvDesc') }}</p>
         </div>
 
         <div v-if="!uiStore.isViewerMode" class="connector-card" @click="openManualModal">
           <div class="connector-icon-wrapper"><Edit3 class="connector-icon" style="color: var(--color-accent)" /></div>
-          <h3>Dataset Manual</h3>
-          <p>Escribir o pegar datos</p>
+          <h3>{{ $t('data.manualDataset') }}</h3>
+          <p>{{ $t('data.manualDatasetDesc') }}</p>
         </div>
 
         <div v-if="!uiStore.isViewerMode" class="connector-card" @click="isPythonModalOpen = true">
           <div class="connector-icon-wrapper">
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: #3776AB;" class="connector-icon"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
           </div>
-          <h3>Script Python</h3>
-          <p>Extraer datos vía código</p>
+          <h3>{{ $t('data.pythonScript') }}</h3>
+          <p>{{ $t('data.pythonScriptDesc') }}</p>
         </div>
 
         <div v-if="!uiStore.isViewerMode" class="connector-card" @click="openLiveConnector('postgres')">
           <div class="connector-icon-wrapper"><DatabaseZap class="connector-icon" style="color: #336791" /></div>
-          <h3>PostgreSQL</h3>
-          <p>Conexión directa segura</p>
+          <h3>{{ $t('data.postgres') }}</h3>
+          <p>{{ $t('data.postgresDesc') }}</p>
         </div>
 
         <div v-if="!uiStore.isViewerMode" class="connector-card" @click="openLiveConnector('mysql')">
           <div class="connector-icon-wrapper"><Database class="connector-icon" style="color: #E48E00" /></div>
-          <h3>MySQL</h3>
-          <p>Conexión a base de datos MySQL</p>
+          <h3>{{ $t('data.mysql') }}</h3>
+          <p>{{ $t('data.mysqlDesc') }}</p>
         </div>
 
         <div v-if="!uiStore.isViewerMode" class="connector-card" @click="openLiveConnector('sqlserver')">
           <div class="connector-icon-wrapper"><Server class="connector-icon" style="color: #CC292B" /></div>
-          <h3>SQL Server</h3>
-          <p>Microsoft SQL Server</p>
+          <h3>{{ $t('data.sqlserver') }}</h3>
+          <p>{{ $t('data.sqlserverDesc') }}</p>
         </div>
 
         <!-- APIs -->
         <div v-if="!uiStore.isViewerMode" class="connector-card" @click="openLiveConnector('api')">
           <div class="connector-icon-wrapper"><Globe class="connector-icon" style="color: var(--color-success)" /></div>
-          <h3>API REST</h3>
-          <p>Extraer desde endpoint JSON</p>
+          <h3>{{ $t('data.apiRest') }}</h3>
+          <p>{{ $t('data.apiRestDesc') }}</p>
         </div>
 
         <div v-if="!uiStore.isViewerMode" class="connector-card" @click="openLiveConnector('salesforce')">
           <div class="connector-icon-wrapper"><Box class="connector-icon" style="color: #00A1E0" /></div>
-          <h3>Salesforce</h3>
-          <p>Importar CRM empresarial</p>
+          <h3>{{ $t('data.salesforce') }}</h3>
+          <p>{{ $t('data.salesforceDesc') }}</p>
         </div>
 
         <div v-if="!uiStore.isViewerMode" class="connector-card" @click="openLiveConnector('google-analytics')">
           <div class="connector-icon-wrapper"><Globe class="connector-icon" style="color: #E37400" /></div>
-          <h3>Google Analytics</h3>
-          <p>Métricas de tráfico web</p>
+          <h3>{{ $t('data.googleAnalytics') }}</h3>
+          <p>{{ $t('data.googleAnalyticsDesc') }}</p>
         </div>
       </div>
     </div>
 
-    <!-- Data Dashboard -->
-    <div v-else class="data-dashboard">
-      <div class="dashboard-header">
-        <div class="header-left">
-          <h2>{{ $t('data.datasets') }}</h2>
+    <!-- Data Browser Dashboard -->
+    <div v-else class="data-browser flex flex-col h-full bg-background overflow-hidden">
+      <!-- Top actions bar -->
+      <div class="px-6 py-4 flex items-center justify-between shrink-0">
+        <div class="text-sm text-muted-foreground">
+          {{ $t('data.datasetCountDesc', { count: dataStore.datasetNames.length }) }}
         </div>
-        <div class="header-right">
-          <BaseButton v-if="!uiStore.isViewerMode" variant="secondary" size="sm" style="margin-right: 8px;" @click="openCalendarModal">
+        <div class="flex items-center gap-3">
+          <div class="relative">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            <input v-model="searchQuery" type="text" :placeholder="$t('data.filterDatasets')" class="pl-9 pr-4 py-2 text-sm bg-card border border-border rounded-none focus:outline-none focus:ring-1 focus:ring-primary w-64" />
+          </div>
+          <BaseButton v-if="!uiStore.isViewerMode" variant="outline" size="sm" @click="openCalendarModal">
             <template #icon-left><CalendarDays /></template>
-            Crear Calendario
+            {{ $t('data.createCalendar') }}
           </BaseButton>
           <BaseButton v-if="!uiStore.isViewerMode" variant="primary" size="sm" @click="isAddingSource = true">
             <template #icon-left><Plus /></template>
-            Nuevo Origen
+            {{ $t('data.newSource') }}
           </BaseButton>
         </div>
       </div>
 
-      <div class="dashboard-content">
-        <div class="datasets-section">
-          <DatasetList />
+      <!-- Main content area -->
+      <div class="flex-1 flex flex-col px-6 pb-6 gap-6 overflow-hidden">
+        <!-- Datasets Grid (Scrollable) -->
+        <div class="overflow-y-auto custom-scrollbar pb-2 pr-2 shrink-0 max-h-[40%]">
+          <DatasetList :search-query="searchQuery" />
         </div>
-        <div class="preview-section">
+
+        <!-- Preview Section -->
+        <div v-if="dataStore.activeDatasetName" class="flex-1 flex flex-col bg-card border border-border shadow-none rounded-none overflow-hidden animate-in slide-in-from-bottom-4 duration-300">
           <DataPreview />
         </div>
       </div>
@@ -234,16 +261,16 @@ const handleGenerateCalendar = () => {
     <!-- Data Preview Modal -->
     <DataPreviewModal
       v-model="isPreviewModalOpen"
-      :datasetName="previewDatasetName"
-      :rawData="previewRawData"
-      :inferredSchema="previewSchema"
+      :dataset-name="previewDatasetName"
+      :raw-data="previewRawData"
+      :inferred-schema="previewSchema"
       @import="handlePreviewImport"
     />
 
     <!-- Live Connector Modal -->
     <LiveConnectorModal 
       v-model="isLiveConnectorOpen" 
-      :connectorType="activeConnectorType"
+      :connector-type="activeConnectorType"
       @imported="onDatasetImported"
       @preview="onPreviewRequested"
     />
@@ -251,7 +278,7 @@ const handleGenerateCalendar = () => {
     <!-- Manual Dataset Modal -->
     <BaseModal
       v-model="isManualModalOpen"
-      title="Crear Dataset Manual"
+      :title="$t('data.createManualDataset')"
       size="lg"
     >
       <ManualDatasetEditor @saved="onManualDatasetSaved" @cancel="isManualModalOpen = false" />
@@ -266,21 +293,21 @@ const handleGenerateCalendar = () => {
     <!-- Calendar Modal -->
     <BaseModal 
       v-model="isCalendarModalOpen" 
-      title="Generar Tabla Calendario"
+      :title="$t('data.generateCalendarTitle')"
       size="sm"
     >
       <div style="display: flex; flex-direction: column; gap: 16px; padding: 8px 0;">
         <div>
-          <label style="display: block; margin-bottom: 4px; font-size: 14px;">Año de inicio:</label>
+          <label style="display: block; margin-bottom: 4px; font-size: 14px;">{{ $t('data.startYear') }}</label>
           <BaseInput v-model="calendarStartYear" type="number" />
         </div>
         <div>
-          <label style="display: block; margin-bottom: 4px; font-size: 14px;">Año de fin:</label>
+          <label style="display: block; margin-bottom: 4px; font-size: 14px;">{{ $t('data.endYear') }}</label>
           <BaseInput v-model="calendarEndYear" type="number" />
         </div>
         <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px;">
-          <BaseButton variant="ghost" @click="isCalendarModalOpen = false">Cancelar</BaseButton>
-          <BaseButton variant="primary" @click="handleGenerateCalendar">Generar</BaseButton>
+          <BaseButton variant="ghost" @click="isCalendarModalOpen = false">{{ $t('data.cancel') }}</BaseButton>
+          <BaseButton variant="primary" @click="handleGenerateCalendar">{{ $t('data.generate') }}</BaseButton>
         </div>
       </div>
     </BaseModal>
@@ -316,12 +343,12 @@ const handleGenerateCalendar = () => {
 .connectors-header h2 {
   font-size: var(--text-2xl);
   font-weight: 600;
-  color: var(--color-text-primary);
+  color: var(--foreground);
   margin-bottom: var(--space-1);
 }
 
 .connectors-header p {
-  color: var(--color-text-secondary);
+  color: var(--muted-foreground);
   margin: 0;
 }
 
@@ -333,9 +360,9 @@ const handleGenerateCalendar = () => {
 }
 
 .connector-card {
-  background-color: var(--color-bg-surface);
+  background-color: var(--background);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
+  border-radius: 0;
   padding: var(--space-6);
   display: flex;
   flex-direction: column;
@@ -346,15 +373,14 @@ const handleGenerateCalendar = () => {
 
 .connector-card:hover {
   transform: translateY(-2px);
-  border-color: var(--color-accent);
-  box-shadow: var(--shadow-md);
+  border-color: var(--color-border-focus);
 }
 
 .connector-icon-wrapper {
   width: 48px;
   height: 48px;
-  border-radius: var(--radius-md);
-  background-color: var(--color-bg-secondary);
+  border-radius: 0;
+  background-color: var(--muted);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -364,19 +390,19 @@ const handleGenerateCalendar = () => {
 .connector-icon {
   width: 24px;
   height: 24px;
-  color: var(--color-text-primary);
+  color: var(--foreground);
 }
 
 .connector-card h3 {
   font-size: var(--text-base);
   font-weight: 600;
-  color: var(--color-text-primary);
+  color: var(--foreground);
   margin: 0 0 var(--space-1) 0;
 }
 
 .connector-card p {
   font-size: var(--text-sm);
-  color: var(--color-text-secondary);
+  color: var(--muted-foreground);
   margin: 0;
   line-height: 1.4;
 }
@@ -403,7 +429,7 @@ const handleGenerateCalendar = () => {
   margin: 0;
   font-size: var(--text-lg);
   font-weight: var(--font-semibold);
-  color: var(--color-text-primary);
+  color: var(--foreground);
 }
 
 .dashboard-content {

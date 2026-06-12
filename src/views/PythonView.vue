@@ -3,8 +3,12 @@ import { ref, onMounted } from 'vue'
 import { pythonClient } from '@/modules/python/PythonClient'
 import { useUiStore } from '@/stores/uiStore'
 import { Play, Loader2 } from '@lucide/vue'
+import CodeEditor from '@/components/ui/CodeEditor.vue'
+import BaseButton from '@/components/ui/BaseButton.vue'
+import { useI18n } from 'vue-i18n'
 
 const uiStore = useUiStore()
+const { t } = useI18n()
 
 const code = ref(`# Escribe código Python aquí
 # Tienes 'pandas' y 'numpy' preinstalados.
@@ -44,10 +48,10 @@ const executeCode = async () => {
     } else {
       result.value = String(res)
     }
-    uiStore.addToast({ message: 'Código ejecutado exitosamente', type: 'success' })
+    uiStore.addToast({ message: t('python.success'), type: 'success' })
   } catch (err) {
     error.value = err.message
-    uiStore.addToast({ message: 'Error de ejecución en Python', type: 'error' })
+    uiStore.addToast({ message: t('python.error'), type: 'error' })
   } finally {
     isExecuting.value = false
   }
@@ -58,36 +62,32 @@ const executeCode = async () => {
   <div class="python-view">
     <div class="view-header">
       <div class="title-group">
-        <h1>Consola Python (Pyodide)</h1>
-        <p>Ejecuta análisis de datos avanzados directamente en tu navegador usando WebAssembly.</p>
+        <h1>{{ $t('python.title') }}</h1>
+        <p>{{ $t('python.subtitle') }}</p>
       </div>
       <div class="actions">
-        <button class="btn btn-primary" @click="executeCode" :disabled="isExecuting">
-          <Loader2 v-if="isExecuting" class="spinner" />
-          <Play v-else />
-          {{ isExecuting ? 'Ejecutando (Puede tardar la 1ra vez)...' : 'Ejecutar Script' }}
-        </button>
+        <BaseButton variant="primary" :loading="isExecuting" @click="executeCode">
+          <template v-if="!isExecuting" #icon-left><Play /></template>
+          {{ isExecuting ? $t('python.running') : $t('python.runScript') }}
+        </BaseButton>
       </div>
     </div>
     
     <div class="editor-container">
       <div class="editor-pane">
-        <div class="pane-header">Editor de Código</div>
-        <textarea 
-          class="code-editor" 
-          v-model="code" 
-          spellcheck="false"
-          placeholder="Escribe aquí tu script en Python..."
-        ></textarea>
+        <div class="pane-header">{{ $t('python.codeEditor') }}</div>
+        <div class="code-editor-container">
+          <CodeEditor v-model="code" language="python" />
+        </div>
       </div>
       
       <div class="result-pane">
-        <div class="pane-header">Resultado / Salida</div>
+        <div class="pane-header">{{ $t('python.resultOutput') }}</div>
         <div class="result-box" :class="{ 'has-error': !!error }">
           <pre v-if="error" class="error-text">{{ error }}</pre>
           <pre v-else-if="result">{{ result }}</pre>
           <div v-else class="empty-state">
-            El resultado de la última línea evaluada aparecerá aquí.
+            {{ $t('python.emptyResult') }}
           </div>
         </div>
       </div>
@@ -113,12 +113,12 @@ const executeCode = async () => {
 .title-group h1 {
   font-size: var(--text-2xl);
   font-weight: var(--font-bold);
-  color: var(--color-text-primary);
+  color: var(--foreground);
   margin-bottom: var(--space-1);
 }
 
 .title-group p {
-  color: var(--color-text-secondary);
+  color: var(--muted-foreground);
 }
 
 .editor-container {
@@ -132,33 +132,26 @@ const executeCode = async () => {
   flex: 1;
   display: flex;
   flex-direction: column;
-  background-color: var(--color-bg-surface);
+  background-color: var(--background);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   overflow: hidden;
 }
 
 .pane-header {
-  background-color: var(--color-bg-secondary);
+  background-color: var(--muted);
   padding: var(--space-2) var(--space-4);
   border-bottom: 1px solid var(--color-border);
   font-weight: var(--font-medium);
   font-size: var(--text-sm);
-  color: var(--color-text-primary);
+  color: var(--foreground);
 }
 
-.code-editor {
+.code-editor-container {
   flex: 1;
   width: 100%;
-  border: none;
-  resize: none;
-  padding: var(--space-4);
-  font-family: 'Fira Code', 'Courier New', Courier, monospace;
-  font-size: var(--text-sm);
-  background-color: var(--color-bg-surface);
-  color: var(--color-text-primary);
-  outline: none;
-  line-height: 1.5;
+  min-height: 0;
+  position: relative;
 }
 
 .result-box {
@@ -167,7 +160,7 @@ const executeCode = async () => {
   overflow: auto;
   font-family: 'Fira Code', 'Courier New', Courier, monospace;
   font-size: var(--text-sm);
-  background-color: var(--color-bg-secondary);
+  background-color: var(--muted);
 }
 
 .result-box pre {
@@ -185,36 +178,9 @@ const executeCode = async () => {
 }
 
 .empty-state {
-  color: var(--color-text-tertiary);
+  color: var(--muted-foreground);
   font-style: italic;
 }
 
-.btn {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-2) var(--space-4);
-  border-radius: var(--radius-md);
-  font-weight: var(--font-medium);
-  border: none;
-  cursor: pointer;
-}
 
-.btn-primary {
-  background-color: var(--color-accent);
-  color: white;
-}
-
-.btn-primary:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
-}
-
-.spinner {
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  100% { transform: rotate(360deg); }
-}
 </style>

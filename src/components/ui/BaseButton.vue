@@ -6,7 +6,7 @@ const props = defineProps({
   variant: {
     type: String,
     default: 'primary',
-    validator: (v) => ['primary', 'secondary', 'danger', 'ghost'].includes(v)
+    validator: (v) => ['primary', 'secondary', 'danger', 'ghost', 'outline'].includes(v)
   },
   size: {
     type: String,
@@ -28,147 +28,72 @@ const props = defineProps({
 })
 
 const classes = computed(() => {
+  const base = 'inline-flex items-center justify-center gap-2 border font-medium transition-colors whitespace-nowrap rounded-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 tracking-tight cursor-pointer [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0'
+  
+  const variants = {
+    primary: 'bg-primary text-primary-foreground shadow hover:bg-primary/90 border-transparent',
+    secondary: 'bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80 border-border',
+    outline: 'border border-border bg-card text-foreground hover:bg-muted hover:text-foreground',
+    danger: 'bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90 border-transparent',
+    ghost: 'hover:bg-accent hover:text-accent-foreground border-transparent'
+  }
+  
+  const sizes = {
+    sm: 'h-8 px-3 text-xs',
+    md: 'h-9 px-4 py-2 text-sm',
+    lg: 'h-10 px-8 text-sm'
+  }
+  
+  const iconSizes = {
+    sm: 'h-8 w-8 px-0',
+    md: 'h-9 w-9 px-0',
+    lg: 'h-10 w-10 px-0'
+  }
+  
   return [
-    'btn',
-    `btn--${props.variant}`,
-    `btn--${props.size}`,
-    {
-      'btn--icon-only': props.icon,
-      'btn--loading': props.loading,
-      'btn--disabled': props.disabled || props.loading
-    }
+    base,
+    `btn btn--${props.variant} btn--${props.size}`,
+    props.disabled || props.loading ? 'btn--disabled' : '',
+    props.loading ? 'btn--loading' : '',
+    variants[props.variant],
+    props.icon ? iconSizes[props.size] : sizes[props.size]
   ]
 })
 </script>
 
 <template>
   <button 
-    :class="classes" 
+    :class="classes"
     :disabled="disabled || loading"
     :aria-disabled="disabled || loading ? 'true' : undefined"
     :aria-busy="loading ? 'true' : undefined"
     v-bind="$attrs"
   >
-    <Loader2 v-if="loading" class="btn__spinner" />
-    <span v-if="$slots['icon-left'] && !loading" class="btn__icon-left">
+    <Loader2 v-if="loading" class="btn__spinner w-4 h-4 animate-spin" />
+    
+    <span v-if="!loading && $slots['icon-left']" class="btn__icon btn__icon--left">
       <slot name="icon-left"></slot>
     </span>
-    <span class="btn__content" :class="{ 'sr-only': loading && icon }">
+    
+    <span :class="{ 'opacity-0': loading && !icon, 'sr-only': icon }">
       <slot></slot>
     </span>
-    <span v-if="$slots['icon-right'] && !loading" class="btn__icon-right">
+    
+    <span v-if="!loading && $slots['icon-right']" class="btn__icon btn__icon--right">
       <slot name="icon-right"></slot>
     </span>
   </button>
 </template>
 
 <style scoped>
-.btn {
+/* Tailwind classes handle everything */
+.btn__icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: var(--space-2);
-  border: none;
-  border-radius: var(--radius-md);
-  font-family: var(--font-family);
-  font-weight: var(--font-medium);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  white-space: nowrap;
-  user-select: none;
-  text-decoration: none;
 }
-
-/* Sizes */
-.btn--sm {
-  height: 28px;
-  padding: 0 var(--space-3);
-  font-size: var(--text-xs);
-}
-.btn--md {
-  height: 36px;
-  padding: 0 var(--space-4);
-  font-size: var(--text-sm);
-}
-.btn--lg {
-  height: 44px;
-  padding: 0 var(--space-6);
-  font-size: var(--text-base);
-}
-
-.btn--icon-only.btn--sm {
-  width: 28px;
-  padding: 0;
-}
-.btn--icon-only.btn--md {
-  width: 36px;
-  padding: 0;
-}
-.btn--icon-only.btn--lg {
-  width: 44px;
-  padding: 0;
-}
-
-/* Variants */
-.btn--primary {
-  background-color: var(--color-accent);
-  color: var(--color-text-inverse);
-}
-.btn--primary:hover:not(.btn--disabled) {
-  background-color: var(--color-accent-hover);
-}
-
-.btn--secondary {
-  background-color: transparent;
-  color: var(--color-text-primary);
-  border: 1px solid var(--color-border);
-}
-.btn--secondary:hover:not(.btn--disabled) {
-  background-color: var(--color-bg-secondary);
-}
-
-.btn--danger {
-  background-color: var(--color-danger);
-  color: var(--color-text-inverse);
-}
-.btn--danger:hover:not(.btn--disabled) {
-  background-color: #B91C1C; /* darker red */
-}
-
-.btn--ghost {
-  background-color: transparent;
-  color: var(--color-text-secondary);
-}
-.btn--ghost:hover:not(.btn--disabled) {
-  background-color: var(--color-bg-secondary);
-  color: var(--color-text-primary);
-}
-
-/* States */
-.btn--disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.btn__spinner {
-  animation: spin 1s linear infinite;
+.btn__icon :deep(svg) {
   width: 1em;
   height: 1em;
-}
-
-.btn__icon-left,
-.btn__icon-right {
-  display: flex;
-  align-items: center;
-}
-.btn__icon-left :deep(svg),
-.btn__icon-right :deep(svg) {
-  width: 1.2em;
-  height: 1.2em;
-}
-
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
 }
 </style>

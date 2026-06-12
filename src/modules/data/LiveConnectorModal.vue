@@ -84,10 +84,14 @@ const handleConnect = async () => {
   try {
     const resultData = await LiveConnector.query(props.connectorType, credentials.value)
     
-    if (resultData && resultData.length > 0) {
+    if (resultData && (resultData instanceof File || resultData.length > 0)) {
       const config = { type: props.connectorType, credentials: { ...credentials.value } }
-      if (isFastImport.value) {
-        await dataStore.addDataset(credentials.value.datasetName, resultData, null, config, refreshInterval.value)
+      if (isFastImport.value || resultData instanceof File) {
+        if (resultData instanceof File) {
+          await dataStore.addDatasetFromFile(credentials.value.datasetName, resultData, config, refreshInterval.value)
+        } else {
+          await dataStore.addDataset(credentials.value.datasetName, resultData, null, config, refreshInterval.value)
+        }
         uiStore.addToast({
           message: `Importados ${resultData.length} registros exitosamente.`,
           type: 'success'
@@ -119,8 +123,21 @@ const handleTest = async () => {
   try {
     const resultData = await LiveConnector.query(props.connectorType, credentials.value)
     
-    // Auto-extract array if it's wrapped in an object
     let targetData = resultData
+    
+    if (resultData instanceof File) {
+      // Si es un archivo (Parquet), por ahora no podemos previsualizarlo tan fácil
+      // sin cargarlo a DuckDB, así que simularemos que fue exitoso o mostraremos metadatos.
+      previewData.value = [{ 
+        Archivo: resultData.name, 
+        Tamaño: (resultData.size / 1024).toFixed(2) + ' KB',
+        Formato: 'Parquet Binario' 
+      }]
+      uiStore.addToast({ message: '¡Conexión exitosa y datos recibidos!', type: 'success' })
+      isLoading.value = false
+      return
+    }
+
     if (!Array.isArray(resultData) && resultData && typeof resultData === 'object') {
       const arrayProp = Object.values(resultData).find(val => Array.isArray(val))
       if (arrayProp) {
@@ -162,8 +179,8 @@ const handleTest = async () => {
       </div>
       
       <BaseInput 
-        v-focus
-        v-model="credentials.datasetName" 
+        v-model="credentials.datasetName"
+        v-focus 
         label="Nombre del Dataset Resultante" 
         placeholder="Ej: Ventas_Actuales" 
         @keyup.enter="handleConnect"
@@ -241,8 +258,8 @@ const handleTest = async () => {
         </div>
         
         <div style="display: flex; align-items: center; gap: var(--space-2); flex: 1; justify-content: flex-end; margin-top: 18px;">
-          <input type="checkbox" id="fast-import-live" v-model="isFastImport" />
-          <label for="fast-import-live" style="font-size: var(--text-sm); color: var(--color-text-secondary); cursor: pointer;">
+          <input id="fast-import-live" v-model="isFastImport" type="checkbox" />
+          <label for="fast-import-live" style="font-size: var(--text-sm); color: var(--muted-foreground); cursor: pointer;">
             Importación Rápida
           </label>
         </div>
@@ -290,7 +307,7 @@ const handleTest = async () => {
 .form-label {
   font-size: var(--text-sm);
   font-weight: 500;
-  color: var(--color-text-primary);
+  color: var(--foreground);
 }
 
 .sql-textarea {
@@ -298,8 +315,8 @@ const handleTest = async () => {
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  background-color: var(--color-bg-primary);
-  color: var(--color-text-primary);
+  background-color: var(--card);
+  color: var(--foreground);
   font-family: monospace;
   font-size: var(--text-sm);
   resize: vertical;
@@ -331,7 +348,7 @@ const handleTest = async () => {
   align-items: center;
   gap: var(--space-2);
   font-size: var(--text-sm);
-  color: var(--color-text-primary);
+  color: var(--foreground);
   cursor: pointer;
   user-select: none;
 }
@@ -345,7 +362,7 @@ const handleTest = async () => {
 
 .help-text {
   font-size: var(--text-xs);
-  color: var(--color-text-secondary);
+  color: var(--muted-foreground);
   font-style: italic;
   margin: 0;
 }
@@ -379,7 +396,7 @@ const handleTest = async () => {
   overflow-x: auto;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
-  background-color: var(--color-bg-primary);
+  background-color: var(--card);
 }
 
 .preview-table {
@@ -400,7 +417,7 @@ const handleTest = async () => {
 }
 
 .preview-table th {
-  background-color: var(--color-bg-secondary);
+  background-color: var(--muted);
   font-weight: 600;
   text-align: left;
 }
@@ -408,9 +425,9 @@ const handleTest = async () => {
 .preview-empty {
   padding: var(--space-4);
   text-align: center;
-  background-color: var(--color-bg-secondary);
+  background-color: var(--muted);
   border-radius: var(--radius-sm);
   font-size: var(--text-sm);
-  color: var(--color-text-secondary);
+  color: var(--muted-foreground);
 }
 </style>

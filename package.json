@@ -16,10 +16,12 @@
   },
   "main": "electron/main.js",
   "dependencies": {
+    "@codemirror/lang-python": "^6.2.1",
     "@codemirror/lang-sql": "^6.10.0",
     "@codemirror/theme-one-dark": "^6.1.3",
+    "@duckdb/duckdb-wasm": "^1.33.1-dev45.0",
     "@lucide/vue": "^1.17.0",
-    "alasql": "^4.17.3",
+    "@tailwindcss/vite": "^4.3.0",
     "codemirror": "^6.0.2",
     "echarts": "^6.1.0",
     "echarts-stat": "^1.2.0",
@@ -35,6 +37,7 @@
     "pptxgenjs": "^4.0.1",
     "pyodide": "^314.0.0",
     "tabulator-tables": "^6.4.0",
+    "tailwindcss": "^4.3.0",
     "vue": "^3.5.16",
     "vue-echarts": "^8.0.1",
     "vue-i18n": "^11.1.3",
@@ -72,6 +75,21 @@
     "files": [
       "dist/**/*",
       "electron/**/*"
-    ]
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "LiteBI Analytics"
+    }
+  },
+  "overrides": {
+    "echarts": "$echarts"
   }
 }

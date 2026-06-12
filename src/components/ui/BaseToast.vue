@@ -56,7 +56,7 @@ const getIcon = (type) => {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  background-color: var(--color-bg-surface);
+  background-color: var(--background);
   padding: var(--space-3) var(--space-4);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
@@ -67,7 +67,7 @@ const getIcon = (type) => {
 
 .toast__message {
   font-size: var(--text-sm);
-  color: var(--color-text-primary);
+  color: var(--foreground);
   flex-grow: 1;
 }
 
@@ -80,7 +80,7 @@ const getIcon = (type) => {
 .toast__close {
   background: none;
   border: none;
-  color: var(--color-text-secondary);
+  color: var(--muted-foreground);
   cursor: pointer;
   padding: 2px;
   display: flex;
@@ -89,8 +89,8 @@ const getIcon = (type) => {
 }
 
 .toast__close:hover {
-  background-color: var(--color-bg-secondary);
-  color: var(--color-text-primary);
+  background-color: var(--muted);
+  color: var(--foreground);
 }
 
 .toast__close :deep(svg) {

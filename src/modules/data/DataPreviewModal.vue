@@ -105,7 +105,7 @@ const handleImport = () => {
             <tr>
               <th v-for="col in columns" :key="col.name" :class="{ 'col-disabled': !col.selected }">
                 <div class="th-content">
-                  <input type="checkbox" v-model="col.selected" class="col-checkbox" />
+                  <input v-model="col.selected" type="checkbox" class="col-checkbox" />
                   <div class="col-info">
                     <span class="col-name">{{ col.name }}</span>
                     <span class="col-type">{{ col.type }}</span>
@@ -151,7 +151,7 @@ const handleImport = () => {
 
 .preview-stats {
   font-size: var(--text-sm);
-  color: var(--color-text-secondary);
+  color: var(--muted-foreground);
 }
 
 .column-actions {
@@ -163,7 +163,7 @@ const handleImport = () => {
   overflow: auto;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  background-color: var(--color-bg-primary);
+  background-color: var(--card);
   max-height: 400px;
 }
 
@@ -186,7 +186,7 @@ const handleImport = () => {
 }
 
 .data-table th {
-  background-color: var(--color-bg-secondary);
+  background-color: var(--muted);
   position: sticky;
   top: 0;
   z-index: 10;
@@ -210,12 +210,12 @@ const handleImport = () => {
 
 .col-name {
   font-weight: 600;
-  color: var(--color-text-primary);
+  color: var(--foreground);
 }
 
 .col-type {
   font-size: var(--text-xs);
-  color: var(--color-text-tertiary);
+  color: var(--muted-foreground);
   font-family: var(--font-mono);
 }
 

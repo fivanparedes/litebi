@@ -78,7 +78,7 @@ const getTypeIcon = (type) => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background-color: var(--color-bg-surface);
+  background-color: var(--background);
   border-right: 1px solid var(--color-border);
 }
 
@@ -96,7 +96,7 @@ const getTypeIcon = (type) => {
 .column-list__header p {
   margin: 0;
   font-size: var(--text-xs);
-  color: var(--color-text-secondary);
+  color: var(--muted-foreground);
 }
 
 .columns-scroll {
@@ -114,7 +114,7 @@ const getTypeIcon = (type) => {
   align-items: center;
   gap: var(--space-2);
   padding: var(--space-2);
-  background-color: var(--color-bg-secondary);
+  background-color: var(--muted);
   border-radius: var(--radius-sm);
   cursor: pointer;
   font-weight: var(--font-medium);
@@ -128,7 +128,7 @@ const getTypeIcon = (type) => {
 .dataset-group__icon, .dataset-group__db-icon {
   width: 14px;
   height: 14px;
-  color: var(--color-text-secondary);
+  color: var(--muted-foreground);
 }
 
 .dataset-group__columns {
@@ -149,7 +149,7 @@ const getTypeIcon = (type) => {
 }
 
 .column-item:hover {
-  background-color: var(--color-bg-secondary);
+  background-color: var(--muted);
 }
 
 .column-item__icon-wrapper {
@@ -167,12 +167,12 @@ const getTypeIcon = (type) => {
 .type-icon {
   width: 12px;
   height: 12px;
-  color: var(--color-text-tertiary);
+  color: var(--muted-foreground);
 }
 
 .column-item__name {
   font-size: 13px;
-  color: var(--color-text-primary);
+  color: var(--foreground);
   font-family: var(--font-mono);
   white-space: nowrap;
   overflow: hidden;
@@ -190,7 +190,7 @@ const getTypeIcon = (type) => {
 .edit-btn {
   background: none;
   border: none;
-  color: var(--color-text-tertiary);
+  color: var(--muted-foreground);
   cursor: pointer;
   padding: 2px;
   border-radius: var(--radius-sm);
@@ -201,6 +201,6 @@ const getTypeIcon = (type) => {
 }
 
 .column-item:hover .edit-btn { opacity: 1; }
-.edit-btn:hover { background-color: var(--color-bg-surface); color: var(--color-accent); opacity: 1; }
+.edit-btn:hover { background-color: var(--background); color: var(--color-accent); opacity: 1; }
 .edit-btn svg { width: 12px; height: 12px; }
 </style>

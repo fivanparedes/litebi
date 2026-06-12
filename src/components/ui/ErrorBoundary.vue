@@ -44,7 +44,7 @@ const resetError = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: var(--color-bg-secondary);
+  background-color: var(--muted);
   border: 1px dashed var(--color-danger);
   border-radius: var(--radius-md);
   padding: var(--space-4);
@@ -65,14 +65,14 @@ const resetError = () => {
 }
 
 .error-title {
-  color: var(--color-text-primary);
+  color: var(--foreground);
   font-size: var(--text-sm);
   font-weight: 600;
   margin: 0;
 }
 
 .error-message {
-  color: var(--color-text-secondary);
+  color: var(--muted-foreground);
   font-size: var(--text-xs);
   margin: 0;
   max-width: 200px;

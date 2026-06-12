@@ -48,8 +48,9 @@ const workspaceStyle = computed(() => {
   // Fallback to palette specific dashboardBg if no custom background is set
   if (!styles.backgroundColor && !styles.backgroundImage) {
     const palette = settingsStore.palettes[settingsStore.chartPaletteId]
-    if (palette && palette.dashboardBg) {
-      styles.backgroundColor = palette.dashboardBg
+    if (palette) {
+      const isDark = settingsStore.theme === 'dark'
+      styles.backgroundColor = isDark ? palette.dashboardBgDark : palette.dashboardBgLight
     }
   }
   
@@ -102,17 +103,17 @@ const handleEditWidget = (widgetId) => {
 </script>
 
 <template>
-  <div class="view-container">
-    <div v-if="!hasData" class="empty-state-wrapper">
-      <div class="empty-state">
-        <div class="empty-state__icon-wrapper empty-state__icon-wrapper--info">
-          <LayoutDashboard class="empty-state__icon" />
+  <div class="flex flex-col h-full bg-background overflow-hidden relative">
+    <div v-if="!hasData" class="flex-1 flex items-center justify-center p-6">
+      <div class="max-w-[480px] flex flex-col items-center text-center animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div class="w-20 h-20 rounded-full bg-info-light flex items-center justify-center mb-6">
+          <LayoutDashboard class="w-10 h-10 text-info" />
         </div>
-        <h2 class="empty-state__title">{{ $t('dashboard.noData') }}</h2>
-        <p class="empty-state__desc">{{ $t('dashboard.noDataDesc') }}</p>
+        <h2 class="text-xl font-semibold mb-3">{{ $t('dashboard.noData') }}</h2>
+        <p class="text-sm text-muted-foreground mb-8">{{ $t('dashboard.noDataDesc') }}</p>
         
-        <div class="empty-state__actions">
-          <BaseButton variant="secondary" @click="router.push('/data')">
+        <div class="flex justify-center w-full">
+          <BaseButton variant="outline" @click="router.push('/data')">
             <template #icon-right><ArrowRight /></template>
             {{ $t('dashboard.goToData') }}
           </BaseButton>
@@ -120,46 +121,47 @@ const handleEditWidget = (widgetId) => {
       </div>
     </div>
     
-    <div v-else id="dashboard-export-area" class="dashboard-workspace">
+    <div v-else id="dashboard-export-area" class="flex flex-col w-full h-full bg-background">
       <!-- Top Tabs -->
       <DashboardTabs />
       
       <!-- Toolbar -->
-      <div class="dashboard-toolbar">
-        <div class="toolbar-left">
-          <span class="dataset-badge">Dataset: {{ dataStore.activeDatasetMeta?.originalName }}</span>
-        </div>
-        
-        <!-- Active Filters Bar -->
-        <div v-if="dashboardStore.globalFilters.length > 0" class="active-filters">
-          <span class="filter-label">Filtros Activos:</span>
-          <div 
-            v-for="f in dashboardStore.globalFilters" 
-            :key="f.id"
-            class="filter-chip"
-          >
-            <span class="filter-chip-text">{{ f.label }}</span>
-            <button class="filter-chip-close" @click="dashboardStore.removeFilter(f.id)">
-              <X size="12" />
-            </button>
+      <div class="flex justify-between items-center px-4 py-3 bg-transparent border-b border-border [html.is-exporting_&]:hidden">
+        <div class="flex items-center gap-4">
+          <span class="bg-muted text-muted-foreground px-3 py-1 rounded-full text-xs font-medium">{{ $t('dashboardView.dataset') }} {{ dataStore.activeDatasetMeta?.originalName }}</span>
+          
+          <!-- Active Filters Bar -->
+          <div v-if="dashboardStore.globalFilters.length > 0" class="flex items-center gap-2 flex-wrap">
+            <span class="text-xs text-muted-foreground font-medium">{{ $t('dashboardView.activeFilters') }}</span>
+            <div 
+              v-for="f in dashboardStore.globalFilters" 
+              :key="f.id"
+              class="flex items-center bg-accent-light text-accent border border-accent px-2 py-0.5 rounded-full text-xs font-medium"
+            >
+              <span class="mr-1">{{ f.label }}</span>
+              <button class="hover:opacity-100 opacity-70 transition-opacity" @click="dashboardStore.removeFilter(f.id)">
+                <X class="w-3 h-3" />
+              </button>
+            </div>
+            <button class="text-xs text-danger hover:underline ml-2" @click="dashboardStore.clearFilters()">{{ $t('dashboardView.clear') }}</button>
           </div>
-          <button class="clear-filters-btn" @click="dashboardStore.clearFilters()">Limpiar</button>
         </div>
 
-        <div class="toolbar-right">
-          <BaseButton v-if="!uiStore.isViewerMode" variant="secondary" size="sm" @click="isTabSettingsModalOpen = true" style="margin-right: 8px;">
-            Ajustes
+        <div class="flex items-center gap-2">
+          <BaseButton v-if="!uiStore.isViewerMode" variant="outline" size="sm" @click="isTabSettingsModalOpen = true">
+            {{ $t('dashboardView.settings') }}
           </BaseButton>
           <BaseButton v-if="!uiStore.isViewerMode" variant="primary" size="sm" @click="handleAddWidget">
-            <template #icon-left><Plus /></template>
-            Añadir Widget
+            <template #icon-left><Plus class="w-4 h-4" /></template>
+            {{ $t('dashboardView.addWidget') }}
           </BaseButton>
         </div>
       </div>
       
       <!-- Canvas & Configurator Area -->
-      <div class="dashboard-body" :style="workspaceStyle">
+      <div class="flex flex-1 overflow-hidden relative" :style="workspaceStyle">
         <DashboardCanvas 
+          class="flex-1 overflow-auto"
           :layout="dashboardStore.activeLayout"
           :tab-id="dashboardStore.activeTabId"
           @update:layout="handleUpdateLayout"
@@ -170,6 +172,7 @@ const handleEditWidget = (widgetId) => {
         <WidgetConfigurator 
           v-if="editingWidgetId"
           :config="editingWidgetConfig"
+          :tab-id="dashboardStore.activeTabId"
           @update:config="val => editingWidgetConfig = val"
           @close="editingWidgetId = null"
         />
@@ -185,116 +188,5 @@ const handleEditWidget = (widgetId) => {
 </template>
 
 <style scoped>
-.view-container {
-  height: 100%;
-  display: flex;
-}
-
-/* Empty State */
-.empty-state-wrapper { flex-grow: 1; display: flex; align-items: center; justify-content: center; padding: var(--space-6); }
-.empty-state { max-width: 480px; display: flex; flex-direction: column; align-items: center; text-align: center; animation: slideUpFade 0.5s ease-out forwards; }
-.empty-state__icon-wrapper { width: 80px; height: 80px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: var(--space-6); }
-.empty-state__icon-wrapper--info { background-color: var(--color-info-light); }
-.empty-state__icon-wrapper--info .empty-state__icon { color: var(--color-info); }
-.empty-state__icon { width: 40px; height: 40px; }
-.empty-state__title { font-size: var(--text-xl); font-weight: var(--font-semibold); margin-bottom: var(--space-3); }
-.empty-state__desc { font-size: var(--text-sm); color: var(--color-text-secondary); margin-bottom: var(--space-8); }
-.empty-state__actions { display: flex; justify-content: center; width: 100%; }
-
-/* Workspace */
-.dashboard-workspace {
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  height: 100%;
-  background-color: var(--color-bg-surface);
-}
-
-.dashboard-toolbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: var(--space-3) var(--space-4);
-  background-color: transparent;
-  border-bottom: 1px solid var(--color-border);
-}
-
-.dataset-badge {
-  background-color: var(--color-bg-secondary);
-  color: var(--color-text-secondary);
-  padding: 4px 12px;
-  border-radius: var(--radius-full);
-  font-size: var(--text-xs);
-  font-weight: var(--font-medium);
-}
-
-.active-filters {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  flex-wrap: wrap;
-  margin-left: var(--space-4);
-}
-
-.filter-label {
-  font-size: var(--text-xs);
-  color: var(--color-text-secondary);
-  font-weight: var(--font-medium);
-}
-
-.filter-chip {
-  display: flex;
-  align-items: center;
-  background-color: var(--color-accent-light);
-  color: var(--color-accent);
-  border: 1px solid var(--color-accent);
-  padding: 2px 8px;
-  border-radius: var(--radius-full);
-  font-size: var(--text-xs);
-  font-weight: var(--font-medium);
-}
-
-.filter-chip-close {
-  background: none;
-  border: none;
-  color: var(--color-accent);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  margin-left: 4px;
-  opacity: 0.7;
-}
-
-.filter-chip-close:hover {
-  opacity: 1;
-}
-
-.clear-filters-btn {
-  background: none;
-  border: none;
-  color: var(--color-danger);
-  font-size: var(--text-xs);
-  cursor: pointer;
-}
-
-.clear-filters-btn:hover {
-  text-decoration: underline;
-}
-
-.dashboard-body {
-  display: flex;
-  flex-grow: 1;
-  overflow: hidden;
-}
-
-/* Hide UI on export */
-.is-exporting .dashboard-toolbar { display: none !important; }
-.is-exporting .active-filters { display: none !important; }
-
-@keyframes slideUpFade {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
-}
+/* Tailwind handles the styling */
 </style>

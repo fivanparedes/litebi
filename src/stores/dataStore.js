@@ -97,7 +97,8 @@ export const useDataStore = defineStore('data', () => {
         transformations: [],
         ui: { x: 50, y: 50 }, // Posición inicial para Modelado
         connectorConfig,
-        refreshInterval
+        refreshInterval,
+        tags: []
       }
       
       datasets.value.set(safeName, datasetMeta)
@@ -124,6 +125,55 @@ export const useDataStore = defineStore('data', () => {
       console.error('Error adding dataset:', error)
       uiStore.addToast({
         message: `Error al importar datos: ${error.message}`,
+        type: 'error'
+      })
+      throw error
+    }
+  }
+  
+  const addDatasetFromFile = async (name, file, connectorConfig = null, refreshInterval = 0) => {
+    try {
+      const safeName = name.replace(/[^a-zA-Z0-9_]/g, '_').toLowerCase()
+      
+      await sqlClient.createTableFromFile(safeName, file)
+      
+      const sample = await sqlClient.query(`SELECT * FROM "${safeName}" LIMIT 100`)
+      const finalSchema = inferSchema(sample)
+      
+      const countRes = await sqlClient.query(`SELECT COUNT(*) as "count" FROM "${safeName}"`)
+      const rowCount = countRes[0]?.count || 0
+      
+      const datasetMeta = {
+        name: safeName,
+        originalName: name,
+        schema: finalSchema,
+        rowCount,
+        colCount: finalSchema.length,
+        importedAt: new Date(),
+        transformations: [],
+        ui: { x: 50, y: 50 },
+        connectorConfig,
+        refreshInterval,
+        tags: []
+      }
+      
+      datasets.value.set(safeName, datasetMeta)
+      
+      if (refreshInterval > 0) scheduleRefresh(safeName)
+      if (!activeDatasetName.value || datasets.value.size === 1) activeDatasetName.value = safeName
+      dataVersion.value++
+      
+      uiStore.addToast({
+        message: `Dataset "${name}" importado nativamente (${rowCount} filas)`,
+        type: 'success'
+      })
+      
+      return safeName
+    } catch (error) {
+      Logger.error('DataStore', `Error adding native dataset: ${name}`, error)
+      console.error('Error adding native dataset:', error)
+      uiStore.addToast({
+        message: `Error al importar nativamente: ${error.message}`,
         type: 'error'
       })
       throw error
@@ -194,7 +244,7 @@ export const useDataStore = defineStore('data', () => {
   
   const getPreviewData = async (name, limit = 100) => {
     try {
-      return await sqlClient.query(`SELECT TOP ${limit} * FROM [${name}]`)
+      return await sqlClient.query(`SELECT * FROM "${name}" LIMIT ${limit}`)
     } catch (e) {
       console.error(e)
       return []
@@ -208,6 +258,13 @@ export const useDataStore = defineStore('data', () => {
       ds.ui.x = x
       ds.ui.y = y
       dataVersion.value++
+    }
+  }
+
+  const updateDatasetTags = (name, tags) => {
+    const ds = datasets.value.get(name)
+    if (ds) {
+      ds.tags = tags
     }
   }
 
@@ -255,21 +312,27 @@ export const useDataStore = defineStore('data', () => {
 
   const buildJoinQuery = (baseTable, requiredTables) => {
     try {
-      // Validar que la tabla base exista
       if (!datasets.value.has(baseTable)) {
         throw new Error(`La tabla base "${baseTable}" no existe en los datasets.`)
       }
 
-      let joinClause = `[${baseTable}]`
+      const getActualTableName = (t) => {
+        const ds = datasets.value.get(t)
+        return (ds && ds.transformations && ds.transformations.length > 0) ? `${t}_working` : t
+      }
+
+      const actualBase = getActualTableName(baseTable)
+      let joinClause = `"${actualBase}" AS "${baseTable}"`
+      
       const tablesToJoin = requiredTables.filter(t => t !== baseTable)
       
       for (const targetTable of tablesToJoin) {
-        // Validar que la tabla destino exista
         if (!datasets.value.has(targetTable)) {
           Logger.warn('DataStore', `Tabla "${targetTable}" no existe, se omite del JOIN.`)
           continue
         }
 
+        const actualTarget = getActualTableName(targetTable)
         const rel = relationships.value.find(r => 
           (r.fromTable === baseTable && r.toTable === targetTable) ||
           (r.toTable === baseTable && r.fromTable === targetTable)
@@ -277,9 +340,9 @@ export const useDataStore = defineStore('data', () => {
         
         if (rel) {
           if (rel.fromTable === baseTable) {
-            joinClause += ` LEFT JOIN [${targetTable}] ON [${baseTable}].[${rel.fromColumn}] = [${targetTable}].[${rel.toColumn}]`
+            joinClause += ` LEFT JOIN "${actualTarget}" AS "${targetTable}" ON "${baseTable}"."${rel.fromColumn}" = "${targetTable}"."${rel.toColumn}"`
           } else {
-            joinClause += ` LEFT JOIN [${targetTable}] ON [${baseTable}].[${rel.toColumn}] = [${targetTable}].[${rel.fromColumn}]`
+            joinClause += ` LEFT JOIN "${actualTarget}" AS "${targetTable}" ON "${baseTable}"."${rel.toColumn}" = "${targetTable}"."${rel.fromColumn}"`
           }
         } else {
           Logger.warn('DataStore', `No se encontró relación entre ${baseTable} y ${targetTable}`)
@@ -294,7 +357,7 @@ export const useDataStore = defineStore('data', () => {
         type: 'error'
       })
       // Fallback: retornar solo la tabla base para no romper la consulta
-      return `[${baseTable}]`
+      return `"${baseTable}"`
     }
   }
   
@@ -362,7 +425,7 @@ export const useDataStore = defineStore('data', () => {
 
   const getAllData = async (name) => {
     try {
-      return await sqlClient.query(`SELECT * FROM [${name}]`)
+      return await sqlClient.query(`SELECT * FROM "${name}"`)
     } catch (e) {
       console.error(e)
       return []
@@ -414,11 +477,13 @@ export const useDataStore = defineStore('data', () => {
     datasetNames,
     activeDatasetMeta,
     addDataset,
+    addDatasetFromFile,
     appendData,
     removeDataset,
     setActiveDataset,
     getPreviewData,
     updateDatasetPosition,
+    updateDatasetTags,
     addRelationship,
     removeRelationship,
     buildJoinQuery,

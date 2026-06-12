@@ -1,7 +1,5 @@
 <script setup>
-import { ref, watch, onMounted, onUnmounted } from 'vue'
-import { TabulatorFull as Tabulator } from 'tabulator-tables'
-import 'tabulator-tables/dist/css/tabulator.min.css'
+import { computed, ref, watchEffect } from 'vue'
 
 const props = defineProps({
   data: {
@@ -20,116 +18,75 @@ const props = defineProps({
 
 const emit = defineEmits(['column-selected'])
 
-const tableElement = ref(null)
-let tabulatorInstance = null
+const columnNulls = ref({})
 
-// Helper to calculate column stats for profiling
-const calculateStats = (data, colName) => {
-  let nulls = 0
-  let total = data.length || 0
-  let unique = new Set()
-  
-  if (total > 0) {
-    for (let i = 0; i < total; i++) {
-      const val = data[i][colName]
-      if (val === null || val === undefined || val === '') {
-        nulls++
-      }
-      unique.add(val)
-    }
-  }
-  
-  return {
-    nullPct: total ? Math.round((nulls / total) * 100) : 0,
-    uniqueCount: unique.size
-  }
-}
-
-// Define Tabulator columns based on schema
-const buildColumns = (schema, data) => {
-  return schema.map(col => {
-    const stats = calculateStats(data, col.name)
-    const validPct = 100 - stats.nullPct
-    const qualityColor = validPct < 50 ? 'var(--color-danger, #ef4444)' : validPct < 90 ? 'var(--color-warning, #eab308)' : 'var(--color-success, #10b981)'
-    
-    return {
-      title: col.name,
-      field: col.name,
-      sorter: col.type === 'number' ? 'number' : col.type === 'date' ? 'date' : 'string',
-      headerFilter: true, // Enable basic quick filtering
-      headerFilterPlaceholder: 'Filtrar...',
-      formatter: col.type === 'boolean' ? 'tickCross' : 'plaintext',
-      hozAlign: col.type === 'number' ? 'right' : 'left',
-      titleFormatter: (cell) => {
-        return `
-          <div style="display:flex; flex-direction:column; width:100%; padding:2px 0;">
-            <span style="font-weight:600;">${col.name}</span>
-            <div style="display:flex; justify-content:space-between; font-size:10px; color:var(--color-text-secondary); margin-top:4px; font-weight:normal;">
-              <span title="Valores únicos">U: ${stats.uniqueCount}</span>
-              <span style="color:${qualityColor}" title="Porcentaje de datos no nulos">${validPct}% Válido</span>
-            </div>
-            <div style="width:100%; height:3px; background:var(--color-border); margin-top:2px; border-radius:2px; overflow:hidden;">
-              <div style="width:${validPct}%; height:100%; background:${qualityColor};"></div>
-            </div>
-          </div>
-        `
-      }
-    }
-  })
-}
-
-const initTabulator = () => {
-  if (tabulatorInstance) {
-    tabulatorInstance.destroy()
-  }
-  
-  if (tableElement.value) {
-    tabulatorInstance = new Tabulator(tableElement.value, {
-      data: props.data,
-      columns: buildColumns(props.schema, props.data),
-      height: props.height,
-      layout: "fitDataFill",
-      reactiveData: false, // We handle reactivity manually to improve perf with huge datasets
-      pagination: "local",
-      paginationSize: 100,
-      paginationSizeSelector: [50, 100, 500, 1000],
-      movableColumns: true,
-      index: "_temp_id", // Requires a unique ID if using selection
-    })
-
-    tabulatorInstance.on("headerClick", function(e, column) {
-      emit('column-selected', column.getField())
+watchEffect(() => {
+  const nullStats = {}
+  if (props.data && props.data.length > 0 && props.schema) {
+    props.schema.forEach(col => {
+      let nullCount = 0
+      props.data.forEach(row => {
+        if (row[col.name] === null || row[col.name] === undefined || row[col.name] === '') {
+          nullCount++
+        }
+      })
+      nullStats[col.name] = (nullCount / props.data.length) * 100
     })
   }
+  columnNulls.value = nullStats
+})
+
+const formatValue = (val, type) => {
+  if (val === null || val === undefined || val === '') return '<span class="text-muted-foreground/50">null</span>'
+  if (typeof val === 'boolean') return val.toString()
+  if ((type === 'date' || type === 'DATE') && typeof val === 'number') {
+    // Arrow returns dates as unix epoch ms
+    try {
+      return new Date(val).toISOString().split('T')[0]
+    } catch (e) {
+      return val
+    }
+  }
+  return val
 }
-
-// Re-init if schema changes (columns changed)
-watch(() => props.schema, () => {
-  initTabulator()
-}, { deep: true })
-
-// Just update data if data changes but schema is same
-watch(() => props.data, (newData) => {
-  if (tabulatorInstance) {
-    tabulatorInstance.replaceData(newData)
-  }
-}, { deep: false })
-
-onMounted(() => {
-  initTabulator()
-})
-
-onUnmounted(() => {
-  if (tabulatorInstance) {
-    tabulatorInstance.destroy()
-    tabulatorInstance = null
-  }
-})
 </script>
 
 <template>
-  <div class="data-grid-container">
-    <div ref="tableElement" class="litebi-tabulator"></div>
+  <div class="data-grid-container flex-1 overflow-auto custom-scrollbar">
+    <table class="w-full text-xs text-left border-collapse min-w-max">
+      <thead class="sticky top-0 bg-muted/40 shadow-[0_1px_0_var(--color-border)] z-10">
+        <tr>
+          <th 
+            v-for="col in schema" 
+            :key="col.name"
+            class="px-4 py-3 font-normal border-r border-border last:border-r-0"
+          >
+            <div class="flex flex-col gap-0.5">
+              <span class="font-mono font-semibold text-foreground text-xs">{{ col.name }}</span>
+              <span class="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                {{ col.type }} - NULLS {{ (columnNulls[col.name] || 0).toFixed(0) }}%
+              </span>
+            </div>
+          </th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-border">
+        <tr 
+          v-for="(row, idx) in data" 
+          :key="idx"
+          class="hover:bg-muted/30 transition-colors"
+        >
+          <td 
+            v-for="col in schema" 
+            :key="col.name"
+            class="px-4 py-2 border-r border-border last:border-r-0 whitespace-nowrap overflow-hidden text-ellipsis max-w-[200px] font-mono text-[11px]"
+            :class="{ 'text-right': col.type === 'number' || col.type === 'integer' || col.type === 'decimal' || col.type === 'BIGINT' || col.type === 'DOUBLE' }"
+          >
+            <span class="text-foreground" v-html="formatValue(row[col.name], col.type)"></span>
+          </td>
+        </tr>
+      </tbody>
+    </table>
   </div>
 </template>
 
@@ -137,66 +94,22 @@ onUnmounted(() => {
 .data-grid-container {
   width: 100%;
   height: 100%;
-  background-color: var(--color-bg-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-
-/* Customizing Tabulator Theme to match LiteBI */
-:deep(.tabulator) {
-  border: none;
   background-color: transparent;
-  font-family: var(--font-family);
-  font-size: var(--text-sm);
 }
 
-:deep(.tabulator-header) {
-  background-color: var(--color-bg-primary) !important;
-  border-bottom: 1px solid var(--color-border) !important;
-  color: var(--color-text-primary);
-  font-weight: var(--font-semibold);
+/* Custom scrollbar for the table */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
 }
-
-:deep(.tabulator-col) {
-  background-color: transparent !important;
-  border-right: 1px solid var(--color-border) !important;
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
 }
-
-:deep(.tabulator-row) {
-  background-color: var(--color-bg-surface) !important;
-  border-bottom: 1px solid var(--color-border) !important;
-  color: var(--color-text-primary);
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: var(--color-border);
+  border-radius: 4px;
 }
-
-:deep(.tabulator-row:hover) {
-  background-color: var(--color-bg-secondary) !important;
-}
-
-:deep(.tabulator-footer) {
-  background-color: var(--color-bg-primary) !important;
-  border-top: 1px solid var(--color-border) !important;
-  color: var(--color-text-secondary);
-}
-
-:deep(.tabulator-page) {
-  color: var(--color-text-primary) !important;
-  border-color: var(--color-border) !important;
-  border-radius: var(--radius-sm);
-}
-
-:deep(.tabulator-page.active) {
-  color: var(--color-accent) !important;
-}
-
-:deep(.tabulator input),
-:deep(.tabulator select) {
-  background-color: var(--color-bg-surface);
-  color: var(--color-text-primary);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  padding: 2px 4px;
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: var(--muted-foreground);
 }
 </style>

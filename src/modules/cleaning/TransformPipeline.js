@@ -38,39 +38,35 @@ export class TransformPipeline {
       enabled: true
     }
     this.steps.push(step)
-    return await this.executePipeline()
   }
 
   async removeStep(stepId) {
     this.steps = this.steps.filter(s => s.id !== stepId)
-    return await this.executePipeline()
   }
 
   async toggleStep(stepId) {
     const step = this.steps.find(s => s.id === stepId)
     if (step) {
       step.enabled = !step.enabled
-      return await this.executePipeline()
     }
   }
 
   async _resetTempTable() {
     await sqlClient.dropTable(this.tempTableName)
-    await sqlClient.createTable(this.tempTableName)
-    const sourceData = await sqlClient.query(`SELECT * FROM [${this.baseDatasetName}]`)
-    await sqlClient.createTable(this.tempTableName, sourceData)
+    await sqlClient.query(`CREATE TABLE "${this.tempTableName}" AS SELECT * FROM "${this.baseDatasetName}" LIMIT 100`)
   }
 
   /**
    * Re-evaluates the entire pipeline on the base data asynchronously via worker
    */
-  async executePipeline() {
+  async executePipeline(previewLimit = null) {
     try {
       const result = await sqlClient.executePipeline(
         this.baseDatasetName, 
         this.tempTableName, 
         this.originalSchema, 
-        this.steps
+        this.steps,
+        previewLimit
       )
       return result
     } catch (error) {
@@ -81,7 +77,7 @@ export class TransformPipeline {
   
   async getPreviewData(limit = 100) {
     try {
-      return await sqlClient.query(`SELECT TOP ${limit} * FROM [${this.tempTableName}]`)
+      return await sqlClient.query(`SELECT * FROM "${this.tempTableName}" LIMIT ${limit}`)
     } catch (e) {
       return []
     }

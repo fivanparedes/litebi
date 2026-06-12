@@ -20,6 +20,11 @@ export const businessThemeDark = {
       fontWeight: 600
     }
   },
+  legend: {
+    textStyle: {
+      color: '#94A3B8' // slate-400
+    }
+  },
   line: {
     smooth: true,
     symbol: 'circle',

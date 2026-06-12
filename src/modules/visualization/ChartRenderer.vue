@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, shallowRef, watch, onMounted } from 'vue'
+import { computed, ref, shallowRef, watch, onMounted, markRaw } from 'vue'
 import { useDataStore } from '@/stores/dataStore'
 import { useDashboardStore } from '@/stores/dashboardStore'
 import { useSettingsStore } from '@/stores/settingsStore'
@@ -65,6 +65,12 @@ use([
 registerTheme('business-light', businessTheme)
 registerTheme('business-dark', businessThemeDark)
 
+const getSafeOperator = (op) => {
+  const allowed = ['=', '!=', '<', '<=', '>', '>=', 'LIKE', 'ILIKE', 'BETWEEN', 'IN', 'NOT IN', 'IS NULL', 'IS NOT NULL']
+  const clean = String(op || '=').trim().toUpperCase()
+  return allowed.includes(clean) ? clean : '='
+}
+
 const props = defineProps({
   config: {
     type: Object,
@@ -103,6 +109,23 @@ const currentXAxis = computed(() => {
   }
   return x
 })
+
+const forecastData = ref(null)
+
+watch([() => chartData.value, () => props.config.ml?.forecasting, () => props.config.ml?.forecastPeriods], async ([data, isForecasting, periods]) => {
+  if (isForecasting && data && data.length > 0) {
+    const xAxisData = data.map(d => d.name)
+    try {
+      const result = await generateForecastDataset(data, xAxisData, periods || 3)
+      forecastData.value = markRaw(result)
+    } catch (e) {
+      console.error("Forecasting failed:", e)
+      forecastData.value = null
+    }
+  } else {
+    forecastData.value = null
+  }
+}, { deep: true })
 
 const isDrillable = computed(() => {
   return Array.isArray(props.config.xAxis) && drillLevel.value < props.config.xAxis.length - 1
@@ -148,19 +171,38 @@ const loadData = async () => {
     }
     
     const dsName = props.config.dataset
-    const rawY = props.config.yAxis
-    const rawY2 = props.config.secondaryYAxis
+    const rawY = Array.isArray(props.config.yAxis) ? props.config.yAxis[0] : props.config.yAxis
+    const rawY2 = Array.isArray(props.config.secondaryYAxis) ? props.config.secondaryYAxis[0] : props.config.secondaryYAxis
     const agg = props.config.aggregation || 'SUM'
 
-    const parseCol = (colStr) => colStr.includes('].[') ? colStr : `[${dsName}].[${colStr}]`
-    const extractTable = (colStr) => colStr.includes('].[') ? colStr.split('].[')[0].replace('[', '') : dsName
+    const parseCol = (colStr, fallbackTable = dsName) => {
+      if (typeof colStr !== 'string') return colStr;
+      if (colStr.includes('"."')) return colStr;
+      if (colStr.startsWith('[') && colStr.includes('].[')) {
+        const parts = colStr.split('].[');
+        return `"${parts[0].replace('[', '')}"."${parts[1].replace(']', '')}"`;
+      }
+      if (colStr.startsWith('[') && colStr.endsWith(']')) {
+        return `"${fallbackTable}"."${colStr.slice(1, -1)}"`;
+      }
+      return `"${fallbackTable}"."${colStr}"`;
+    }
+    const extractTable = (colStr) => {
+      if (!colStr || typeof colStr !== 'string') return dsName;
+      if (colStr.includes('"."')) return colStr.split('"."')[0].replace('"', '');
+      if (colStr.startsWith('[') && colStr.includes('].[')) return colStr.split('].[')[0].replace('[', '');
+      return dsName;
+    }
     
     const resolveY = (yConfig, defaultAgg) => {
       if (yConfig?.startsWith('__METRIC__')) {
         const metricId = yConfig.split('__METRIC__')[1]
         const metrics = formulaStore.getCorporateMetricsForDataset(dsName)
         const metric = metrics.find(m => m.id === metricId)
-        if (metric) return `(${metric.expression})`
+        if (metric) {
+          const compiledExpr = metric.expression.replace(/\[([^\]]+)\]\.\[([^\]]+)\]/g, '"$1"."$2"').replace(/\[([^\]]+)\]/g, '"$1"');
+          return `(${compiledExpr})`
+        }
       }
       return `${defaultAgg}(${parseCol(yConfig)})`
     }
@@ -176,7 +218,7 @@ const loadData = async () => {
         if (!rel) return
       }
       const safeVal = typeof f.value === 'string' ? String(f.value).replace(/'/g, "''") : f.value
-      const colName = f.column.includes('].[') ? f.column : `[${f.dataset}].[${f.column}]`
+      const colName = parseCol(f.column, f.dataset)
       requiredTables.push(extractTable(f.column) || f.dataset)
       
       if (f.operator === 'BETWEEN') {
@@ -186,7 +228,7 @@ const loadData = async () => {
         globalWhere += ` AND ${colName} BETWEEN ${v1} AND ${v2}`
       } else {
         const v1 = typeof f.value === 'number' ? f.value : `'${safeVal}'`
-        globalWhere += ` AND ${colName} ${f.operator || '='} ${v1}`
+        globalWhere += ` AND ${colName} ${getSafeOperator(f.operator)} ${v1}`
       }
     })
 
@@ -195,14 +237,14 @@ const loadData = async () => {
       props.config.filters.forEach(f => {
         if (!f.column || !f.operator || f.value === undefined || f.value === '') return
         const safeVal = typeof f.value === 'string' ? String(f.value).replace(/'/g, "''") : f.value
-        const colName = f.column.includes('].[') ? f.column : `[${dsName}].[${f.column}]`
+        const colName = parseCol(f.column, dsName)
         requiredTables.push(extractTable(f.column) || dsName)
         
         const v1 = typeof f.value === 'number' ? f.value : `'${safeVal}'`
         if (f.operator.toUpperCase() === 'LIKE') {
           globalWhere += ` AND ${colName} LIKE '%${safeVal}%'`
         } else {
-          globalWhere += ` AND ${colName} ${f.operator} ${v1}`
+          globalWhere += ` AND ${colName} ${getSafeOperator(f.operator)} ${v1}`
         }
       })
     }
@@ -214,8 +256,8 @@ const loadData = async () => {
 
       if (props.config.type === 'scorecard' && rawY2) {
         const y2SafeExp = resolveY(rawY2, agg)
-        const q = `SELECT ${ySafeExp} as [total], ${y2SafeExp} as [target] FROM ${fromClause} WHERE 1=1 ${globalWhere}`
-        const res = await sqlClient.query(q)
+        const q = `SELECT ${ySafeExp} as "total", ${y2SafeExp} as "target" FROM ${fromClause} WHERE 1=1 ${globalWhere}`
+        const res = markRaw(await sqlClient.query(q))
         kpiValue.value = {
           total: res[0]?.total || 0,
           target: res[0]?.target || 0
@@ -224,8 +266,8 @@ const loadData = async () => {
         // Find main column for IS NOT NULL check
         const baseColExp = rawY.startsWith('__METRIC__') ? '1' : parseCol(rawY)
         const nullCheck = baseColExp === '1' ? '' : ` AND ${baseColExp} IS NOT NULL`
-        const q = `SELECT ${ySafeExp} as [total] FROM ${fromClause} WHERE 1=1${nullCheck}${globalWhere}`
-        const res = await sqlClient.query(q)
+        const q = `SELECT ${ySafeExp} as "total" FROM ${fromClause} WHERE 1=1${nullCheck}${globalWhere}`
+        const res = markRaw(await sqlClient.query(q))
         kpiValue.value = res[0]?.total || 0
       }
     } catch (e) {
@@ -245,19 +287,46 @@ const loadData = async () => {
   
   const dsName = props.config.dataset
   const rawX = currentXAxis.value
-  const rawY = props.config.yAxis
-  const rawY2 = props.config.secondaryYAxis
+  const rawY = Array.isArray(props.config.yAxis) ? props.config.yAxis[0] : props.config.yAxis
+  const rawY2 = Array.isArray(props.config.secondaryYAxis) ? props.config.secondaryYAxis[0] : props.config.secondaryYAxis
   const agg = props.config.aggregation || 'SUM'
   
-  const parseCol = (colStr) => colStr.includes('].[') ? colStr : `[${dsName}].[${colStr}]`
-  const extractTable = (colStr) => colStr && colStr.includes('].[') ? colStr.split('].[')[0].replace('[', '') : dsName
+  const parseCol = (colStr, fallbackTable = dsName) => {
+    if (typeof colStr !== 'string') return colStr;
+    if (colStr.includes('"."')) return colStr;
+    if (colStr.startsWith('[') && colStr.includes('].[')) {
+      const parts = colStr.split('].[');
+      return `"${parts[0].replace('[', '')}"."${parts[1].replace(']', '')}"`;
+    }
+    if (colStr.startsWith('[') && colStr.endsWith(']')) {
+      return `"${fallbackTable}"."${colStr.slice(1, -1)}"`;
+    }
+    return `"${fallbackTable}"."${colStr}"`;
+  }
+  const extractTable = (colStr) => {
+    if (!colStr || typeof colStr !== 'string') return dsName;
+    if (colStr.includes('"."')) return colStr.split('"."')[0].replace('"', '');
+    if (colStr.startsWith('[') && colStr.includes('].[')) return colStr.split('].[')[0].replace('[', '');
+    return dsName;
+  }
+
+  const extractColStr = (colStr) => {
+    if (!colStr || typeof colStr !== 'string') return '';
+    if (colStr.includes('"."')) return colStr.split('"."')[1].replace('"', '');
+    if (colStr.startsWith('[') && colStr.includes('].[')) return colStr.split('].[')[1].replace(']', '');
+    if (colStr.startsWith('[') && colStr.endsWith(']')) return colStr.slice(1, -1);
+    return colStr;
+  }
   
   const resolveY = (yConfig, defaultAgg) => {
     if (yConfig?.startsWith('__METRIC__')) {
       const metricId = yConfig.split('__METRIC__')[1]
       const metrics = formulaStore.getCorporateMetricsForDataset(dsName)
       const metric = metrics.find(m => m.id === metricId)
-      if (metric) return `(${metric.expression})`
+      if (metric) {
+        const compiledExpr = metric.expression.replace(/\[([^\]]+)\]\.\[([^\]]+)\]/g, '"$1"."$2"').replace(/\[([^\]]+)\]/g, '"$1"');
+        return `(${compiledExpr})`
+      }
     }
     return `${defaultAgg}(${parseCol(yConfig)})`
   }
@@ -274,7 +343,7 @@ const loadData = async () => {
       if (!rel) return
     }
     const safeVal = typeof f.value === 'string' ? String(f.value).replace(/'/g, "''") : f.value
-    const colName = f.column.includes('].[') ? f.column : `[${f.dataset}].[${f.column}]`
+    const colName = parseCol(f.column, f.dataset)
     requiredTables.push(extractTable(f.column) || f.dataset)
     
     if (f.operator === 'BETWEEN') {
@@ -284,14 +353,14 @@ const loadData = async () => {
       globalWhere += ` AND ${colName} BETWEEN ${v1} AND ${v2}`
     } else {
       const v1 = typeof f.value === 'number' ? f.value : `'${safeVal}'`
-      globalWhere += ` AND ${colName} ${f.operator || '='} ${v1}`
+      globalWhere += ` AND ${colName} ${getSafeOperator(f.operator)} ${v1}`
     }
   })
 
   // Apply drill-down path filters
   drillPath.value.forEach(dFilter => {
     const safeVal = typeof dFilter.value === 'string' ? String(dFilter.value).replace(/'/g, "''") : dFilter.value
-    const colName = dFilter.colName.includes('].[') ? dFilter.colName : `[${dsName}].[${dFilter.colName}]`
+    const colName = parseCol(dFilter.colName, dsName)
     requiredTables.push(extractTable(dFilter.colName) || dsName)
     const v1 = typeof dFilter.value === 'number' ? dFilter.value : `'${safeVal}'`
     globalWhere += ` AND ${colName} = ${v1}`
@@ -302,14 +371,14 @@ const loadData = async () => {
     props.config.filters.forEach(f => {
       if (!f.column || !f.operator || f.value === undefined || f.value === '') return
       const safeVal = typeof f.value === 'string' ? String(f.value).replace(/'/g, "''") : f.value
-      const colName = f.column.includes('].[') ? f.column : `[${dsName}].[${f.column}]`
+      const colName = parseCol(f.column, dsName)
       requiredTables.push(extractTable(f.column) || dsName)
       
       const v1 = typeof f.value === 'number' ? f.value : `'${safeVal}'`
       if (f.operator.toUpperCase() === 'LIKE') {
         globalWhere += ` AND ${colName} LIKE '%${safeVal}%'`
       } else {
-        globalWhere += ` AND ${colName} ${f.operator} ${v1}`
+        globalWhere += ` AND ${colName} ${getSafeOperator(f.operator)} ${v1}`
       }
     })
   }
@@ -323,7 +392,7 @@ const loadData = async () => {
     if (props.config.type === 'python') {
       try {
         const q = `SELECT * FROM ${fromClause} WHERE 1=1${globalWhere} LIMIT 10000`
-        const rawDataForPython = await sqlClient.query(q)
+        const rawDataForPython = markRaw(await sqlClient.query(q))
         
         if (props.config.pythonCode) {
           const b64 = await pythonClient.runPythonPlot(props.config.pythonCode, rawDataForPython, dsName)
@@ -344,53 +413,98 @@ const loadData = async () => {
     const baseColExp = rawY.startsWith('__METRIC__') ? '1' : parseCol(rawY)
     const yNullCheck = baseColExp === '1' ? '' : ` AND ${baseColExp} IS NOT NULL`
     
+    const dsMeta = dataStore.datasets.get(dsName)
+    const xColName = extractColStr(rawX)
+    const xColMeta = dsMeta?.schema?.find(c => c.name === xColName)
+    const isXDate = xColMeta?.type?.toLowerCase() === 'date' || xColMeta?.type?.toLowerCase() === 'timestamp'
+    
+    const y2ColName = rawY2 ? extractColStr(rawY2) : ''
+    const y2ColMeta = dsMeta?.schema?.find(c => c.name === y2ColName)
+    const isY2Date = y2ColMeta?.type?.toLowerCase() === 'date' || y2ColMeta?.type?.toLowerCase() === 'timestamp'
+
+    const formatDates = (dataArray) => {
+      if (!isXDate && !isY2Date) return dataArray
+      return dataArray.map(d => {
+        const newD = { ...d }
+        if (isXDate && typeof newD.name === 'number') {
+          try { newD.name = new Date(newD.name).toISOString().split('T')[0] } catch(e){ /* ignore */ }
+        }
+        if (isY2Date && typeof newD.name2 === 'number') {
+          try { newD.name2 = new Date(newD.name2).toISOString().split('T')[0] } catch(e){ /* ignore */ }
+        }
+        return newD
+      })
+    }
     
     if ((props.config.type === 'map' && props.config.mapMode === 'scatter') || props.config.type === 'scatter' || props.config.type === 'boxplot') {
       const isMapScatter = props.config.type === 'map'
-      const selectY2 = (isMapScatter && rawY2) ? `, ${resolveY(rawY2, agg)} as [value2]` : ''
+      const selectY2 = (isMapScatter && rawY2) ? `, ${resolveY(rawY2, agg)} as "value2"` : ''
       const groupByMap = (isMapScatter && rawY2) ? `GROUP BY ${xSafe}, ${ySafeExp}` : ''
       
       const q = isMapScatter && rawY2 
-        ? `SELECT TOP 2000 ${xSafe} as [name], ${ySafeExp} as [value] ${selectY2} FROM ${fromClause} WHERE ${xSafe} IS NOT NULL${yNullCheck}${globalWhere} ${groupByMap}`
-        : `SELECT TOP 2000 ${xSafe} as [name], ${ySafeExp} as [value] FROM ${fromClause} WHERE ${xSafe} IS NOT NULL${yNullCheck}${globalWhere}`
+        ? `SELECT ${xSafe} as "name", ${ySafeExp} as "value" ${selectY2} FROM ${fromClause} WHERE ${xSafe} IS NOT NULL${yNullCheck}${globalWhere} ${groupByMap} LIMIT 2000`
+        : `SELECT ${xSafe} as "name", ${ySafeExp} as "value" FROM ${fromClause} WHERE ${xSafe} IS NOT NULL${yNullCheck}${globalWhere} LIMIT 2000`
         
-      chartData.value = await sqlClient.query(q)
+      chartData.value = markRaw(formatDates(await sqlClient.query(q)))
       isLoading.value = false
       return
     }
 
     if (props.config.type === 'heatmap' && rawY2) {
       const ySafe2Exp = resolveY(rawY2, agg)
-      const q = `SELECT ${xSafe} as [name], ${ySafe2Exp} as [name2], ${ySafeExp} as [value] FROM ${fromClause} WHERE ${xSafe} IS NOT NULL${yNullCheck}${globalWhere} GROUP BY ${xSafe}, ${ySafe2Exp} LIMIT 1000`
-      chartData.value = await sqlClient.query(q)
+      const q = `SELECT ${xSafe} as "name", ${ySafe2Exp} as "name2", ${ySafeExp} as "value" FROM ${fromClause} WHERE ${xSafe} IS NOT NULL${yNullCheck}${globalWhere} GROUP BY ${xSafe}, ${ySafe2Exp} LIMIT 1000`
+      chartData.value = markRaw(formatDates(await sqlClient.query(q)))
       isLoading.value = false
       return
     }
 
+    const getSortAndLimitClause = () => {
+      let orderClause = 'ORDER BY "value" DESC'
+      if (props.config.sortBy) {
+        let sortCol = '"value"'
+        const sortByClean = props.config.sortBy
+        if (sortByClean === props.config.xAxis || sortByClean === rawX) {
+          sortCol = '"name"'
+        } else if (sortByClean === props.config.yAxis || sortByClean === rawY) {
+          sortCol = '"value"'
+        } else if (sortByClean === props.config.secondaryYAxis || sortByClean === rawY2) {
+          sortCol = '"value2"'
+        }
+        
+        const dir = String(props.config.sortDir || 'desc').toUpperCase() === 'ASC' ? 'ASC' : 'DESC'
+        orderClause = `ORDER BY ${sortCol} ${dir}`
+      }
+      
+      const limitVal = props.config.topN ? parseInt(props.config.topN, 10) : 100
+      const safeLimit = !isNaN(limitVal) && limitVal > 0 ? limitVal : 100
+      
+      return `${orderClause} LIMIT ${safeLimit}`
+    }
+
     if ((props.config.type === 'combo' || props.config.type === 'line' || props.config.type === 'bar') && rawY2) {
       const ySafe2Exp = resolveY(rawY2, agg)
-      const q = `SELECT ${xSafe} as [name], ${ySafeExp} as [value], ${ySafe2Exp} as [value2] FROM ${fromClause} WHERE ${xSafe} IS NOT NULL${globalWhere} GROUP BY ${xSafe} ORDER BY [value] DESC LIMIT 100`
-      chartData.value = await sqlClient.query(q)
+      const q = `SELECT ${xSafe} as "name", ${ySafeExp} as "value", ${ySafe2Exp} as "value2" FROM ${fromClause} WHERE ${xSafe} IS NOT NULL${globalWhere} GROUP BY ${xSafe} ${getSortAndLimitClause()}`
+      chartData.value = markRaw(formatDates(await sqlClient.query(q)))
       isLoading.value = false
       return
     }
 
     if (props.config.type === 'gauge') {
-      const q = `SELECT ${ySafeExp} as [value] FROM ${fromClause} WHERE 1=1${yNullCheck}${globalWhere}`
-      chartData.value = await sqlClient.query(q)
+      const q = `SELECT ${ySafeExp} as "value" FROM ${fromClause} WHERE 1=1${yNullCheck}${globalWhere}`
+      chartData.value = markRaw(formatDates(await sqlClient.query(q)))
       isLoading.value = false
       return
     }
 
     if (props.config.type === 'calendar') {
-      const q = `SELECT ${xSafe} as [name], ${ySafeExp} as [value] FROM ${fromClause} WHERE ${xSafe} IS NOT NULL${globalWhere} GROUP BY ${xSafe} LIMIT 2000`
-      chartData.value = await sqlClient.query(q)
+      const q = `SELECT ${xSafe} as "name", ${ySafeExp} as "value" FROM ${fromClause} WHERE ${xSafe} IS NOT NULL${globalWhere} GROUP BY ${xSafe} LIMIT 2000`
+      chartData.value = markRaw(formatDates(await sqlClient.query(q)))
       isLoading.value = false
       return
     }
     
-    const q = `SELECT ${xSafe} as [name], ${ySafeExp} as [value] FROM ${fromClause} WHERE ${xSafe} IS NOT NULL${globalWhere} GROUP BY ${xSafe} ORDER BY [value] DESC LIMIT 100`
-    chartData.value = await sqlClient.query(q)
+    const q = `SELECT ${xSafe} as "name", ${ySafeExp} as "value" FROM ${fromClause} WHERE ${xSafe} IS NOT NULL${globalWhere} GROUP BY ${xSafe} ${getSortAndLimitClause()}`
+    chartData.value = markRaw(formatDates(await sqlClient.query(q)))
   } catch (e) {
     console.error("Error generating chart data:", e)
     sqlError.value = e.message || 'Error de sintaxis SQL. Revisa los filtros y tipos de datos.'
@@ -432,6 +546,7 @@ onMounted(async () => {
   loadData()
   checkCustomGeoJson()
 })
+const customMapLoaded = ref(0)
 
 const checkCustomGeoJson = async () => {
   if (props.config?.type === 'map' && props.config?.mapMode === 'custom' && props.config?.customGeoJson) {
@@ -444,12 +559,20 @@ const checkCustomGeoJson = async () => {
       const mapName = custom.url
       if (!getMap(mapName)) {
         try {
-          const res = await fetch(custom.url)
+          let fetchUrl = custom.url
+          // Convert github.com/user/repo/blob/master/file to raw.githubusercontent.com/user/repo/master/file
+          if (fetchUrl.includes('github.com') && fetchUrl.includes('/blob/')) {
+            fetchUrl = fetchUrl.replace('github.com', 'raw.githubusercontent.com').replace('/blob/', '/')
+          }
+          const res = await fetch(fetchUrl)
           const data = await res.json()
           registerMap(mapName, data)
+          customMapLoaded.value++
         } catch (e) {
           console.error('Error fetching custom GeoJSON:', e)
         }
+      } else {
+        customMapLoaded.value++
       }
     }
   }
@@ -787,7 +910,7 @@ const chartStrategies = {
         formatter: function (params) {
           return parseInt(params.value[0].split('-')[2], 10)
         },
-        color: 'var(--color-text-secondary)',
+        color: 'var(--muted-foreground)',
         position: 'insideTopLeft',
         offset: [5, 5],
         fontSize: 10
@@ -874,6 +997,9 @@ const chartStrategies = {
     }
   },
   map: (baseOption, data, props, xAxisData, seriesData) => {
+    // Depend on reactive trigger
+    customMapLoaded.value;
+    
     const getMapName = () => {
       if (props.config.mapMode === 'custom' && props.config.customGeoJson) {
         return props.config.customGeoJson.type === 'file' ? props.config.customGeoJson.name : props.config.customGeoJson.url
@@ -881,6 +1007,21 @@ const chartStrategies = {
       return 'world'
     }
     const currentMap = getMapName()
+    
+    // Si el mapa aún no está registrado (porque se está descargando el GeoJSON), mostramos "Cargando"
+    // para evitar que ECharts intente buscar geometrías inexistentes y crashee.
+    if (currentMap !== 'world' && !getMap(currentMap)) {
+      return {
+        ...baseOption,
+        title: {
+          text: 'Cargando geometría del mapa...',
+          left: 'center',
+          top: 'middle',
+          textStyle: { color: 'var(--muted-foreground)', fontWeight: 'normal', fontSize: 14 }
+        },
+        series: []
+      }
+    }
 
     if (props.config.mapMode === 'scatter' || (props.config.mapMode === 'custom' && props.config.secondaryYAxis)) {
       const y2LabelValue = props.config.secondaryYAxisLabel || props.config.secondaryYAxis
@@ -903,6 +1044,7 @@ const chartStrategies = {
         geo: {
           map: currentMap,
           roam: true,
+          nameProperty: (props.config.customGeoJson?.featureKey || 'name').trim(),
           itemStyle: { areaColor: '#e0e0e0', borderColor: '#111' },
           emphasis: { itemStyle: { areaColor: '#c0c0c0' } }
         },
@@ -927,15 +1069,20 @@ const chartStrategies = {
         }]
       }
     } else {
-      const maxVal = Math.max(...seriesData, 1)
-      const minVal = Math.min(...seriesData, 0)
+      const numSeriesData = seriesData.map(v => Number(v))
+      let maxVal = Math.max(...numSeriesData, 1)
+      let minVal = Math.min(...numSeriesData, 0)
+      if (maxVal === minVal) {
+        maxVal += 1
+        minVal -= 1
+      }
       return {
         ...baseOption,
         visualMap: {
           left: 'right',
           min: minVal,
           max: maxVal,
-          inRange: { color: ['#e0ffff', '#006edd'] },
+          inRange: { color: ['#f1f5f9', baseOption.color?.[0] || '#3b82f6'] },
           text: [props.config.yAxisLabel || props.config.yAxis || 'High', 'Low'],
           calculable: true
         },
@@ -944,7 +1091,8 @@ const chartStrategies = {
           type: 'map',
           map: currentMap,
           roam: true,
-          data: data.map(d => ({ name: d.name, value: d.value }))
+          nameProperty: (props.config.customGeoJson?.featureKey || 'name').trim(),
+          data: data.map(d => ({ name: String(d.name).trim(), value: Number(d.value) }))
         }]
       }
     }
@@ -1006,8 +1154,8 @@ const getDefaultStrategy = (baseOption, data, props, xAxisData, seriesData, ctyp
 
   let finalXAxisData = xAxisData
 
-  if ((ctype === 'line' || ctype === 'bar') && props.config.ml?.forecasting) {
-    const forecast = generateForecastDataset(data, xAxisData, props.config.ml.forecastPeriods || 3)
+  if ((ctype === 'line' || ctype === 'bar') && props.config.ml?.forecasting && forecastData.value) {
+    const forecast = forecastData.value
     finalXAxisData = forecast.extendedXAxis
     defaultSeries[0].data = forecast.baseSeries
     
@@ -1067,11 +1215,7 @@ const getDefaultStrategy = (baseOption, data, props, xAxisData, seriesData, ctyp
 
 const echartOptions = computed(() => {
   const ctype = props.config.type || 'bar'
-  if (ctype === 'kpi' || ctype === 'scorecard' || ctype === 'image' || chartData.value.length === 0) return null
-  
-  const data = chartData.value
-  const xAxisData = data.map(d => d.name)
-  const seriesData = data.map(d => d.value)
+  if (ctype === 'kpi' || ctype === 'scorecard' || ctype === 'image' || ctype === 'python' || ctype === 'grid') return null
   
   const baseOption = {
     color: props.config.styles?.customColors?.length ? props.config.styles.customColors : settingsStore.currentChartColors,
@@ -1088,14 +1232,32 @@ const echartOptions = computed(() => {
     baseOption.legend = { type: 'scroll', bottom: 0 }
   }
 
+  if (chartData.value.length === 0) {
+    return {
+      ...baseOption,
+      title: {
+        text: 'Sin datos para los filtros actuales',
+        left: 'center',
+        top: 'middle',
+        textStyle: { color: 'var(--muted-foreground)', fontWeight: 'normal', fontSize: 14 }
+      },
+      series: []
+    }
+  }
+
+  const data = chartData.value
+  const xAxisData = data.map(d => d.name)
+  const seriesData = data.map(d => d.value)
+
   const resolveMetricName = (yConfig) => {
-    if (yConfig?.startsWith('__METRIC__')) {
-      const metricId = yConfig.split('__METRIC__')[1]
+    const rawVal = Array.isArray(yConfig) ? yConfig[0] : yConfig;
+    if (rawVal?.startsWith('__METRIC__')) {
+      const metricId = rawVal.split('__METRIC__')[1]
       const metrics = formulaStore.getCorporateMetricsForDataset(props.config.dataset)
       const metric = metrics.find(m => m.id === metricId)
       if (metric) return metric.name
     }
-    return yConfig
+    return rawVal
   }
 
   const resolvedProps = {
@@ -1107,7 +1269,7 @@ const echartOptions = computed(() => {
     }
   }
 
-  let finalOption = baseOption
+  let finalOption;
   if (chartStrategies[ctype]) {
     finalOption = chartStrategies[ctype](baseOption, data, resolvedProps, xAxisData, seriesData)
   } else {
@@ -1157,46 +1319,49 @@ const echartOptions = computed(() => {
     finalOption = mergeDeep(JSON.parse(JSON.stringify(finalOption)), props.config.advancedOptions)
   }
 
-  return finalOption
+  return markRaw(finalOption)
 })
 const handleChartClick = (params) => {
   if (params.name && currentXAxis.value && props.config.dataset) {
     const dsName = props.config.dataset
     const rawX = currentXAxis.value
-    const colName = rawX.includes('].[') ? rawX : `[${dsName}].[${rawX}]`
     
     if (isDrillable.value) {
       // Drill Down
-      drillPath.value.push({ colName, value: params.name })
+      drillPath.value.push({ colName: rawX, value: params.name })
       drillLevel.value++
       loadData()
     } else {
       // Cross Filter
-      dashboardStore.addFilter(dsName, colName, params.name, `${rawX}: ${params.name}`)
+      dashboardStore.addFilter(dsName, rawX, params.name, `${rawX}: ${params.name}`)
     }
   }
 }
 
 const gridData = computed(() => {
   return chartData.value.map(row => {
+    const rawY = Array.isArray(props.config.yAxis) ? props.config.yAxis[0] : props.config.yAxis
+    const rawY2 = Array.isArray(props.config.secondaryYAxis) ? props.config.secondaryYAxis[0] : props.config.secondaryYAxis
     const obj = {
       [currentXAxis.value || 'X']: row.name,
-      [props.config.yAxis || 'Y']: typeof row.value === 'number' ? Number(row.value.toFixed(2)) : row.value
+      [rawY || 'Y']: typeof row.value === 'number' ? Number(row.value.toFixed(2)) : row.value
     }
-    if (props.config.secondaryYAxis) {
-      obj[props.config.secondaryYAxis] = typeof row.value2 === 'number' ? Number(row.value2.toFixed(2)) : row.value2
+    if (rawY2) {
+      obj[rawY2] = typeof row.value2 === 'number' ? Number(row.value2.toFixed(2)) : row.value2
     }
     return obj
   })
 })
 
 const gridSchema = computed(() => {
+  const rawY = Array.isArray(props.config.yAxis) ? props.config.yAxis[0] : props.config.yAxis
+  const rawY2 = Array.isArray(props.config.secondaryYAxis) ? props.config.secondaryYAxis[0] : props.config.secondaryYAxis
   const schema = [
     { name: currentXAxis.value || 'X', type: 'string' },
-    { name: props.config.yAxis || 'Y', type: 'number' }
+    { name: rawY || 'Y', type: 'number' }
   ]
-  if (props.config.secondaryYAxis) {
-    schema.push({ name: props.config.secondaryYAxis, type: 'number' })
+  if (rawY2) {
+    schema.push({ name: rawY2, type: 'number' })
   }
   return schema
 })
@@ -1236,7 +1401,7 @@ defineExpose({
     </div>
     
     <!-- Drill Up Button -->
-    <button v-if="drillLevel > 0 && !isLoading && !datasetMissing" class="drill-up-btn" @click="handleDrillUp" title="Subir nivel">
+    <button v-if="drillLevel > 0 && !isLoading && !datasetMissing" class="drill-up-btn" title="Subir nivel" @click="handleDrillUp">
       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-corner-left-up"><polyline points="14 9 9 4 4 9"/><path d="M20 20h-7a4 4 0 0 1-4-4V4"/></svg>
       Subir Nivel
     </button>
@@ -1293,9 +1458,9 @@ defineExpose({
     </div>
 
     <MapRenderer 
-      v-else-if="config.type === 'map'"
+      v-else-if="config.type === 'maplibre'"
       :config="config" 
-      :chartData="chartData" 
+      :chart-data="chartData" 
       @chart-click="handleChartClick" 
     />
 
@@ -1303,7 +1468,7 @@ defineExpose({
       v-else-if="echartOptions" 
       class="echart-instance" 
       :option="echartOptions" 
-      :theme="uiStore.isDarkMode ? 'business-dark' : 'business-light'" 
+      :theme="settingsStore.theme === 'dark' ? 'business-dark' : 'business-light'" 
       autoresize 
       @click="handleChartClick"
     />
@@ -1331,7 +1496,7 @@ defineExpose({
   align-items: center;
   justify-content: center;
   z-index: 10;
-  color: var(--color-text-secondary);
+  color: var(--muted-foreground);
   gap: var(--space-2);
   border-radius: var(--radius-md);
   backdrop-filter: blur(2px);
@@ -1345,8 +1510,8 @@ defineExpose({
   display: flex;
   align-items: center;
   gap: 4px;
-  background-color: var(--color-bg-primary);
-  color: var(--color-text-primary);
+  background-color: var(--card);
+  color: var(--foreground);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   padding: 4px 8px;
@@ -1358,7 +1523,7 @@ defineExpose({
 }
 
 .drill-up-btn:hover {
-  background-color: var(--color-bg-secondary);
+  background-color: var(--muted);
   border-color: var(--color-accent);
   color: var(--color-accent);
 }
@@ -1377,11 +1542,11 @@ defineExpose({
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--color-text-secondary);
+  color: var(--muted-foreground);
   font-size: var(--text-sm);
   text-align: center;
   padding: var(--space-4);
-  background-color: var(--color-bg-secondary);
+  background-color: var(--muted);
   border-radius: var(--radius-md);
   border: 1px dashed var(--color-border);
 }
@@ -1404,7 +1569,7 @@ defineExpose({
 .kpi-label {
   margin: 0 0 var(--space-2) 0;
   font-size: var(--text-base);
-  color: var(--color-text-secondary);
+  color: var(--muted-foreground);
   font-weight: var(--font-medium);
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -1413,7 +1578,7 @@ defineExpose({
 .kpi-value {
   font-size: 3rem;
   font-weight: var(--font-bold);
-  color: var(--color-text-primary);
+  color: var(--foreground);
   line-height: 1.2;
 }
 
@@ -1423,10 +1588,10 @@ defineExpose({
   align-items: center;
   margin-top: var(--space-2);
   padding: var(--space-2) var(--space-4);
-  background: var(--color-bg-secondary);
+  background: var(--muted);
   border-radius: var(--radius-md);
   font-size: var(--text-sm);
-  color: var(--color-text-secondary);
+  color: var(--muted-foreground);
 }
 
 .scorecard-diff {
@@ -1472,8 +1637,8 @@ defineExpose({
 .simple-data-grid th {
   text-align: left;
   padding: var(--space-2);
-  background-color: var(--color-bg-secondary);
-  color: var(--color-text-secondary);
+  background-color: var(--muted);
+  color: var(--muted-foreground);
   font-weight: var(--font-semibold);
   position: sticky;
   top: 0;
@@ -1483,10 +1648,10 @@ defineExpose({
 .simple-data-grid td {
   padding: var(--space-2);
   border-bottom: 1px solid var(--color-border);
-  color: var(--color-text-primary);
+  color: var(--foreground);
 }
 
 .simple-data-grid tbody tr:hover {
-  background-color: var(--color-bg-secondary);
+  background-color: var(--muted);
 }
 </style>

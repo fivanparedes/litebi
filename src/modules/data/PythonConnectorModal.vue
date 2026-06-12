@@ -21,7 +21,7 @@ import urllib.request
 import io
 
 # Podemos descargar un CSV de prueba de github
-url = "https://raw.githubusercontent.com/fivanparedes/litebi/main/public/sample-data/ventas_ejemplo.csv"
+url = "https://raw.githubusercontent.com/fivanparedes/litebi/main/public/sample_data/ventas_ejemplo.csv"
 req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
 response = urllib.request.urlopen(req)
 csv_data = response.read()
@@ -91,22 +91,22 @@ const handleClose = () => {
 
 <template>
   <BaseModal 
-    :modelValue="modelValue" 
-    @update:modelValue="emit('update:modelValue', $event)"
+    :model-value="modelValue" 
     title="Origen de Datos: Script Python"
     size="lg"
+    @update:model-value="emit('update:modelValue', $event)"
   >
     <div class="python-connector">
       <div class="form-group">
         <label>Nombre del Dataset</label>
-        <BaseInput v-focus v-model="datasetName" placeholder="ej. Ventas_Pandas" @keyup.enter="handleExecuteAndPreview" />
+        <BaseInput v-model="datasetName" v-focus placeholder="ej. Ventas_Pandas" @keyup.enter="handleExecuteAndPreview" />
       </div>
       
       <div class="form-group">
         <label>Script Python (Debe retornar una lista de diccionarios)</label>
         <textarea 
-          class="code-editor" 
           v-model="scriptCode" 
+          class="code-editor" 
           spellcheck="false"
         ></textarea>
       </div>
@@ -118,7 +118,7 @@ const handleClose = () => {
 
       <div class="actions">
         <BaseButton variant="ghost" @click="handleClose">Cancelar</BaseButton>
-        <BaseButton variant="primary" @click="handleExecuteAndPreview" :disabled="isExecuting">
+        <BaseButton variant="primary" :disabled="isExecuting" @click="handleExecuteAndPreview">
           <Loader2 v-if="isExecuting" class="spinner" />
           <Play v-else />
           {{ isExecuting ? 'Ejecutando script...' : 'Ejecutar y Previsualizar' }}
@@ -145,14 +145,14 @@ const handleClose = () => {
 .form-group label {
   font-size: var(--text-sm);
   font-weight: var(--font-medium);
-  color: var(--color-text-primary);
+  color: var(--foreground);
 }
 
 .code-editor {
   width: 100%;
   min-height: 250px;
-  background-color: var(--color-bg-secondary);
-  color: var(--color-text-primary);
+  background-color: var(--muted);
+  color: var(--foreground);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   padding: var(--space-3);

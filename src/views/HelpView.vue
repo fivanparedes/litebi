@@ -72,7 +72,7 @@ const scrollTo = (id) => {
 <style scoped>
 .view-container {
   height: 100%;
-  background-color: var(--color-bg-primary);
+  background-color: var(--card);
   overflow: hidden; /* Let the layout manage scrolling */
 }
 
@@ -86,7 +86,7 @@ const scrollTo = (id) => {
 .help-sidebar {
   width: 300px;
   flex-shrink: 0;
-  background-color: var(--color-bg-surface);
+  background-color: var(--background);
   border-right: 1px solid var(--color-border);
   padding: var(--space-6);
   overflow-y: auto;
@@ -95,7 +95,7 @@ const scrollTo = (id) => {
 .sidebar-title {
   font-size: var(--text-lg);
   font-weight: var(--font-bold);
-  color: var(--color-text-primary);
+  color: var(--foreground);
   margin-bottom: var(--space-4);
   border-bottom: 2px solid var(--color-accent);
   padding-bottom: var(--space-2);
@@ -113,7 +113,7 @@ const scrollTo = (id) => {
 
 .toc-nav a {
   text-decoration: none;
-  color: var(--color-text-secondary);
+  color: var(--muted-foreground);
   font-size: var(--text-sm);
   font-weight: var(--font-medium);
   transition: color var(--transition-fast);
@@ -133,7 +133,7 @@ const scrollTo = (id) => {
 
 .manual-container {
   max-width: 900px;
-  background-color: var(--color-bg-surface);
+  background-color: var(--background);
   padding: var(--space-8);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
@@ -144,7 +144,7 @@ const scrollTo = (id) => {
 /* Basic Markdown styling */
 .markdown-body :deep(h1) {
   margin-top: 0;
-  color: var(--color-text-primary);
+  color: var(--foreground);
   border-bottom: 2px solid var(--color-border);
   padding-bottom: var(--space-2);
 }
@@ -157,18 +157,18 @@ const scrollTo = (id) => {
 }
 
 .markdown-body :deep(h3) {
-  color: var(--color-text-primary);
+  color: var(--foreground);
   margin-top: var(--space-6);
 }
 
 .markdown-body :deep(p) {
-  color: var(--color-text-secondary);
+  color: var(--muted-foreground);
   line-height: 1.6;
   margin: var(--space-3) 0;
 }
 
 .markdown-body :deep(ul), .markdown-body :deep(ol) {
-  color: var(--color-text-secondary);
+  color: var(--muted-foreground);
   line-height: 1.6;
   padding-left: var(--space-6);
   margin: var(--space-3) 0;
@@ -179,7 +179,7 @@ const scrollTo = (id) => {
 }
 
 .markdown-body :deep(code) {
-  background-color: var(--color-bg-secondary);
+  background-color: var(--muted);
   padding: 0.2em 0.4em;
   border-radius: var(--radius-sm);
   font-family: monospace;
@@ -187,7 +187,7 @@ const scrollTo = (id) => {
 }
 
 .markdown-body :deep(pre) {
-  background-color: var(--color-bg-secondary);
+  background-color: var(--muted);
   padding: var(--space-4);
   border-radius: var(--radius-md);
   overflow-x: auto;
@@ -198,7 +198,7 @@ const scrollTo = (id) => {
 .markdown-body :deep(pre code) {
   background-color: transparent;
   padding: 0;
-  color: var(--color-text-primary);
+  color: var(--foreground);
 }
 
 .markdown-body :deep(hr) {

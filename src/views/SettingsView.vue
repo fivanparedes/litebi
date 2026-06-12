@@ -7,8 +7,10 @@ import BaseDropdown from '@/components/ui/BaseDropdown.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import { Logger } from '@/utils/Logger'
 import { FileText } from '@lucide/vue'
+import { useI18n } from 'vue-i18n'
 
 const settingsStore = useSettingsStore()
+const { t } = useI18n()
 
 const palettesArray = computed(() => {
   return Object.entries(settingsStore.palettes).map(([id, data]) => ({
@@ -26,13 +28,13 @@ const toggleTheme = () => {
   settingsStore.setTheme(settingsStore.theme === 'light' ? 'dark' : 'light')
 }
 
-const scaleOptions = [
-  { value: 80, label: '80% (Pequeño)' },
+const scaleOptions = computed(() => [
+  { value: 80, label: `80% (${t('settings.scaleSmall')})` },
   { value: 90, label: '90%' },
-  { value: 100, label: '100% (Por defecto)' },
+  { value: 100, label: `100% (${t('settings.scaleDefault')})` },
   { value: 110, label: '110%' },
-  { value: 120, label: '120% (Grande)' }
-]
+  { value: 120, label: `120% (${t('settings.scaleLarge')})` }
+])
 
 const handleLogoUpload = (e) => {
   const file = e.target.files[0]
@@ -50,27 +52,27 @@ const removeLogo = () => settingsStore.setCompanyLogo(null)
 <template>
   <div class="view-container">
     <div class="settings-header">
-      <h2><Settings class="icon-h2" /> Configuración</h2>
+      <h2><Settings class="icon-h2" /> {{ $t('settings.title') }}</h2>
     </div>
 
     <div class="settings-section">
-      <h3><Users class="icon-h3" /> Colaboración (WebRTC)</h3>
-      <p class="section-desc">Configura tu identidad y la sala de colaboración. Usuarios en la misma sala verán tus cambios en vivo.</p>
+      <h3><Users class="icon-h3" /> {{ $t('settings.collaboration') }}</h3>
+      <p class="section-desc">{{ $t('settings.collabDesc') }}</p>
 
       <div style="display: flex; gap: 16px; max-width: 500px; margin-bottom: 16px;">
         <div style="flex: 1;">
-          <label style="display: block; margin-bottom: 4px; font-size: 14px; font-weight: 500;">Nombre de Usuario</label>
+          <label style="display: block; margin-bottom: 4px; font-size: 14px; font-weight: 500;">{{ $t('settings.username') }}</label>
           <BaseInput 
             :model-value="settingsStore.username" 
-            placeholder="Ej: Ana Gómez" 
+            :placeholder="$t('settings.usernamePlaceholder')" 
             @update:model-value="settingsStore.setUsername" 
           />
         </div>
         <div style="flex: 1;">
-          <label style="display: block; margin-bottom: 4px; font-size: 14px; font-weight: 500;">ID de la Sala</label>
+          <label style="display: block; margin-bottom: 4px; font-size: 14px; font-weight: 500;">{{ $t('settings.roomId') }}</label>
           <BaseInput 
             :model-value="settingsStore.roomName" 
-            placeholder="Ej: equipo-ventas-1" 
+            :placeholder="$t('settings.roomIdPlaceholder')" 
             @update:model-value="settingsStore.setRoomName" 
           />
         </div>
@@ -78,8 +80,8 @@ const removeLogo = () => settingsStore.setCompanyLogo(null)
     </div>
 
     <div class="settings-section">
-      <h3><Moon class="icon-h3" /> Apariencia del Sistema</h3>
-      <p class="section-desc">Cambia entre el modo claro y oscuro para toda la aplicación.</p>
+      <h3><Moon class="icon-h3" /> {{ $t('settings.appearance') }}</h3>
+      <p class="section-desc">{{ $t('settings.appearanceDesc') }}</p>
 
       <div class="theme-toggle">
         <button 
@@ -87,21 +89,21 @@ const removeLogo = () => settingsStore.setCompanyLogo(null)
           :class="{ 'theme-btn--active': settingsStore.theme === 'light' }"
           @click="settingsStore.setTheme('light')"
         >
-          <Sun class="icon-sm" /> Claro
+          <Sun class="icon-sm" /> {{ $t('settings.light') }}
         </button>
         <button 
           class="theme-btn" 
           :class="{ 'theme-btn--active': settingsStore.theme === 'dark' }"
           @click="settingsStore.setTheme('dark')"
         >
-          <Moon class="icon-sm" /> Oscuro
+          <Moon class="icon-sm" /> {{ $t('settings.dark') }}
         </button>
       </div>
     </div>
 
     <div class="settings-section">
-      <h3><ZoomIn class="icon-h3" /> Escala de la Interfaz</h3>
-      <p class="section-desc">Ajusta el tamaño global de los textos e interfaces para adaptarse mejor a tu pantalla.</p>
+      <h3><ZoomIn class="icon-h3" /> {{ $t('settings.uiScale') }}</h3>
+      <p class="section-desc">{{ $t('settings.uiScaleDesc') }}</p>
 
       <div style="max-width: 300px;">
         <BaseDropdown 
@@ -113,17 +115,17 @@ const removeLogo = () => settingsStore.setCompanyLogo(null)
     </div>
 
     <div class="settings-section">
-      <h3><ImageIcon class="icon-h3" /> Brand Kit (Identidad Corporativa)</h3>
-      <p class="section-desc">Sube el logotipo de tu empresa. Este reemplazará al logotipo de LiteBI en la barra lateral y en los reportes exportados.</p>
+      <h3><ImageIcon class="icon-h3" /> {{ $t('settings.brandKit') }}</h3>
+      <p class="section-desc">{{ $t('settings.brandKitDesc') }}</p>
 
       <div class="brand-kit-container">
         <div v-if="settingsStore.companyLogo" class="logo-preview">
           <img :src="settingsStore.companyLogo" alt="Logo de Empresa" />
-          <BaseButton variant="danger" size="sm" @click="removeLogo">Eliminar Logo</BaseButton>
+          <BaseButton variant="danger" size="sm" @click="removeLogo">{{ $t('settings.removeLogo') }}</BaseButton>
         </div>
         <div v-else class="logo-upload">
           <label class="upload-btn">
-            Subir Logotipo (PNG/JPG)
+            {{ $t('settings.uploadLogo') }}
             <input type="file" accept="image/*" style="display: none;" @change="handleLogoUpload" />
           </label>
         </div>
@@ -131,8 +133,8 @@ const removeLogo = () => settingsStore.setCompanyLogo(null)
     </div>
 
     <div class="settings-section">
-      <h3><Palette class="icon-h3" /> Paleta de Gráficos</h3>
-      <p class="section-desc">Selecciona la paleta de colores por defecto que utilizarán los gráficos de tus tableros y reportes.</p>
+      <h3><Palette class="icon-h3" /> {{ $t('settings.chartPalette') }}</h3>
+      <p class="section-desc">{{ $t('settings.chartPaletteDesc') }}</p>
 
       <div class="palettes-grid">
         <div 
@@ -142,7 +144,7 @@ const removeLogo = () => settingsStore.setCompanyLogo(null)
           :class="{ 'palette-card--active': settingsStore.chartPaletteId === palette.id }"
           @click="selectPalette(palette.id)"
         >
-          <div class="palette-name">{{ palette.name }}</div>
+          <div class="palette-name">{{ $t('settings.palette.' + palette.id) }}</div>
           <div class="palette-colors">
             <div 
               v-for="color in palette.colors" 
@@ -156,15 +158,15 @@ const removeLogo = () => settingsStore.setCompanyLogo(null)
     </div>
 
     <div class="settings-section">
-      <h3><FileText class="icon-h3" /> Registro del Sistema (Logs)</h3>
-      <p class="section-desc">Descarga un registro detallado de los errores y eventos del sistema para enviarlo a soporte técnico en caso de problemas.</p>
+      <h3><FileText class="icon-h3" /> {{ $t('settings.systemLogs') }}</h3>
+      <p class="section-desc">{{ $t('settings.systemLogsDesc') }}</p>
       
       <div style="display: flex; gap: 16px;">
-        <BaseButton variant="secondary" @click="Logger.downloadLogs()">
+        <BaseButton variant="outline" @click="Logger.downloadLogs()">
           <template #icon-left><FileText /></template>
-          Descargar Registro de Errores
+          {{ $t('settings.downloadLogs') }}
         </BaseButton>
-        <BaseButton variant="ghost" @click="Logger.clear()">Limpiar Registro</BaseButton>
+        <BaseButton variant="ghost" @click="Logger.clear()">{{ $t('settings.clearLogs') }}</BaseButton>
       </div>
     </div>
   </div>
@@ -174,7 +176,7 @@ const removeLogo = () => settingsStore.setCompanyLogo(null)
 .view-container {
   height: 100%;
   padding: var(--space-8);
-  background-color: var(--color-bg-primary);
+  background-color: var(--card);
   overflow-y: auto;
 }
 
@@ -183,7 +185,7 @@ const removeLogo = () => settingsStore.setCompanyLogo(null)
   align-items: center;
   gap: var(--space-2);
   margin-bottom: var(--space-8);
-  color: var(--color-text-primary);
+  color: var(--foreground);
 }
 
 .icon-h2 {
@@ -195,7 +197,7 @@ const removeLogo = () => settingsStore.setCompanyLogo(null)
 .icon-h3 {
   width: 20px;
   height: 20px;
-  color: var(--color-text-secondary);
+  color: var(--muted-foreground);
 }
 
 .icon-sm {
@@ -216,8 +218,8 @@ const removeLogo = () => settingsStore.setCompanyLogo(null)
   padding: var(--space-3) var(--space-6);
   border: 2px solid var(--color-border);
   border-radius: var(--radius-md);
-  background-color: var(--color-bg-primary);
-  color: var(--color-text-secondary);
+  background-color: var(--card);
+  color: var(--muted-foreground);
   font-weight: var(--font-medium);
   cursor: pointer;
   transition: all var(--transition-fast);
@@ -234,7 +236,7 @@ const removeLogo = () => settingsStore.setCompanyLogo(null)
 }
 
 .settings-section {
-  background-color: var(--color-bg-surface);
+  background-color: var(--background);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   padding: var(--space-6);
@@ -255,7 +257,7 @@ const removeLogo = () => settingsStore.setCompanyLogo(null)
   max-height: 60px;
   max-width: 200px;
   object-fit: contain;
-  background: var(--color-bg-secondary);
+  background: var(--muted);
   padding: var(--space-2);
   border-radius: var(--radius-md);
   border: 1px dashed var(--color-border);
@@ -264,8 +266,8 @@ const removeLogo = () => settingsStore.setCompanyLogo(null)
 .upload-btn {
   display: inline-block;
   padding: var(--space-2) var(--space-4);
-  background-color: var(--color-bg-secondary);
-  color: var(--color-text-primary);
+  background-color: var(--muted);
+  color: var(--foreground);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   cursor: pointer;
@@ -275,7 +277,7 @@ const removeLogo = () => settingsStore.setCompanyLogo(null)
 }
 
 .upload-btn:hover {
-  background-color: var(--color-bg-primary);
+  background-color: var(--card);
   border-color: var(--color-accent);
 }
 
@@ -285,11 +287,11 @@ const removeLogo = () => settingsStore.setCompanyLogo(null)
   gap: var(--space-2);
   margin-top: 0;
   margin-bottom: var(--space-2);
-  color: var(--color-text-primary);
+  color: var(--foreground);
 }
 
 .section-desc {
-  color: var(--color-text-secondary);
+  color: var(--muted-foreground);
   font-size: var(--text-sm);
   margin-bottom: var(--space-6);
 }
@@ -306,7 +308,7 @@ const removeLogo = () => settingsStore.setCompanyLogo(null)
   padding: var(--space-4);
   cursor: pointer;
   transition: all var(--transition-fast);
-  background-color: var(--color-bg-primary);
+  background-color: var(--card);
 }
 
 .palette-card:hover {
@@ -320,7 +322,7 @@ const removeLogo = () => settingsStore.setCompanyLogo(null)
 
 .palette-name {
   font-weight: var(--font-semibold);
-  color: var(--color-text-primary);
+  color: var(--foreground);
   margin-bottom: var(--space-3);
 }
 

@@ -67,7 +67,7 @@ describe('Formula Store', () => {
       const result = await formulaStore.addFormula('ventas', 'total', 'precio * cantidad', 'number')
 
       expect(result).toBe(true)
-      expect(sqlClient.query).toHaveBeenCalledWith('SELECT *, (precio * cantidad) AS [total] FROM [ventas]')
+      expect(sqlClient.query).toHaveBeenCalledWith('SELECT *, (precio * cantidad) AS "total" FROM "ventas"')
       expect(sqlClient.createTable).toHaveBeenCalled()
       
       const formulas = formulaStore.getFormulasForDataset('ventas')
@@ -126,7 +126,7 @@ describe('Formula Store', () => {
       expect(meta.schema.find(c => c.name === 'total')).toBeUndefined()
       
       // Should query the new schema without the removed column
-      expect(sqlClient.query).toHaveBeenCalledWith('SELECT [precio], [cantidad] FROM [ventas]')
+      expect(sqlClient.query).toHaveBeenCalledWith('SELECT "precio", "cantidad" FROM "ventas"')
     })
   })
 })

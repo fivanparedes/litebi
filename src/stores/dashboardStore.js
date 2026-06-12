@@ -118,6 +118,10 @@ export const useDashboardStore = defineStore('dashboard', () => {
 
   const duplicateWidget = (tabId, widgetId) => {
     const layout = layouts.value[tabId]
+    if (!layout) {
+      console.warn(`[DashboardStore] duplicateWidget: tab '${tabId}' not found in layouts`)
+      return
+    }
     const widget = layout.find(w => w.id === widgetId)
     if (widget) {
       // Fix: deep clone to avoid shared references between original and duplicate

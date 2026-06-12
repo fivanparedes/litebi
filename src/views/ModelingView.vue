@@ -5,8 +5,10 @@ import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseDropdown from '@/components/ui/BaseDropdown.vue'
 import BaseModal from '@/components/ui/BaseModal.vue'
 import { Plus, Trash2, Key, LayoutGrid, Star } from '@lucide/vue'
+import { useI18n } from 'vue-i18n'
 
 const dataStore = useDataStore()
+const { t } = useI18n()
 
 // State
 const datasets = computed(() => Array.from(dataStore.datasets.entries()).map(([name, meta]) => ({ name, meta })))
@@ -226,26 +228,27 @@ watch(() => datasets.value.length, (newLen, oldLen) => {
 <template>
   <div class="modeling-view">
     <div class="toolbar">
-      <h2>Modelado de Datos</h2>
+      <h2>{{ $t('modeling.title') }}</h2>
       <div class="toolbar-actions">
-        <BaseButton variant="secondary" @click="layoutGrid">
+        <BaseButton variant="outline" @click="layoutGrid">
           <template #icon-left><LayoutGrid /></template>
-          Auto Layout
+          {{ $t('modeling.autoLayout') }}
         </BaseButton>
-        <BaseButton variant="secondary" @click="layoutStarSchema">
+        <BaseButton variant="outline" @click="layoutStarSchema">
           <template #icon-left><Star /></template>
-          Esquema Estrella
+          {{ $t('modeling.starSchema') }}
         </BaseButton>
         <BaseButton @click="isModalOpen = true">
           <template #icon-left><Plus /></template>
-          Añadir Relación
+          {{ $t('modeling.addRelation') }}
         </BaseButton>
       </div>
     </div>
 
-    <!-- The Canvas -->
-    <div ref="canvasRef" class="canvas-container" @scroll="updateLines">
-      <div class="canvas-scroll-area">
+    <div class="modeling-content">
+      <!-- The Canvas -->
+      <div ref="canvasRef" class="canvas-container" @scroll="updateLines">
+        <div class="canvas-scroll-area">
         <!-- SVG Layer for Connections -->
         <svg class="connections-layer" width="100%" height="100%">
         <path 
@@ -292,8 +295,8 @@ watch(() => datasets.value.length, (newLen, oldLen) => {
     </div>
 
     <!-- Existing Relationships List (for easy deletion) -->
-    <div v-if="relationships.length > 0" class="relations-list">
-      <h3>Relaciones Activas</h3>
+    <div v-if="relationships.length > 0" class="relations-sidebar">
+      <h3>{{ $t('modeling.activeRelations') }}</h3>
       <div v-for="rel in relationships" :key="rel.id" class="rel-item">
         <div class="rel-desc">
           <strong>{{ rel.fromTable }}.{{ rel.fromColumn }}</strong>
@@ -305,35 +308,36 @@ watch(() => datasets.value.length, (newLen, oldLen) => {
         </button>
       </div>
     </div>
+    </div>
 
     <!-- Add Relationship Modal -->
-    <BaseModal v-model="isModalOpen" title="Crear Relación">
+    <BaseModal v-model="isModalOpen" :title="$t('modeling.createRelation')">
       <div class="rel-form">
         <div class="form-row">
           <div class="form-col">
-            <label>Tabla Origen</label>
-            <BaseDropdown v-model="newRel.fromTable" :options="tableOptions" placeholder="Seleccionar tabla" />
+            <label>{{ $t('modeling.sourceTable') }}</label>
+            <BaseDropdown v-model="newRel.fromTable" :options="tableOptions" :placeholder="$t('modeling.selectTable')" />
           </div>
           <div class="form-col">
-            <label>Columna Origen</label>
-            <BaseDropdown v-model="newRel.fromColumn" :options="fromColumnOptions" placeholder="Seleccionar columna" :disabled="!newRel.fromTable" />
+            <label>{{ $t('modeling.sourceColumn') }}</label>
+            <BaseDropdown v-model="newRel.fromColumn" :options="fromColumnOptions" :placeholder="$t('modeling.selectColumn')" :disabled="!newRel.fromTable" />
           </div>
         </div>
 
         <div class="form-row">
           <div class="form-col">
-            <label>Tabla Destino</label>
-            <BaseDropdown v-model="newRel.toTable" :options="tableOptions" placeholder="Seleccionar tabla" />
+            <label>{{ $t('modeling.targetTable') }}</label>
+            <BaseDropdown v-model="newRel.toTable" :options="tableOptions" :placeholder="$t('modeling.selectTable')" />
           </div>
           <div class="form-col">
-            <label>Columna Destino</label>
-            <BaseDropdown v-model="newRel.toColumn" :options="toColumnOptions" placeholder="Seleccionar columna" :disabled="!newRel.toTable" />
+            <label>{{ $t('modeling.targetColumn') }}</label>
+            <BaseDropdown v-model="newRel.toColumn" :options="toColumnOptions" :placeholder="$t('modeling.selectColumn')" :disabled="!newRel.toTable" />
           </div>
         </div>
       </div>
       <template #footer>
-        <BaseButton variant="ghost" @click="isModalOpen = false">Cancelar</BaseButton>
-        <BaseButton :disabled="!newRel.fromTable || !newRel.fromColumn || !newRel.toTable || !newRel.toColumn" @click="handleAddRel">Crear Relación</BaseButton>
+        <BaseButton variant="ghost" @click="isModalOpen = false">{{ $t('common.cancel') }}</BaseButton>
+        <BaseButton :disabled="!newRel.fromTable || !newRel.fromColumn || !newRel.toTable || !newRel.toColumn" @click="handleAddRel">{{ $t('modeling.createRelation') }}</BaseButton>
       </template>
     </BaseModal>
   </div>
@@ -344,27 +348,29 @@ watch(() => datasets.value.length, (newLen, oldLen) => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background-color: var(--color-bg-primary);
+  background-color: var(--color-background);
 }
 
 .toolbar {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: var(--space-4) var(--space-6);
-  background-color: var(--color-bg-surface);
+  padding: 12px 16px;
+  background-color: var(--color-card);
   border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
 }
 
 .toolbar-actions {
   display: flex;
-  gap: var(--space-3);
+  gap: 8px;
 }
 
 .toolbar h2 {
   margin: 0;
-  font-size: var(--text-lg);
-  color: var(--color-text-primary);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-foreground);
 }
 
 .canvas-container {
@@ -390,9 +396,10 @@ watch(() => datasets.value.length, (newLen, oldLen) => {
 }
 
 .connection-line {
+  stroke: var(--color-primary);
   stroke-dasharray: 10;
   animation: dash 30s linear infinite;
-  opacity: 0.6;
+  opacity: 0.7;
 }
 
 @keyframes dash {
@@ -412,28 +419,32 @@ watch(() => datasets.value.length, (newLen, oldLen) => {
 
 .table-card {
   width: 250px;
-  background-color: var(--color-bg-surface);
+  background-color: var(--color-card);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-md);
+  border-radius: 0;
+  box-shadow: none;
   overflow: hidden;
   position: absolute;
   cursor: grab;
   user-select: none;
-  transition: box-shadow 0.2s;
+  transition: border-color 0.2s;
+}
+
+.table-card:hover {
+  border-color: var(--color-primary);
 }
 
 .table-card.is-dragging {
   cursor: grabbing;
   z-index: 100;
-  box-shadow: var(--shadow-xl);
+  border-color: var(--color-primary);
   opacity: 0.95;
 }
 
 .table-header {
-  background-color: var(--color-bg-sidebar);
-  color: white;
-  padding: var(--space-3) var(--space-4);
+  background-color: var(--color-sidebar);
+  color: var(--color-sidebar-foreground);
+  padding: 10px 12px;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -441,19 +452,19 @@ watch(() => datasets.value.length, (newLen, oldLen) => {
 
 .table-header h3 {
   margin: 0;
-  font-size: var(--text-sm);
-  font-weight: var(--font-semibold);
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .badge {
-  background-color: rgba(255,255,255,0.2);
+  background-color: rgba(255, 255, 255, 0.2);
   padding: 2px 6px;
-  border-radius: 10px;
+  border-radius: 0;
   font-size: 10px;
 }
 
 .table-columns {
-  padding: var(--space-2);
+  padding: 4px;
   max-height: 300px;
   overflow-y: auto;
 }
@@ -461,71 +472,96 @@ watch(() => datasets.value.length, (newLen, oldLen) => {
 .column-item {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-2);
-  border-radius: var(--radius-sm);
-  font-size: var(--text-sm);
-  color: var(--color-text-secondary);
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: 0;
+  font-size: 12px;
+  color: var(--color-muted-foreground);
   position: relative;
 }
 
 .column-item:hover {
-  background-color: var(--color-bg-secondary);
+  background-color: var(--color-muted);
 }
 
 .col-type-indicator {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background-color: var(--color-text-tertiary);
+  flex-shrink: 0;
+  background-color: var(--color-muted-foreground);
 }
 
-.col-type-indicator.type-number { background-color: var(--color-accent); }
-.col-type-indicator.type-string { background-color: var(--color-success); }
-.col-type-indicator.type-date { background-color: var(--color-warning); }
+.col-type-indicator.type-number { background-color: var(--color-primary); }
+.col-type-indicator.type-string { background-color: var(--color-success, oklch(0.62 0.15 155)); }
+.col-type-indicator.type-date { background-color: var(--warning, oklch(0.72 0.16 75)); }
 
 .key-icon {
   position: absolute;
-  right: var(--space-2);
-  color: var(--color-warning);
+  right: 8px;
+  color: var(--warning, oklch(0.72 0.16 75));
   width: 14px;
   height: 14px;
 }
 
-.relations-list {
-  border-top: 1px solid var(--color-border);
-  padding: var(--space-4) var(--space-6);
-  background-color: var(--color-bg-surface);
-  max-height: 200px;
+.modeling-content {
+  display: flex;
+  flex-grow: 1;
+  overflow: hidden;
+}
+
+.relations-sidebar {
+  width: 300px;
+  border-left: 1px solid var(--color-border);
+  padding: 16px;
+  background-color: var(--color-card);
   overflow-y: auto;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.relations-sidebar h3 {
+  margin: 0 0 16px 0;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-muted-foreground);
 }
 
 .rel-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: var(--space-2);
+  padding: 6px 8px;
   border-bottom: 1px solid var(--color-border);
+  font-size: 12px;
+  color: var(--color-foreground);
+}
+
+.rel-item:last-child {
+  border-bottom: none;
 }
 
 .rel-desc {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: 10px;
 }
 
 .rel-arrow {
-  color: var(--color-accent);
+  color: var(--color-primary);
   font-weight: bold;
 }
 
 .icon-btn {
   background: none;
   border: none;
-  color: var(--color-danger);
+  color: var(--color-destructive);
   cursor: pointer;
   padding: 4px;
-  border-radius: 4px;
+  border-radius: 0;
 }
 .icon-btn:hover {
   background-color: var(--color-danger-light);
@@ -534,25 +570,25 @@ watch(() => datasets.value.length, (newLen, oldLen) => {
 .rel-form {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
-  padding: var(--space-4) 0;
+  gap: 16px;
+  padding: 8px 0;
 }
 
 .form-row {
   display: flex;
-  gap: var(--space-4);
+  gap: 16px;
 }
 
 .form-col {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: 6px;
 }
 
 .form-col label {
-  font-size: var(--text-sm);
-  font-weight: var(--font-medium);
-  color: var(--color-text-primary);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-foreground);
 }
 </style>

@@ -86,7 +86,8 @@ export const useFormulaStore = defineStore('formula', () => {
       // 1. Agregar columna
       // Nota: Usamos SELECT y reemplazamos los datos en lugar de UPDATE debido a un 
       // bug en el compilador de AlaSQL con sentencias CASE WHEN (Identifier 'r' has already been declared)
-      const res = await sqlClient.query(`SELECT *, (${expression}) AS [${columnName}] FROM [${datasetName}]`)
+      const compiledExpr = expression.replace(/\[([^\]]+)\]\.\[([^\]]+)\]/g, '"$1"."$2"').replace(/\[([^\]]+)\]/g, '"$1"');
+      const res = await sqlClient.query(`SELECT *, (${compiledExpr}) AS "${columnName}" FROM "${datasetName}"`)
       await sqlClient.createTable(datasetName, res)
       
       // Update dataStore schema metadata
@@ -145,8 +146,8 @@ export const useFormulaStore = defineStore('formula', () => {
         meta.colCount--
         
         // Update data in worker
-        const currentCols = meta.schema.map(c => `[${c.name}]`).join(', ')
-        const res = await sqlClient.query(`SELECT ${currentCols} FROM [${datasetName}]`)
+        const currentCols = meta.schema.map(c => `"${c.name}"`).join(', ')
+        const res = await sqlClient.query(`SELECT ${currentCols} FROM "${datasetName}"`)
         await sqlClient.createTable(datasetName, res)
         
         uiStore.addToast({

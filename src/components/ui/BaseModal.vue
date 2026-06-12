@@ -102,9 +102,10 @@ const handleKeydown = (e) => {
 }
 
 .modal-card {
-  background-color: var(--color-bg-surface);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-xl);
+  background-color: var(--background);
+  border: 1px solid var(--color-border);
+  border-radius: 0;
+  box-shadow: var(--shadow-lg);
   display: flex;
   flex-direction: column;
   max-height: 90vh;
@@ -127,8 +128,10 @@ const handleKeydown = (e) => {
 .modal-title {
   font-size: var(--text-lg);
   font-weight: var(--font-semibold);
-  color: var(--color-text-primary);
+  color: var(--foreground);
   margin: 0;
+  line-height: 1;
+  letter-spacing: -0.025em;
 }
 
 .modal-body {

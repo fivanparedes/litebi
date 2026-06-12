@@ -214,7 +214,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="map-container" ref="mapContainer"></div>
+  <div ref="mapContainer" class="map-container"></div>
 </template>
 
 <style scoped>

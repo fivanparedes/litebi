@@ -5,9 +5,10 @@ import { useRoute, useRouter } from 'vue-router'
 import { useUiStore } from '@/stores/uiStore'
 import { useDashboardStore } from '@/stores/dashboardStore'
 import { useProjectStore } from '@/stores/projectStore'
+import { useDataStore } from '@/stores/dataStore'
 import { useCollaborationStore } from '@/stores/collaborationStore'
 import { useReportStore } from '@/stores/reportStore'
-import { Save, SaveAll, FolderOpen, FilePlus, Image, FileText, Pencil, RefreshCw, Share2, LayoutTemplate, LayoutDashboard, Database, FileSpreadsheet } from '@lucide/vue'
+import { Save, SaveAll, Play, Sigma, Filter, Download, FolderOpen, FilePlus, Image, FileText, Pencil, RefreshCw, Share2, LayoutTemplate, LayoutDashboard, Database, FileSpreadsheet, Search, Bell } from '@lucide/vue'
 import LanguageSwitch from '@/components/ui/LanguageSwitch.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import { exportToPNG, exportToPDF } from '@/modules/project/ExportManager'
@@ -18,6 +19,7 @@ const router = useRouter()
 const uiStore = useUiStore()
 const dashboardStore = useDashboardStore()
 const projectStore = useProjectStore()
+const dataStore = useDataStore()
 const collabStore = useCollaborationStore()
 const reportStore = useReportStore()
 
@@ -58,7 +60,7 @@ const handleSaveAs = () => {
 }
 
 const handleNewProject = async () => {
-  if (confirm('¿Estás seguro de crear un nuevo proyecto? Los cambios no guardados se perderán.')) {
+  if (confirm(t('header.confirmNewProject'))) {
     await projectStore.clearAutoSave()
     window.location.reload()
   }
@@ -114,10 +116,10 @@ const handleOpenProject = async (e) => {
         }
       }
       
-      uiStore.addToast({ message: 'Proyecto cargado correctamente', type: 'success' })
+      uiStore.addToast({ message: t('header.projectLoaded'), type: 'success' })
       if(fileInputRef.value) fileInputRef.value.value = ''
     } catch(err) {
-      uiStore.addToast({ message: err.message || 'Error', type: 'error' })
+      uiStore.addToast({ message: err.message || t('header.errorLoading', 'Error'), type: 'error' })
     }
   }
   reader.readAsText(file)
@@ -133,7 +135,7 @@ const triggerOpen = () => {
 
 const handleExportViewer = async () => {
   try {
-    uiStore.addToast({ message: 'Exportando a Visor...', type: 'info' })
+    uiStore.addToast({ message: t('header.exportingViewer'), type: 'info' })
     const { serializeProject } = await import('@/modules/project/Serializer')
     const { useDataStore } = await import('@/stores/dataStore')
     const { useFormulaStore } = await import('@/stores/formulaStore')
@@ -160,17 +162,17 @@ const handleExportViewer = async () => {
       a.click()
       URL.revokeObjectURL(url)
     }
-    uiStore.addToast({ message: 'Proyecto exportado como Visor', type: 'success' })
+    uiStore.addToast({ message: t('header.viewerExported'), type: 'success' })
   } catch (e) {
     if (e.name !== 'AbortError') {
-      uiStore.addToast({ message: 'Error exportando a Visor', type: 'error' })
+      uiStore.addToast({ message: t('header.errorExportingViewer'), type: 'error' })
     }
   }
 }
 
 const handleExportReportViewer = async () => {
   try {
-    uiStore.addToast({ message: 'Exportando a Visor de Reporte...', type: 'info' })
+    uiStore.addToast({ message: t('header.exportingReportViewer'), type: 'info' })
     const { serializeProject } = await import('@/modules/project/Serializer')
     const { useDataStore } = await import('@/stores/dataStore')
     const { useFormulaStore } = await import('@/stores/formulaStore')
@@ -197,17 +199,17 @@ const handleExportReportViewer = async () => {
       a.click()
       URL.revokeObjectURL(url)
     }
-    uiStore.addToast({ message: 'Reporte exportado como Visor', type: 'success' })
+    uiStore.addToast({ message: t('header.reportExported'), type: 'success' })
   } catch (e) {
     if (e.name !== 'AbortError') {
-      uiStore.addToast({ message: 'Error exportando a Visor de Reporte', type: 'error' })
+      uiStore.addToast({ message: t('header.errorExportingReportViewer'), type: 'error' })
     }
   }
 }
 
 const handleExportTemplate = async () => {
   try {
-    uiStore.addToast({ message: 'Generando Plantilla...', type: 'info' })
+    uiStore.addToast({ message: t('header.generatingTemplate'), type: 'info' })
     const { serializeProject } = await import('@/modules/project/Serializer')
     const { useDataStore } = await import('@/stores/dataStore')
     const { useFormulaStore } = await import('@/stores/formulaStore')
@@ -234,292 +236,179 @@ const handleExportTemplate = async () => {
       a.click()
       URL.revokeObjectURL(url)
     }
-    uiStore.addToast({ message: 'Plantilla exportada exitosamente', type: 'success' })
+    uiStore.addToast({ message: t('header.templateExported'), type: 'success' })
   } catch (e) {
     if (e.name !== 'AbortError') {
-      uiStore.addToast({ message: 'Error exportando Plantilla', type: 'error' })
+      uiStore.addToast({ message: t('header.errorExportingTemplate'), type: 'error' })
     }
   }
 }
 
 const handleExportPNG = async () => {
   try {
-    uiStore.addToast({ message: 'Generando imagen...', type: 'info' })
+    uiStore.addToast({ message: t('header.generatingImage'), type: 'info' })
     await exportToPNG('dashboard-export-area', `Dashboard_${dashboardStore.activeTabId}`)
-    uiStore.addToast({ message: 'Imagen exportada', type: 'success' })
+    uiStore.addToast({ message: t('header.imageExported'), type: 'success' })
   } catch(e) {
-    uiStore.addToast({ message: 'No se pudo exportar a PNG', type: 'error' })
+    uiStore.addToast({ message: t('header.errorGeneratingImage'), type: 'error' })
   }
 }
 
 const handleExportPDF = async () => {
   try {
-    uiStore.addToast({ message: 'Generando PDF...', type: 'info' })
+    uiStore.addToast({ message: t('header.generatingPDF'), type: 'info' })
     await exportToPDF('dashboard-export-area', `Dashboard_${dashboardStore.activeTabId}`)
-    uiStore.addToast({ message: 'PDF exportado', type: 'success' })
+    uiStore.addToast({ message: t('header.pdfExported'), type: 'success' })
   } catch(e) {
-    uiStore.addToast({ message: 'No se pudo exportar a PDF', type: 'error' })
+    uiStore.addToast({ message: t('header.errorGeneratingPDF'), type: 'error' })
   }
 }
 </script>
 
 <template>
-  <header class="app-header">
-    <div class="app-header__left">
-      <div class="project-name-container">
-        <input 
-          v-if="isEditingName && !uiStore.isViewerMode"
-          ref="nameInputRef"
-          v-model="tempName"
-          class="project-name-input"
-          @blur="saveName"
-          @keyup.enter="saveName"
-        />
-        <div v-else class="project-name-display" title="Renombrar proyecto" @click="!uiStore.isViewerMode && startEditingName()">
-          <h1 class="app-header__title">{{ projectStore.projectName }} <span v-if="uiStore.isViewerMode" style="font-size: 0.8rem; background: var(--color-bg-secondary); padding: 2px 6px; border-radius: 4px; margin-left: 8px;">Visor</span></h1>
-          <span v-if="projectStore.isSaving" class="saving-indicator" title="Guardando..."><RefreshCw class="spin-icon" size="14" /></span>
-          <span v-else-if="projectStore.isDirty" class="dirty-indicator">*</span>
-          <Pencil v-if="!uiStore.isViewerMode" class="edit-icon" size="14" />
+  <header class="h-14 border-b border-border bg-card flex items-center justify-between px-6 shrink-0">
+    <div class="min-w-0 flex items-center gap-4">
+      <div class="flex-1">
+        <div class="text-[11px] text-muted-foreground mb-0.5 flex items-center gap-1">
+          LiteBI <span class="mx-1">/</span> 
+          <template v-if="route.name === 'cleaning'">
+            {{ $t('nav.cleaning', 'Transforms') }} <span class="mx-1">/</span> {{ dataStore.activeDatasetMeta?.originalName || $t('header.dataset', 'Dataset') }}
+          </template>
+          <template v-else-if="route.name === 'formulas'">
+            {{ $t('nav.modeling', 'Model') }} <span class="mx-1">/</span> {{ $t('formulas.measures', 'Measures') }}
+          </template>
+          <template v-else-if="route.name === 'profile'">
+            {{ $t('sidebar.nav.profile') }} <span class="mx-1">/</span> {{ dataStore.activeDatasetMeta?.originalName || $t('header.dataset') }}
+          </template>
+          <template v-else>
+            {{ $t('header.workspace') }} <span v-if="viewTitle" class="mx-1">/</span> {{ viewTitle }}
+          </template>
+        </div>
+        
+        <div class="flex items-center gap-2">
+          <!-- Normal Title -->
+          <template v-if="route.name !== 'cleaning' && route.name !== 'formulas' && route.name !== 'profile'">
+            <input 
+              v-if="isEditingName && !uiStore.isViewerMode"
+              ref="nameInputRef"
+              v-model="tempName"
+              class="text-base font-semibold tracking-tight truncate bg-muted border border-border px-1 focus:outline-none focus:border-primary rounded"
+              @blur="saveName"
+              @keyup.enter="saveName"
+            />
+            <h1
+v-else 
+                class="text-base font-semibold tracking-tight truncate cursor-pointer hover:bg-muted/50 px-1 -mx-1 rounded transition-colors" 
+                :title="$t('header.renameProject')" 
+                @click="!uiStore.isViewerMode && startEditingName()">
+              {{ projectStore.projectName }}
+              <span v-if="uiStore.isViewerMode" class="text-xs bg-secondary px-1.5 py-0.5 rounded ml-2 font-normal">{{ $t('header.viewer') }}</span>
+            </h1>
+          </template>
+          <!-- Transform Title -->
+          <template v-else-if="route.name === 'cleaning'">
+            <h1 class="text-base font-semibold tracking-tight truncate px-1 -mx-1">
+              Transform · {{ dataStore.activeDatasetName || 'New Pipeline' }}
+            </h1>
+          </template>
+          <!-- Formulas Title -->
+          <template v-else-if="route.name === 'formulas'">
+            <h1 class="text-base font-semibold tracking-tight truncate px-1 -mx-1">
+              Formula Editor
+            </h1>
+          </template>
+          <!-- Profile Title -->
+          <template v-else-if="route.name === 'profile'">
+            <h1 class="text-base font-semibold tracking-tight truncate px-1 -mx-1">
+              Data Profile
+            </h1>
+          </template>
+          
+          <span v-if="projectStore.isSaving" class="text-muted-foreground flex items-center" :title="$t('header.saving')">
+            <RefreshCw class="w-3.5 h-3.5 animate-spin" />
+          </span>
+          <span v-else-if="projectStore.isDirty" class="text-warning font-bold">*</span>
         </div>
       </div>
-      <div v-if="viewTitle && !uiStore.isViewerMode" class="view-subtitle">/ {{ viewTitle }}</div>
-      
+
       <!-- Viewer Mode Navigation -->
-      <div v-if="uiStore.isViewerMode" class="viewer-nav">
+      <div v-if="uiStore.isViewerMode" class="flex gap-2 pl-4 border-l border-border">
         <BaseButton v-if="uiStore.viewerType !== 'report'" :variant="route.name === 'dashboard' ? 'primary' : 'ghost'" size="sm" @click="router.push('/dashboard')">
-          <LayoutDashboard /> Dashboards
+          <LayoutDashboard class="w-4 h-4 mr-1"/> {{ $t('header.dashboards') }}
         </BaseButton>
         <BaseButton :variant="route.name === 'reports' ? 'primary' : 'ghost'" size="sm" @click="router.push('/reports')">
-          <FileText /> Reportes A4
+          <FileText class="w-4 h-4 mr-1"/> {{ $t('header.reportsA4') }}
         </BaseButton>
         <BaseButton v-if="uiStore.viewerType !== 'report'" :variant="route.name === 'data' ? 'primary' : 'ghost'" size="sm" @click="router.push('/data')">
-          <Database /> Datos
+          <Database class="w-4 h-4 mr-1"/> {{ $t('header.data') }}
         </BaseButton>
       </div>
     </div>
 
-    <div class="app-header__right">
-      <input ref="fileInputRef" type="file" accept=".litebi,.litebiview,.litebitemplate,.json" style="display: none" @change="handleOpenProject" />
+    <div class="flex items-center gap-3">
+      <input ref="fileInputRef" type="file" accept=".litebi,.litebiview,.litebitemplate,.json" class="hidden" @change="handleOpenProject" />
       
-      <div class="action-group">
-        <BaseButton v-if="!uiStore.isViewerMode" variant="ghost" size="sm" title="Nuevo Proyecto" @click="handleNewProject">
-          <FilePlus />
-        </BaseButton>
-        <BaseButton variant="ghost" size="sm" title="Abrir Proyecto (.litebi)" @click="triggerOpen">
-          <FolderOpen />
-        </BaseButton>
-        <BaseButton v-if="!uiStore.isViewerMode" variant="ghost" size="sm" title="Guardar Proyecto" @click="handleSaveProject">
-          <Save />
-        </BaseButton>
-        <BaseButton v-if="!uiStore.isViewerMode" variant="ghost" size="sm" title="Guardar como..." @click="handleSaveAs">
-          <SaveAll />
-        </BaseButton>
-        <BaseButton v-if="!uiStore.isViewerMode" variant="ghost" size="sm" title="Compartir a Visor Total" @click="handleExportViewer">
-          <Share2 />
-        </BaseButton>
-        <BaseButton v-if="!uiStore.isViewerMode" variant="ghost" size="sm" title="Exportar como Visor de Reporte" @click="handleExportReportViewer">
-          <FileSpreadsheet />
-        </BaseButton>
-        <BaseButton v-if="!uiStore.isViewerMode" variant="ghost" size="sm" title="Guardar como Plantilla" @click="handleExportTemplate">
-          <LayoutTemplate />
-        </BaseButton>
-      </div>
-      
-      <div v-if="isDashboard" class="action-group">
-        <BaseButton variant="ghost" size="sm" title="Exportar a PNG" @click="handleExportPNG">
-          <Image />
-        </BaseButton>
-        <BaseButton variant="ghost" size="sm" title="Exportar a PDF" @click="handleExportPDF">
-          <FileText />
-        </BaseButton>
+      <div class="relative hidden md:block">
+        <Search class="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+        <input 
+          type="text" 
+          :placeholder="$t('header.search')" 
+          class="h-8 pl-8 pr-3 text-xs bg-muted border border-border rounded-md focus:outline-none focus:border-primary w-48 lg:w-64 transition-all"
+        />
       </div>
 
-      <div class="divider"></div>
-      
-      <!-- Collaboration Avatars -->
-      <div v-if="collabStore.isConnected" class="collab-avatars">
-        <div 
-          class="avatar local-avatar" 
-          :style="{ backgroundColor: collabStore.userColor }"
-          :title="collabStore.username + ' (Tú)'"
-        >
-          {{ collabStore.username?.charAt(0).toUpperCase() || 'U' }}
-        </div>
-        <div 
-          v-for="[id, user] in collabStore.collaborators" 
-          :key="id"
-          class="avatar remote-avatar"
-          :style="{ backgroundColor: user.color }"
-          :title="user.name"
-        >
-          {{ user.name?.charAt(0).toUpperCase() || '?' }}
-        </div>
+      <div class="flex items-center gap-2 pl-3 border-l border-border">
+        <!-- File Actions (Always visible unless Viewer Mode) -->
+        <template v-if="!uiStore.isViewerMode">
+          <BaseButton variant="outline" size="sm" :title="$t('header.newProject')" @click="handleNewProject">
+            <template #icon-left><FilePlus class="w-3.5 h-3.5" /></template>
+            {{ $t('header.newProject') }}
+          </BaseButton>
+          <BaseButton variant="outline" size="sm" :title="$t('header.openProject')" @click="triggerOpen">
+            <template #icon-left><FolderOpen class="w-3.5 h-3.5" /></template>
+            {{ $t('header.openProject') }}
+          </BaseButton>
+          <BaseButton variant="outline" size="sm" :title="$t('header.save')" @click="handleSaveProject">
+            <template #icon-left><Save class="w-3.5 h-3.5" /></template>
+            {{ $t('header.save') }}
+          </BaseButton>
+          <BaseButton variant="outline" size="sm" :title="$t('header.saveAs')" @click="handleSaveAs">
+            <template #icon-left><SaveAll class="w-3.5 h-3.5" /></template>
+            {{ $t('header.saveAs') }}
+          </BaseButton>
+        </template>
+        
+        <!-- Transform Actions -->
+        <template v-if="route.name === 'cleaning'">
+          <BaseButton variant="primary" size="sm" @click="uiStore.triggerRunPipeline()">
+            <template #icon-left><Play class="w-3.5 h-3.5" /></template>
+            {{ $t('header.runPipeline') }}
+          </BaseButton>
+        </template>
+
+
+        
+        <!-- Viewer Export Action -->
+        <BaseButton v-if="uiStore.isViewerMode && isDashboard" variant="primary" size="sm" @click="exportToPNG('dashboard-export-area', 'dashboard.png')">
+          <template #icon-left><Image /></template>
+          {{ $t('header.exportPNG') }}
+        </BaseButton>
+        <BaseButton v-if="uiStore.isViewerMode && route.name === 'reports'" variant="primary" size="sm" @click="exportToPDF('report-export-area', 'reporte.pdf')">
+          <template #icon-left><FileText /></template>
+          {{ $t('header.exportPDF') }}
+        </BaseButton>
       </div>
 
-      <div class="divider"></div>
-
-      <LanguageSwitch />
+      <div class="flex items-center gap-2 pl-3 border-l border-border">
+        <LanguageSwitch />
+        <button class="w-8 h-8 rounded-full bg-muted border border-border flex items-center justify-center text-sm font-medium hover:bg-muted/80 transition-colors">
+          JM
+        </button>
+      </div>
     </div>
   </header>
 </template>
 
 <style scoped>
-.app-header {
-  height: var(--header-height);
-  background-color: var(--color-bg-surface);
-  border-bottom: 1px solid var(--color-border);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 var(--space-6);
-  box-shadow: var(--shadow-xs);
-  z-index: 10;
-}
-
-.app-header__left {
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
-}
-
-.viewer-nav {
-  display: flex;
-  gap: var(--space-2);
-  margin-left: var(--space-4);
-  padding-left: var(--space-4);
-  border-left: 1px solid var(--color-border);
-}
-
-.project-name-container {
-  display: flex;
-  align-items: center;
-}
-
-.project-name-display {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  cursor: pointer;
-  padding: var(--space-1) var(--space-2);
-  border-radius: var(--radius-md);
-  transition: background-color var(--transition-fast);
-}
-
-.project-name-display:hover {
-  background-color: var(--color-bg-secondary);
-}
-
-.edit-icon {
-  color: var(--color-text-secondary);
-  opacity: 0;
-  transition: opacity var(--transition-fast);
-}
-
-.project-name-display:hover .edit-icon {
-  opacity: 1;
-}
-
-.project-name-input {
-  font-size: var(--text-xl);
-  font-weight: var(--font-semibold);
-  color: var(--color-text-primary);
-  border: 1px solid var(--color-accent);
-  border-radius: var(--radius-md);
-  padding: var(--space-1) var(--space-2);
-  outline: none;
-  background: var(--color-bg-surface);
-  width: 250px;
-}
-
-.dirty-indicator {
-  color: var(--color-warning);
-  font-weight: bold;
-}
-
-.saving-indicator {
-  display: flex;
-  align-items: center;
-  color: var(--color-text-secondary);
-}
-
-.spin-icon {
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  100% { transform: rotate(360deg); }
-}
-
-.edit-icon {
-  font-size: 1.2rem;
-}
-
-.view-subtitle {
-  color: var(--color-text-secondary);
-  font-size: var(--text-sm);
-  font-weight: var(--font-medium);
-}
-
-.app-header__title {
-  font-size: var(--text-xl);
-  font-weight: var(--font-semibold);
-  color: var(--color-text-primary);
-  margin: 0;
-}
-
-.app-header__right {
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
-}
-
-.action-group {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-}
-
-.divider {
-  width: 1px;
-  height: 24px;
-  background-color: var(--color-border);
-  margin: 0 var(--space-2);
-}
-
-.collab-avatars {
-  display: flex;
-  align-items: center;
-  gap: -8px; /* overlap */
-}
-
-.avatar {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  font-weight: 600;
-  font-size: 14px;
-  border: 2px solid var(--color-bg-surface);
-  margin-left: -8px; /* overlapping effect */
-  box-shadow: var(--shadow-xs);
-  cursor: help;
-  transition: transform var(--transition-fast);
-}
-
-.avatar:hover {
-  transform: translateY(-2px);
-  z-index: 10;
-}
-
-.local-avatar {
-  margin-left: 0;
-  z-index: 5;
-}
-
-.remote-avatar {
-  z-index: 4;
-}
+/* Estilos adicionales si fueran necesarios, pero Tailwind maneja la mayoría */
 </style>

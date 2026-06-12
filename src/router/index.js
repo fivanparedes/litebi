@@ -3,13 +3,25 @@ import { createRouter, createWebHashHistory } from 'vue-router'
 const routes = [
   {
     path: '/',
-    redirect: '/data'
+    redirect: '/home'
+  },
+  {
+    path: '/home',
+    name: 'home',
+    component: () => import('@/views/HomeView.vue'),
+    meta: { icon: 'Database', titleKey: 'Data Sources' }
   },
   {
     path: '/data',
     name: 'data',
     component: () => import('@/views/DataView.vue'),
     meta: { icon: 'Database', titleKey: 'nav.data' }
+  },
+  {
+    path: '/profile',
+    name: 'profile',
+    component: () => import('@/views/ProfileView.vue'),
+    meta: { icon: 'ScanSearch', titleKey: 'Data Profile' }
   },
   {
     path: '/cleaning',

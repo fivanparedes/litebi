@@ -57,14 +57,14 @@ const selectTab = (key) => {
   padding: var(--space-2) 0;
   font-family: var(--font-family);
   font-size: var(--text-sm);
-  color: var(--color-text-secondary);
+  color: var(--muted-foreground);
   cursor: pointer;
   position: relative;
   transition: color var(--transition-fast);
 }
 
 .tab-btn:hover {
-  color: var(--color-text-primary);
+  color: var(--foreground);
 }
 
 .tab-btn--active {

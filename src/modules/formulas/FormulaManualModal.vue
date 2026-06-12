@@ -20,9 +20,9 @@ const close = () => {
 <template>
   <BaseModal
     :model-value="modelValue"
-    @update:model-value="val => emit('update:modelValue', val)"
     title="Manual de Fórmulas y SQL"
     size="lg"
+    @update:model-value="val => emit('update:modelValue', val)"
   >
     <div class="manual-container">
       <div class="manual-section">
@@ -94,7 +94,7 @@ END</code></pre>
     </div>
     
     <template #footer>
-      <BaseButton variant="primary" v-focus @click="close">Entendido</BaseButton>
+      <BaseButton v-focus variant="primary" @click="close">Entendido</BaseButton>
     </template>
   </BaseModal>
 </template>
@@ -112,7 +112,7 @@ END</code></pre>
 .manual-section h3 {
   font-size: var(--text-lg);
   font-weight: var(--font-bold);
-  color: var(--color-text-primary);
+  color: var(--foreground);
   margin-bottom: var(--space-2);
   border-bottom: 1px solid var(--color-border);
   padding-bottom: var(--space-1);
@@ -127,7 +127,7 @@ END</code></pre>
 
 .manual-section p, .manual-section li {
   font-size: var(--text-sm);
-  color: var(--color-text-secondary);
+  color: var(--muted-foreground);
   line-height: 1.5;
 }
 
@@ -140,12 +140,12 @@ END</code></pre>
 }
 
 code {
-  background-color: var(--color-bg-secondary);
+  background-color: var(--muted);
   padding: 2px 4px;
   border-radius: 4px;
   font-family: var(--font-mono);
   font-size: 0.9em;
-  color: var(--color-text-primary);
+  color: var(--foreground);
 }
 
 .example-box {

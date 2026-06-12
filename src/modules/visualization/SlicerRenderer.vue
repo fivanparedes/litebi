@@ -32,8 +32,8 @@ watch(() => [props.config, dataStore.dataVersion], async () => {
   const dsName = config.dataset
   const rawX = config.xAxis
   
-  const parseCol = (colStr) => colStr.includes('].[') ? colStr : `[${dsName}].[${colStr}]`
-  const extractTable = (colStr) => colStr.includes('].[') ? colStr.split('].[')[0].replace('[', '') : dsName
+  const parseCol = (colStr) => colStr.includes('"."') ? colStr : `"${dsName}"."${colStr}"`
+  const extractTable = (colStr) => colStr.includes('"."') ? colStr.split('"."')[0].replace('[', '') : dsName
 
   try {
     const xSafe = parseCol(rawX)
@@ -41,11 +41,11 @@ watch(() => [props.config, dataStore.dataVersion], async () => {
     const fromClause = dataStore.buildJoinQuery(dsName, requiredTables)
     
     if (config.slicerType !== 'slider') {
-      const q = `SELECT DISTINCT ${xSafe} as [value] FROM ${fromClause} WHERE ${xSafe} IS NOT NULL ORDER BY [value] ASC LIMIT 500`
+      const q = `SELECT DISTINCT ${xSafe} as "value" FROM ${fromClause} WHERE ${xSafe} IS NOT NULL ORDER BY "value" ASC LIMIT 500`
       const res = await sqlClient.query(q)
       items.value = res.map(r => r.value)
     } else {
-      const q = `SELECT MIN(${xSafe}) as [minVal], MAX(${xSafe}) as [maxVal] FROM ${fromClause} WHERE ${xSafe} IS NOT NULL`
+      const q = `SELECT MIN(${xSafe}) as "minVal", MAX(${xSafe}) as "maxVal" FROM ${fromClause} WHERE ${xSafe} IS NOT NULL`
       const res = await sqlClient.query(q)
       if (res && res.length > 0) {
         rangeBounds.value = { 
@@ -160,8 +160,8 @@ const clearFilter = () => {
           v-model="searchInputValue" 
           type="text" 
           placeholder="Buscar..." 
-          @keyup.enter="applyInputFilter"
           class="slicer-text-input"
+          @keyup.enter="applyInputFilter"
         />
         <button class="apply-range-btn" @click="applyInputFilter">Buscar</button>
       </div>
@@ -193,7 +193,7 @@ const clearFilter = () => {
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: var(--color-bg-surface);
+  background: var(--background);
 }
 
 .slicer-empty {
@@ -203,7 +203,7 @@ const clearFilter = () => {
   justify-content: center;
   padding: var(--space-4);
   text-align: center;
-  color: var(--color-text-secondary);
+  color: var(--muted-foreground);
   font-size: var(--text-sm);
 }
 
@@ -217,7 +217,7 @@ const clearFilter = () => {
 .slicer-title {
   margin: 0 0 var(--space-2) 0;
   font-size: var(--text-sm);
-  color: var(--color-text-primary);
+  color: var(--foreground);
   font-weight: var(--font-semibold);
 }
 
@@ -243,7 +243,7 @@ const clearFilter = () => {
 }
 
 .slicer-btn:hover {
-  background-color: var(--color-bg-secondary);
+  background-color: var(--muted);
 }
 
 .slicer-btn.active {
@@ -259,7 +259,7 @@ const clearFilter = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: var(--color-bg-surface);
+  background-color: var(--background);
   color: var(--color-accent);
   flex-shrink: 0;
 }
@@ -270,7 +270,7 @@ const clearFilter = () => {
 
 .item-label {
   font-size: var(--text-sm);
-  color: var(--color-text-primary);
+  color: var(--foreground);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -286,7 +286,7 @@ const clearFilter = () => {
 .clear-btn {
   background: none;
   border: none;
-  color: var(--color-text-tertiary);
+  color: var(--muted-foreground);
   cursor: pointer;
   padding: 4px;
   border-radius: var(--radius-sm);
@@ -299,7 +299,7 @@ const clearFilter = () => {
 }
 
 .spin-icon {
-  color: var(--color-text-tertiary);
+  color: var(--muted-foreground);
   animation: spin 1s linear infinite;
 }
 
@@ -308,7 +308,7 @@ const clearFilter = () => {
 }
 
 .clear-btn:hover {
-  background: var(--color-bg-secondary);
+  background: var(--muted);
   color: var(--color-danger);
 }
 
@@ -333,7 +333,7 @@ const clearFilter = () => {
 
 .slider-input-group label {
   font-size: var(--text-xs);
-  color: var(--color-text-secondary);
+  color: var(--muted-foreground);
 }
 
 .slider-input-group input {
@@ -342,8 +342,8 @@ const clearFilter = () => {
   font-size: var(--text-sm);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
-  background: var(--color-bg-primary);
-  color: var(--color-text-primary);
+  background: var(--card);
+  color: var(--foreground);
 }
 
 .apply-range-btn {
@@ -372,7 +372,7 @@ const clearFilter = () => {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-full);
   padding: 4px 12px;
-  background-color: var(--color-bg-primary);
+  background-color: var(--card);
   text-align: center;
   justify-content: center;
 }
@@ -399,7 +399,7 @@ const clearFilter = () => {
   font-size: var(--text-sm);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
-  background: var(--color-bg-primary);
-  color: var(--color-text-primary);
+  background: var(--card);
+  color: var(--foreground);
 }
 </style>

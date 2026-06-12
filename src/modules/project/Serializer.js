@@ -159,7 +159,12 @@ export const serializeProject = async (dataStore, formulaStore, dashboardStore, 
     }
   }
 
-  return JSON.stringify(projectState)
+  return JSON.stringify(projectState, (key, value) => {
+    if (typeof value === 'bigint') {
+      return Number(value) // Convert BigInt to Number for JSON compatibility
+    }
+    return value
+  })
 }
 
 // ---------------------------------------------------------------------------
@@ -190,10 +195,10 @@ export const deserializeProject = async (jsonString, dataStore, formulaStore, da
   }
 
   // --- Paso 1: Parsear JSON ---
-  let project
-  try {
-    project = JSON.parse(jsonString)
-  } catch (parseError) {
+    let project
+    try {
+      project = JSON.parse(jsonString)
+    } catch (parseError) {
     throw new Error(
       `No se pudo interpretar el archivo como JSON. ` +
       `Detalle: ${parseError.message}`
@@ -273,6 +278,17 @@ export const deserializeProject = async (jsonString, dataStore, formulaStore, da
     } else {
       reportStore.pages = [{ id: 'page_1', layout: [], orientation: 'portrait' }]
       reportStore.activePageId = 'page_1'
+    }
+
+    // --- Paso 9: Reconstruir tablas de transformación ---
+    for (const [name, meta] of dataStore.datasets.entries()) {
+      if (meta.transformations && meta.transformations.length > 0) {
+        try {
+          await sqlClient.executePipeline(name, `${name}_working`, meta.schema, meta.transformations)
+        } catch (e) {
+          console.error(`Error rebuilding pipeline for ${name}`, e)
+        }
+      }
     }
 
     return true

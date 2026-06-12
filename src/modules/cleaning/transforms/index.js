@@ -26,7 +26,7 @@ export const Transforms = {
       const { column, operator, value } = config
       // Fix: use escapeSQL for safe value interpolation and bracket-wrap column names
       const sqlValue = escapeSQL(value)
-      const col = `[${column}]`
+      const col = `"${column}"`
 
       switch (operator) {
         case 'equals': return `${col} = ${sqlValue}`
@@ -59,7 +59,7 @@ export const Transforms = {
       const { column, direction } = config // direction: 'ASC' | 'DESC'
       // Fix: validate direction to prevent arbitrary SQL injection, default to ASC
       const safeDirection = direction === 'DESC' ? 'DESC' : 'ASC'
-      return `[${column}] ${safeDirection}`
+      return `"${column}" ${safeDirection}`
     }
   },
 
@@ -84,7 +84,7 @@ export const Transforms = {
         // Handle if it's just "colName" or already has an alias "colName AS otherName"
         const colName = part.split(' AS ')[0].trim()
         if (colName === oldName || colName === `[${oldName}]`) {
-          return `[${oldName}] AS [${newName}]`
+          return `"${oldName}" AS "${newName}"`
         }
         return part
       })
@@ -104,7 +104,7 @@ export const Transforms = {
       const newParts = parts.filter(part => {
         const colName = part.split(' AS ')[0].trim()
         // Fix: also match bracket-wrapped column names
-        return colName !== column && colName !== `[${column}]`
+        return colName !== column && colName !== `"${column}"`
       })
       return newParts.join(', ')
     }
@@ -120,7 +120,7 @@ export const Transforms = {
     generateSql: (config) => {
       const { column, targetType } = config
       // AlaSQL CAST syntax applied in SELECT; returns a column expression
-      return `CAST([${column}] AS ${targetType === 'number' ? 'NUMBER' : targetType === 'boolean' ? 'BOOLEAN' : 'STRING'})`
+      return `CAST("${column}" AS ${targetType === 'number' ? 'NUMBER' : targetType === 'boolean' ? 'BOOLEAN' : 'STRING'})`
     }
   },
   FIND_REPLACE: {
@@ -132,7 +132,7 @@ export const Transforms = {
       const { column, find, replace } = config
       const safFind = String(find).replace(/'/g, "''")
       const safReplace = String(replace).replace(/'/g, "''")
-      return `REPLACE([${column}], '${safFind}', '${safReplace}')`
+      return `REPLACE("${column}", '${safFind}', '${safReplace}')`
     }
   },
   REMOVE_DUPLICATES: {
@@ -155,7 +155,7 @@ export const Transforms = {
     generateSql: (config) => {
       const { column, fillValue } = config
       const safeFill = escapeSQL(fillValue)
-      return `COALESCE([${column}], ${safeFill})`
+      return `COALESCE("${column}", ${safeFill})`
     }
   }
 }

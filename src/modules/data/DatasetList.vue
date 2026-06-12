@@ -1,287 +1,259 @@
 <script setup>
 import { computed, ref } from 'vue'
-import { Database, Table, Calendar, CalendarClock, Hash, Type, Trash2, Edit2 } from '@lucide/vue'
+import { Database, FileText, FileSpreadsheet, Server, Globe, Box, Eye, Cloud, DatabaseZap, Globe2, Edit3, Type, Hash, Calendar, Table, ChevronRight, Plus, X } from '@lucide/vue'
 import { useDataStore } from '@/stores/dataStore'
-import { useUiStore } from '@/stores/uiStore'
-import BaseButton from '@/components/ui/BaseButton.vue'
-import BaseTooltip from '@/components/ui/BaseTooltip.vue'
+
+const props = defineProps({
+  searchQuery: {
+    type: String,
+    default: ''
+  }
+})
 
 const dataStore = useDataStore()
-const uiStore = useUiStore()
 
-const expandedCards = ref({})
+const expandedCard = ref(null)
 
-const toggleExpand = (name) => {
-  expandedCards.value[name] = !expandedCards.value[name]
-}
-
-const formatNumber = (num) => {
-  return new Intl.NumberFormat().format(num)
-}
-
-const formatDate = (dateStr) => {
-  if (!dateStr) return ''
-  const d = new Date(dateStr)
-  return new Intl.DateTimeFormat('default', { 
-    year: 'numeric', month: 'short', day: 'numeric',
-    hour: '2-digit', minute: '2-digit'
-  }).format(d)
-}
-
-const getTypeIcon = (type) => {
-  switch (type) {
-    case 'number': return Hash
-    case 'date': return Calendar
-    case 'boolean': return Table // Checkbox icon would be better
-    default: return Type
+const toggleCard = (name) => {
+  if (expandedCard.value === name) {
+    expandedCard.value = null // Collapse
+  } else {
+    expandedCard.value = name
+    dataStore.setActiveDataset(name) // Load preview
   }
+}
+
+const filteredDatasets = computed(() => {
+  if (!props.searchQuery) return dataStore.datasetList
+  const query = props.searchQuery.toLowerCase()
+  return dataStore.datasetList.filter(d => d.originalName.toLowerCase().includes(query))
+})
+
+const formatNumber = (num) => new Intl.NumberFormat().format(num)
+
+const formatSize = (rows, cols) => {
+  const bytes = rows * cols * 15
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
+  if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
+  return (bytes / (1024 * 1024 * 1024)).toFixed(1) + ' GB'
+}
+
+const getTags = (dataset) => {
+  if (dataset.tags && dataset.tags.length > 0) return dataset.tags
+  // Initial auto-generation if empty
+  const tags = []
+  const name = dataset.originalName.toLowerCase()
+  if (name.includes('fact') || name.includes('order') || name.includes('sale')) {
+    tags.push('FACT', 'SALES')
+  } else if (name.includes('dim') || name.includes('emp') || name.includes('customer')) {
+    tags.push('DIMENSION', 'HR')
+  }
+  tags.push('CERTIFIED')
+  // We don't save these to store automatically to not clutter it, 
+  // but if they edit them, they get saved.
+  return tags
+}
+
+const editingTags = ref({})
+const newTagInput = ref('')
+
+const startEditingTags = (datasetName) => {
+  editingTags.value[datasetName] = true
+  // ensure the dataset has the initial tags in the store if it was empty
+  const ds = dataStore.datasetList.find(d => d.name === datasetName)
+  if (ds && (!ds.tags || ds.tags.length === 0)) {
+    dataStore.updateDatasetTags(datasetName, getTags(ds))
+  }
+}
+
+const removeTag = (datasetName, tagIndex) => {
+  const ds = dataStore.datasetList.find(d => d.name === datasetName)
+  if (ds && ds.tags) {
+    const newTags = [...ds.tags]
+    newTags.splice(tagIndex, 1)
+    dataStore.updateDatasetTags(datasetName, newTags)
+  }
+}
+
+const addTag = (datasetName) => {
+  if (!newTagInput.value.trim()) return
+  const ds = dataStore.datasetList.find(d => d.name === datasetName)
+  if (ds) {
+    const newTags = [...(ds.tags || [])]
+    if (!newTags.includes(newTagInput.value.trim().toUpperCase())) {
+      newTags.push(newTagInput.value.trim().toUpperCase())
+      dataStore.updateDatasetTags(datasetName, newTags)
+    }
+  }
+  newTagInput.value = ''
+}
+
+const stopEditingTags = (datasetName) => {
+  editingTags.value[datasetName] = false
+}
+
+const getTimeAgo = (date) => {
+  if (!date) return 'Unknown'
+  const seconds = Math.floor((new Date() - new Date(date)) / 1000)
+  if (seconds < 60) return 'Just now'
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return `${minutes} min ago`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours} hours ago`
+  return `${Math.floor(hours / 24)} days ago`
+}
+
+const getConnectorIcon = (dataset) => {
+  const type = dataset.connectorConfig?.type || 'csv'
+  if (type === 'postgres' || type === 'mysql' || type === 'sqlserver') return DatabaseZap
+  if (type === 'api' || type === 'salesforce') return Cloud
+  if (type === 'csv' || type === 'excel') return FileSpreadsheet
+  return Database
+}
+
+const getConnectorName = (dataset) => {
+  const type = dataset.connectorConfig?.type || 'csv'
+  switch (type) {
+    case 'postgres': return 'PostgreSQL'
+    case 'mysql': return 'MySQL'
+    case 'sqlserver': return 'SQL Server'
+    case 'api': return 'REST API'
+    case 'salesforce': return 'Salesforce'
+    case 'csv': return 'Local CSV'
+    case 'excel': return 'Excel File'
+    default: return 'Custom Source'
+  }
+}
+
+const getMockSubtitle = (name) => {
+  const lower = name.toLowerCase()
+  if (lower.includes('order') || lower.includes('sale')) return 'Sales'
+  if (lower.includes('emp')) return 'HR Records'
+  if (lower.includes('ledger') || lower.includes('finance')) return 'Finance Ledger'
+  if (lower.includes('stock')) return 'Inventory Warehouse'
+  if (lower.includes('crm')) return 'CRM Pipeline'
+  if (lower.includes('ops')) return 'Operations DW'
+  return 'Data Warehouse'
 }
 </script>
 
 <template>
-  <div class="dataset-list">
+  <div class="dataset-grid">
     <div 
-      v-for="dataset in dataStore.datasetList" 
+      v-for="dataset in filteredDatasets" 
       :key="dataset.name"
       class="dataset-card"
-      :class="{ 'dataset-card--active': dataStore.activeDatasetName === dataset.name }"
-      @click="dataStore.setActiveDataset(dataset.name)"
+      :class="{ 'dataset-card--active': expandedCard === dataset.name }"
+      @click="toggleCard(dataset.name)"
     >
-      <div class="dataset-card__header">
-        <div class="dataset-card__title">
-          <Database class="dataset-card__icon" />
-          <h3>{{ dataset.originalName }}</h3>
+      <!-- Top Section -->
+      <div class="flex items-start gap-4">
+        <div class="w-10 h-10 rounded-none bg-muted flex items-center justify-center shrink-0 border border-border">
+          <component :is="getConnectorIcon(dataset)" class="w-5 h-5 text-muted-foreground" />
         </div>
         
-        <div class="dataset-card__actions" :class="{ 'always-visible': true }">
-          <BaseTooltip :text="expandedCards[dataset.name] ? 'Colapsar Detalles' : 'Expandir Detalles'" position="top">
-            <button class="action-btn" @click.stop="toggleExpand(dataset.name)">
-              <svg v-if="!expandedCards[dataset.name]" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-              <svg v-else xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"></polyline></svg>
-            </button>
-          </BaseTooltip>
-          <BaseTooltip v-if="!uiStore.isViewerMode" :text="$t('data.delete')" position="top">
-            <button class="action-btn action-btn--danger" @click.stop="dataStore.removeDataset(dataset.name)">
-              <Trash2 />
-            </button>
-          </BaseTooltip>
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center justify-between">
+            <h3 class="font-semibold text-foreground text-sm truncate">{{ dataset.originalName }}</h3>
+            <ChevronRight class="w-4 h-4 text-muted-foreground transition-transform duration-200" :class="{ 'rotate-90': expandedCard === dataset.name }" />
+          </div>
+          <div class="text-xs text-muted-foreground mt-0.5 truncate flex items-center gap-2">
+            <span>{{ getMockSubtitle(dataset.originalName) }} — {{ getConnectorName(dataset) }}</span>
+            <span v-if="dataset.originalName.toLowerCase().includes('crm')" class="px-1.5 py-0.5 rounded-none text-[10px] font-bold bg-red-100 text-red-600 border border-red-200">ERROR</span>
+          </div>
+          <div class="text-xs text-muted-foreground mt-1">
+            {{ formatNumber(dataset.rowCount) }} rows · {{ dataset.colCount }} cols · {{ formatSize(dataset.rowCount, dataset.colCount) }}
+          </div>
         </div>
       </div>
-      
-      <div v-if="expandedCards[dataset.name]" class="dataset-card__body">
-        <div class="dataset-card__stats">
-          <div class="stat">
-            <span class="stat__value">{{ formatNumber(dataset.rowCount) }}</span>
-            <span class="stat__label">{{ $t('data.rows') }}</span>
+
+      <!-- Expanded Section -->
+      <div v-if="expandedCard === dataset.name" class="mt-4 pt-4 border-t border-border animate-in slide-in-from-top-2 duration-200" @click.stop>
+        <div class="flex gap-8 mb-4">
+          <div>
+            <div class="text-[10px] font-bold uppercase text-muted-foreground tracking-wider mb-0.5">Updated</div>
+            <div class="text-xs font-medium">{{ getTimeAgo(dataset.importedAt) }}</div>
           </div>
-          <div class="stat">
-            <span class="stat__value">{{ dataset.colCount }}</span>
-            <span class="stat__label">{{ $t('data.columns') }}</span>
-          </div>
-        </div>
-        
-        <div class="dataset-card__schema">
-          <div 
-            v-for="col in dataset.schema.slice(0, 5)" 
-            :key="col.name"
-            class="schema-col"
-          >
-            <component :is="getTypeIcon(col.type)" class="schema-col__icon" />
-            <span class="schema-col__name">{{ col.name }}</span>
-          </div>
-          <div v-if="dataset.schema.length > 5" class="schema-col schema-col--more">
-            + {{ dataset.schema.length - 5 }} más
+          <div>
+            <div class="text-[10px] font-bold uppercase text-muted-foreground tracking-wider mb-0.5">Owner</div>
+            <div class="text-xs font-medium">data-eng</div>
           </div>
         </div>
         
-        <div class="dataset-card__footer">
-          <CalendarClock class="footer-icon" />
-          <span>Importado el {{ formatDate(dataset.importedAt) }}</span>
+        <!-- Tags Section -->
+        <div class="mb-4">
+          <div class="flex flex-wrap items-center gap-1.5">
+            <span 
+              v-for="(tag, idx) in getTags(dataset)" 
+              :key="idx"
+              class="px-2 py-0.5 border border-border rounded-none text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1 group"
+            >
+              {{ tag }}
+              <button v-if="editingTags[dataset.name]" class="hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity" @click="removeTag(dataset.name, idx)">
+                <X class="w-3 h-3" />
+              </button>
+            </span>
+            
+            <button 
+              v-if="!editingTags[dataset.name]"
+              class="px-2 py-0.5 border border-dashed border-border rounded-none text-[10px] font-bold text-muted-foreground hover:bg-muted transition-colors flex items-center gap-1"
+              @click="startEditingTags(dataset.name)"
+            >
+              <Edit3 class="w-3 h-3" /> Edit
+            </button>
+          </div>
+
+          <!-- Edit tags inline -->
+          <div v-if="editingTags[dataset.name]" class="mt-2 flex items-center gap-2">
+            <input 
+              v-model="newTagInput" 
+              placeholder="Add tag..."
+              class="text-xs px-2 py-1 border border-border rounded-none outline-none focus:border-primary flex-1 bg-background"
+              @keyup.enter="addTag(dataset.name)"
+            />
+            <button class="text-xs px-2 py-1 bg-primary text-primary-foreground rounded-none font-medium" @click="addTag(dataset.name)">Add</button>
+            <button class="text-xs px-2 py-1 bg-secondary text-secondary-foreground rounded-none font-medium" @click="stopEditingTags(dataset.name)">Done</button>
+          </div>
         </div>
+
+        <button class="flex items-center gap-1.5 text-xs font-semibold text-primary hover:text-primary/80 transition-colors" @click="dataStore.setActiveDataset(dataset.name)">
+          <Eye class="w-3.5 h-3.5" />
+          View table below
+        </button>
       </div>
+    </div>
+    
+    <!-- Empty State -->
+    <div v-if="filteredDatasets.length === 0" class="col-span-full py-12 text-center text-muted-foreground">
+      No datasets found matching your criteria.
     </div>
   </div>
 </template>
 
 <style scoped>
-.dataset-list {
+.dataset-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
   gap: var(--space-4);
-  padding: var(--space-4) 0;
   align-items: start;
 }
 
 .dataset-card {
-  background-color: var(--color-bg-surface);
+  background-color: var(--card);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  padding: var(--space-4);
+  border-radius: 0;
+  padding: var(--space-6);
   cursor: pointer;
-  transition: all var(--transition-fast);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
+  transition: all 0.2s ease;
+  position: relative;
 }
 
 .dataset-card:hover {
   border-color: var(--color-border-hover);
-  box-shadow: var(--shadow-sm);
-  transform: translateY(-2px);
 }
 
 .dataset-card--active {
-  border-color: var(--color-accent);
-  box-shadow: 0 0 0 1px var(--color-accent);
-}
-
-.dataset-card__header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-}
-
-.dataset-card__title {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  overflow: hidden;
-}
-
-.dataset-card__icon {
-  width: 20px;
-  height: 20px;
-  color: var(--color-accent);
-  flex-shrink: 0;
-}
-
-.dataset-card__title h3 {
-  margin: 0;
-  font-size: var(--text-base);
-  font-weight: var(--font-semibold);
-  color: var(--color-text-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.dataset-card__actions {
-  display: flex;
-  opacity: 0;
-  transition: opacity var(--transition-fast);
-}
-
-.dataset-card:hover .dataset-card__actions {
-  opacity: 1;
-}
-
-.dataset-card__actions.always-visible {
-  opacity: 1;
-}
-
-.dataset-card__body {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-}
-
-.action-btn {
-  background: none;
-  border: none;
-  padding: var(--space-1);
-  cursor: pointer;
-  border-radius: var(--radius-sm);
-  color: var(--color-text-tertiary);
-}
-
-.action-btn:hover {
-  background-color: var(--color-bg-secondary);
-  color: var(--color-text-primary);
-}
-
-.action-btn--danger:hover {
-  background-color: var(--color-danger-light);
-  color: var(--color-danger);
-}
-
-.action-btn :deep(svg) {
-  width: 16px;
-  height: 16px;
-}
-
-.dataset-card__stats {
-  display: flex;
-  gap: var(--space-4);
-  background-color: var(--color-bg-primary);
-  padding: var(--space-3);
-  border-radius: var(--radius-md);
-}
-
-.stat {
-  display: flex;
-  flex-direction: column;
-}
-
-.stat__value {
-  font-size: var(--text-lg);
-  font-weight: var(--font-bold);
-  color: var(--color-text-primary);
-}
-
-.stat__label {
-  font-size: var(--text-xs);
-  color: var(--color-text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.dataset-card__schema {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-
-.schema-col {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-  background-color: var(--color-bg-secondary);
-  padding: 2px 8px;
-  border-radius: var(--radius-full);
-  font-size: var(--text-xs);
-  color: var(--color-text-secondary);
-}
-
-.schema-col__icon {
-  width: 12px;
-  height: 12px;
-}
-
-.schema-col__name {
-  max-width: 100px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.schema-col--more {
-  background-color: transparent;
-  font-weight: var(--font-medium);
-}
-
-.dataset-card__footer {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin-top: auto;
-  font-size: var(--text-xs);
-  color: var(--color-text-tertiary);
-  border-top: 1px solid var(--color-border);
-  padding-top: var(--space-3);
-}
-
-.footer-icon {
-  width: 14px;
-  height: 14px;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 1px var(--color-primary);
 }
 </style>

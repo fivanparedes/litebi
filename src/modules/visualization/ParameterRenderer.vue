@@ -42,9 +42,9 @@ onMounted(() => {
       <strong>{{ currentValue }}</strong>
     </div>
     <input 
+      v-model="currentValue" 
       type="range" 
       class="parameter-slider" 
-      v-model="currentValue" 
       :min="config.min || 0" 
       :max="config.max || 100" 
       :step="config.step || 1" 
@@ -64,13 +64,13 @@ onMounted(() => {
   justify-content: center;
   height: 100%;
   padding: var(--space-4);
-  background-color: var(--color-bg-primary);
+  background-color: var(--card);
   border-radius: var(--radius-md);
 }
 
 .parameter-label {
   font-size: var(--text-sm);
-  color: var(--color-text-primary);
+  color: var(--foreground);
   margin-bottom: var(--space-2);
   text-align: center;
 }
@@ -84,7 +84,7 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   font-size: var(--text-xs);
-  color: var(--color-text-secondary);
+  color: var(--muted-foreground);
   margin-top: 4px;
 }
 </style>

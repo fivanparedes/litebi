@@ -36,11 +36,11 @@ const handleKeydown = (e, tabId) => {
 </script>
 
 <template>
-  <div class="dashboard-tabs">
+  <div class="dashboard-tabs px-4 py-2 bg-card border-b border-border flex items-center gap-2">
     <div 
       v-for="tab in dashboardStore.tabs" 
       :key="tab.id"
-      class="tab-item"
+      class="tab-item text-sm font-medium transition-colors"
       :class="{ 'tab-item--active': dashboardStore.activeTabId === tab.id }"
       @click="dashboardStore.setActiveTab(tab.id)"
     >
@@ -74,13 +74,13 @@ const handleKeydown = (e, tabId) => {
 
 <style scoped>
 .dashboard-tabs {
-  display: flex;
-  background-color: var(--color-bg-primary);
+  background-color: var(--card);
   border-bottom: 1px solid var(--color-border);
-  padding: var(--space-2) var(--space-2) 0 var(--space-2);
-  gap: var(--space-1);
-  overflow-x: auto;
-  position: relative;
+  padding: 0 var(--space-4);
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-2);
+  height: 36px;
   z-index: 2;
 }
 
@@ -88,51 +88,58 @@ const handleKeydown = (e, tabId) => {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  padding: var(--space-2) var(--space-4);
-  background-color: var(--color-bg-secondary);
-  border: 1px solid var(--color-border);
-  border-bottom: none;
-  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  padding: 6px var(--space-3);
+  color: var(--muted-foreground);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: -0.025em;
   cursor: pointer;
-  color: var(--color-text-secondary);
-  font-size: var(--text-sm);
-  font-weight: var(--font-medium);
-  transition: all var(--transition-fast);
-  min-width: 120px;
-  max-width: 200px;
-}
-
-.tab-item:hover {
-  background-color: var(--color-bg-surface);
-  color: var(--color-text-primary);
-}
-
-.tab-item--active {
-  background-color: var(--color-bg-surface);
-  color: var(--color-accent);
-  border-bottom: 1px solid var(--color-bg-surface);
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s ease;
   margin-bottom: -1px;
 }
 
+.tab-item:hover {
+  color: var(--foreground);
+}
+
+.tab-item--active {
+  color: var(--color-primary);
+  border-bottom-color: var(--color-primary);
+}
+
+.tab-edit {
+  display: flex;
+}
+
+.tab-input {
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--color-primary);
+  color: var(--foreground);
+  font-size: 11px;
+  font-weight: 500;
+  outline: none;
+  width: 100px;
+}
+
 .tab-name {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   user-select: none;
-  flex-grow: 1;
 }
 
 .tab-close {
-  background: none;
-  border: none;
-  color: var(--color-text-tertiary);
-  cursor: pointer;
-  padding: 2px;
-  border-radius: var(--radius-sm);
   display: flex;
   align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 0;
+  border: none;
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
   opacity: 0;
-  transition: opacity var(--transition-fast);
+  transition: all 0.2s;
 }
 
 .tab-item:hover .tab-close {
@@ -140,50 +147,38 @@ const handleKeydown = (e, tabId) => {
 }
 
 .tab-close:hover {
-  background-color: var(--color-danger-light);
-  color: var(--color-danger);
+  background-color: var(--muted);
+  color: var(--foreground);
 }
 
 .tab-close svg {
-  width: 14px;
-  height: 14px;
-}
-
-.tab-edit {
-  display: flex;
-  width: 100%;
-}
-
-.tab-input {
-  width: 100%;
-  background: transparent;
-  border: none;
-  color: var(--color-text-primary);
-  font-size: var(--text-sm);
-  font-weight: var(--font-medium);
-  font-family: inherit;
-  outline: none;
-  border-bottom: 1px solid var(--color-accent);
+  width: 12px;
+  height: 12px;
 }
 
 .add-tab-btn {
-  background: transparent;
-  border: none;
-  color: var(--color-text-secondary);
-  cursor: pointer;
-  padding: 0 var(--space-3);
-  border-radius: var(--radius-md) var(--radius-md) 0 0;
   display: flex;
   align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 0;
+  border: none;
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-left: var(--space-2);
+  margin-bottom: 4px;
 }
 
 .add-tab-btn:hover {
-  background-color: var(--color-bg-secondary);
-  color: var(--color-text-primary);
+  background-color: var(--muted);
+  color: var(--foreground);
 }
 
 .add-tab-btn svg {
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
 }
 </style>

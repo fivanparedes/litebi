@@ -1,23 +1,26 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, ref, watch, onMounted } from 'vue'
 import { useDataStore } from '@/stores/dataStore'
 import { useDashboardStore } from '@/stores/dashboardStore'
 import { useFormulaStore } from '@/stores/formulaStore'
 import BaseInput from '@/components/ui/BaseInput.vue'
 import BaseDropdown from '@/components/ui/BaseDropdown.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
+import BaseSwitch from '@/components/ui/BaseSwitch.vue'
 import DragResizer from '@/components/ui/DragResizer.vue'
+import CodeEditor from '@/components/ui/CodeEditor.vue'
 import { 
-  BarChart3, LineChart, PieChart, ScatterChart, Grid3X3, LayoutGrid, 
-  Radar, AlignEndHorizontal, Hash, Filter, SlidersHorizontal, 
-  AlignVerticalSpaceBetween, Table, AreaChart, AlignCenter, 
-  Gauge, Target, Map, CalendarDays, Cloud, Code, Image as ImageIcon,
-  PanelRight, PanelRightClose
+  BarChart3, LineChart, PieChart, Table, Hash, X, GripVertical, Plus, 
+  Map as MapIcon, Calendar, Image as ImageIcon, Code, Target, ScatterChart,
+  LayoutGrid, Activity, BoxSelect, Maximize, Gauge, Filter
 } from '@lucide/vue'
-
 const props = defineProps({
   config: {
     type: Object,
+    required: true
+  },
+  tabId: {
+    type: String,
     required: true
   }
 })
@@ -25,8 +28,37 @@ const props = defineProps({
 const emit = defineEmits(['update:config', 'close'])
 
 const dataStore = useDataStore()
+const dashboardStore = useDashboardStore()
+const formulaStore = useFormulaStore()
 
 const activeTab = ref('data')
+const sidebarWidth = ref(360)
+
+// Copia local para edicion
+const localConfig = ref(null)
+
+const initLocalConfig = () => {
+  localConfig.value = JSON.parse(JSON.stringify(props.config))
+  
+  // Initialize nested objects if they don't exist
+  if (!localConfig.value.styles) localConfig.value.styles = {}
+  if (!localConfig.value.interactions) localConfig.value.interactions = { drillThrough: {}, tooltipPage: {} }
+  if (!localConfig.value.advanced) localConfig.value.advanced = { query: {}, permissions: {} }
+  if (!localConfig.value.advancedJsonString) localConfig.value.advancedJsonString = ''
+  if (!localConfig.value.customGeoJson) localConfig.value.customGeoJson = { type: 'url', url: '', name: 'custom_map', featureKey: 'name' }
+  if (!localConfig.value.filters) localConfig.value.filters = []
+  if (!localConfig.value.interactions.crossFilter) localConfig.value.interactions.crossFilter = {}
+  if (!localConfig.value.pythonCode) localConfig.value.pythonCode = '# Escribe código Python aquí\n'
+  if (!localConfig.value.imageUrl) localConfig.value.imageUrl = ''
+}
+
+watch(() => props.config, () => {
+  initLocalConfig()
+}, { deep: true })
+
+onMounted(() => {
+  initLocalConfig()
+})
 
 const datasetOptions = computed(() => {
   return dataStore.datasetNames.map(name => {
@@ -36,12 +68,10 @@ const datasetOptions = computed(() => {
 })
 
 const availableColumns = computed(() => {
-  const baseName = props.config.dataset || dataStore.activeDatasetName
+  const baseName = localConfig.value?.dataset || dataStore.activeDatasetName
   if (!baseName) return []
   
   const cols = []
-  
-  // Base columns
   const meta = dataStore.datasets.get(baseName)
   const baseSchema = meta?.schema || []
   baseSchema.forEach(c => {
@@ -52,33 +82,11 @@ const availableColumns = computed(() => {
     })
   })
   
-  // Find related tables
-  const relatedTables = new Set()
-  dataStore.relationships.forEach(rel => {
-    if (rel.fromTable === baseName) relatedTables.add(rel.toTable)
-    if (rel.toTable === baseName) relatedTables.add(rel.fromTable)
-  })
-  
-  relatedTables.forEach(tName => {
-    const tMeta = dataStore.datasets.get(tName)
-    if (tMeta && tMeta.schema) {
-      tMeta.schema.forEach(c => {
-        cols.push({
-          type: c.type,
-          value: `[${tName}].[${c.name}]`,
-          label: `${tName} > ${c.name}`
-        })
-      })
-    }
-  })
-  
   return cols
 })
 
-const formulaStore = useFormulaStore()
-
 const corporateMetricOptions = computed(() => {
-  const baseName = props.config.dataset || dataStore.activeDatasetName
+  const baseName = localConfig.value?.dataset || dataStore.activeDatasetName
   if (!baseName) return []
   const metrics = formulaStore.getCorporateMetricsForDataset(baseName)
   return metrics.map(m => ({
@@ -92,788 +100,639 @@ const columnOptions = computed(() => {
   return [...corporateMetricOptions.value, ...baseCols]
 })
 
-const numericColumnOptions = computed(() => {
-  const numCols = availableColumns.value.filter(c => c.type === 'number').map(c => ({ value: c.value, label: c.label }))
-  return [...corporateMetricOptions.value, ...numCols]
-})
-
 const chartTypeOptions = [
-  { value: 'bar', label: 'Barras', icon: BarChart3 },
-  { value: 'line', label: 'Líneas', icon: LineChart },
-  { value: 'pie', label: 'Torta', icon: PieChart },
-  { value: 'scatter', label: 'Dispersión', icon: ScatterChart },
-  { value: 'heatmap', label: 'Heatmap', icon: Grid3X3 },
-  { value: 'treemap', label: 'Treemap', icon: LayoutGrid },
-  { value: 'radar', label: 'Radar', icon: Radar },
-  { value: 'waterfall', label: 'Cascada', icon: AlignEndHorizontal },
+  { value: 'bar', label: 'Bar', icon: BarChart3 },
+  { value: 'line', label: 'Line', icon: LineChart },
+  { value: 'pie', label: 'Donut', icon: PieChart },
+  { value: 'grid', label: 'Table', icon: Table },
   { value: 'kpi', label: 'KPI', icon: Hash },
-  { value: 'slicer', label: 'Filtro', icon: Filter },
-  { value: 'parameter', label: 'What-If', icon: SlidersHorizontal },
-  { value: 'boxplot', label: 'Cajas', icon: AlignVerticalSpaceBetween },
-  { value: 'grid', label: 'Tabla', icon: Table },
-  { value: 'combo', label: 'Combinado', icon: AreaChart },
-  { value: 'funnel', label: 'Embudo', icon: AlignCenter },
-  { value: 'gauge', label: 'Medidor', icon: Gauge },
   { value: 'scorecard', label: 'Scorecard', icon: Target },
-  { value: 'map', label: 'Mapa', icon: Map },
-  { value: 'calendar', label: 'Calendario', icon: CalendarDays },
-  { value: 'wordcloud', label: 'Word Cloud', icon: Cloud },
+  { value: 'scatter', label: 'Scatter', icon: ScatterChart },
+  { value: 'boxplot', label: 'Boxplot', icon: BoxSelect },
+  { value: 'combo', label: 'Combo', icon: Activity },
+  { value: 'heatmap', label: 'Heatmap', icon: LayoutGrid },
+  { value: 'treemap', label: 'Treemap', icon: LayoutGrid },
+  { value: 'radar', label: 'Radar', icon: Target },
+  { value: 'waterfall', label: 'Waterfall', icon: BarChart3 },
+  { value: 'funnel', label: 'Funnel', icon: Filter },
+  { value: 'gauge', label: 'Gauge', icon: Gauge },
+  { value: 'map', label: 'Map', icon: MapIcon },
+  { value: 'maplibre', label: 'MapLibre', icon: MapIcon },
+  { value: 'calendar', label: 'Calendar', icon: Calendar },
   { value: 'python', label: 'Python', icon: Code },
-  { value: 'image', label: 'Imagen', icon: ImageIcon }
-]
-
-const sidebarWidth = ref(320)
-const isCollapsed = ref(false)
-
-const aggregationOptions = [
-  { value: 'SUM', label: 'Suma (SUM)' },
-  { value: 'AVG', label: 'Promedio (AVG)' },
-  { value: 'MIN', label: 'Mínimo (MIN)' },
-  { value: 'MAX', label: 'Máximo (MAX)' },
-  { value: 'COUNT', label: 'Recuento (COUNT)' }
+  { value: 'image', label: 'Image', icon: ImageIcon }
 ]
 
 const updateField = (field, value) => {
-  if (field === 'dataset' && props.config.dataset !== value) {
-    emit('update:config', { ...props.config, [field]: value, xAxis: '', yAxis: '', secondaryYAxis: '' })
+  if (!localConfig.value) return
+  localConfig.value[field] = value
+}
+
+// Helpers for array fields (xAxis, yAxis)
+const addAxis = (axisName) => {
+  if (!localConfig.value[axisName]) localConfig.value[axisName] = []
+  if (!Array.isArray(localConfig.value[axisName])) {
+    localConfig.value[axisName] = [localConfig.value[axisName]]
+  }
+  const newArr = [...localConfig.value[axisName]]
+  newArr.push('')
+  localConfig.value[axisName] = newArr
+}
+
+const updateAxis = (axisName, idx, val) => {
+  if (Array.isArray(localConfig.value[axisName])) {
+    const newArr = [...localConfig.value[axisName]]
+    newArr[idx] = val
+    localConfig.value[axisName] = newArr
   } else {
-    emit('update:config', { ...props.config, [field]: value })
+    localConfig.value[axisName] = val
   }
 }
 
-const handleImageUpload = (e) => {
-  const file = e.target.files[0]
-  if (!file) return
-  if (file.size > 2 * 1024 * 1024) {
-    alert("La imagen es demasiado grande. Máximo 2MB.")
-    return
-  }
-  const reader = new FileReader()
-  reader.onload = (e) => {
-    updateField('imageUrl', e.target.result)
-  }
-  reader.readAsDataURL(file)
-}
-
-const addHierarchyLevel = (val) => {
-  if (!val) return
-  let currentX = props.config.xAxis
-  if (!currentX) {
-    updateField('xAxis', [val])
-  } else if (typeof currentX === 'string') {
-    updateField('xAxis', [currentX, val])
-  } else if (Array.isArray(currentX)) {
-    if (!currentX.includes(val)) {
-      updateField('xAxis', [...currentX, val])
-    }
+const removeAxis = (axisName, idx) => {
+  if (Array.isArray(localConfig.value[axisName])) {
+    const newArr = [...localConfig.value[axisName]]
+    newArr.splice(idx, 1)
+    localConfig.value[axisName] = newArr
+  } else {
+    localConfig.value[axisName] = ''
   }
 }
-
-const removeHierarchyLevel = (idx) => {
-  let currentX = props.config.xAxis
-  if (Array.isArray(currentX)) {
-    const newX = [...currentX]
-    newX.splice(idx, 1)
-    updateField('xAxis', newX.length === 1 ? newX[0] : newX.length === 0 ? '' : newX)
-  } else if (typeof currentX === 'string') {
-    updateField('xAxis', '')
-  }
-}
-
-const filterOperators = [
-  { value: '=', label: 'Igual (=)' },
-  { value: '!=', label: 'Distinto (!=)' },
-  { value: '>', label: 'Mayor (>)' },
-  { value: '<', label: 'Menor (<)' },
-  { value: '>=', label: 'Mayor o Igual (>=)' },
-  { value: '<=', label: 'Menor o Igual (<=)' },
-  { value: 'LIKE', label: 'Contiene (LIKE)' }
-]
 
 const addFilter = () => {
-  const currentFilters = props.config.filters || []
-  updateField('filters', [...currentFilters, { column: '', operator: '=', value: '' }])
+  if (!localConfig.value.filters) localConfig.value.filters = []
+  localConfig.value.filters.push({
+    column: '',
+    operator: '=',
+    value: ''
+  })
 }
 
-const updateFilter = (index, field, value) => {
-  const newFilters = [...(props.config.filters || [])]
-  newFilters[index] = { ...newFilters[index], [field]: value }
-  updateField('filters', newFilters)
-}
-
-const removeFilter = (index) => {
-  const newFilters = [...(props.config.filters || [])]
-  newFilters.splice(index, 1)
-  updateField('filters', newFilters)
-}
-
-const advancedJsonString = computed({
-  get() {
-    return props.config.advancedOptions ? JSON.stringify(props.config.advancedOptions, null, 2) : ''
-  },
-  set(val) {
-    if (!val) {
-      updateField('advancedOptions', undefined)
-      return
-    }
-    try {
-      const parsed = JSON.parse(val)
-      updateField('advancedOptions', parsed)
-    } catch (e) {
-      // Ignorar error hasta que termine de escribir
-    }
+const updateFilter = (idx, field, val) => {
+  if (localConfig.value.filters && localConfig.value.filters[idx]) {
+    localConfig.value.filters[idx][field] = val
   }
+}
+
+const removeFilter = (idx) => {
+  if (localConfig.value.filters) {
+    localConfig.value.filters.splice(idx, 1)
+  }
+}
+
+// Interactions list
+const otherWidgets = computed(() => {
+  const layout = dashboardStore.layouts[props.tabId]
+  if (!layout) return []
+  return layout.filter(w => w.id !== localConfig.value?.id).map(w => ({
+    id: w.id,
+    title: w.config?.title,
+    type: w.config?.type
+  }))
 })
 
-const defaultPythonCode = computed(() => {
-  const safeName = props.config.dataset ? props.config.dataset.replace(/[^a-zA-Z0-9_]/g, '_') : 'dataset'
-  return `import matplotlib.pyplot as plt
-import pandas as pd
-
-# Los datos filtrados se inyectan en 'input_data'
-df_${safeName} = pd.DataFrame(input_data)
-
-# Dibuja tu gráfico usando la data actual
-if not df_${safeName}.empty:
-    plt.plot(df_${safeName}.iloc[:, 0], df_${safeName}.iloc[:, 1])
-    plt.title('Mi Gráfico de ${props.config.dataset || 'Datos'}')
-`
-})
-
-const handleGeoJsonUpload = (e) => {
-  const file = e.target.files[0]
-  if (!file) return
-  const reader = new FileReader()
-  reader.onload = (e) => {
-    try {
-      const parsed = JSON.parse(e.target.result)
-      updateField('customGeoJson', {
-        type: 'file',
-        name: file.name.replace(/\.[^/.]+$/, ""),
-        data: parsed
-      })
-      updateField('mapMode', 'custom')
-    } catch (err) {
-      alert("El archivo no es un JSON válido.")
-    }
+// Acciones principales
+const handleApply = () => {
+  // Asegurar que title y description reflejen localConfig.styles.title si es que existe o viceversa
+  if (localConfig.value.styles?.titleText) {
+    localConfig.value.title = localConfig.value.styles.titleText
   }
-  reader.readAsText(file)
+  emit('update:config', JSON.parse(JSON.stringify(localConfig.value)))
+}
+
+const handleReset = () => {
+  initLocalConfig()
+}
+
+const handleClose = () => {
+  emit('close')
 }
 </script>
 
 <template>
-  <div 
-    class="configurator" 
-    :style="{ width: isCollapsed ? '48px' : sidebarWidth + 'px', position: 'relative' }"
+  <aside 
+    class="flex flex-col bg-card border-l border-border h-full transition-all duration-300 relative z-40"
+    :style="{ width: sidebarWidth + 'px' }"
   >
-    <DragResizer v-if="!isCollapsed" v-model:width="sidebarWidth" :is-right="false" />
+    <DragResizer v-model:width="sidebarWidth" :is-right="false" />
 
-    <div class="config-header">
-      <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
-        <button class="icon-btn" @click="isCollapsed = !isCollapsed" :title="isCollapsed ? 'Expandir' : 'Colapsar'" style="background: none; border: none; cursor: pointer; display: flex; color: var(--color-text-secondary); padding: 4px; margin-right: 8px;">
-          <PanelRight v-if="isCollapsed" />
-          <PanelRightClose v-else />
+    <header class="pt-4 px-4 pb-2 border-b border-border shrink-0 bg-card flex flex-col gap-2">
+      <div class="flex items-start justify-between">
+        <div>
+          <div class="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-0.5">Widget</div>
+          <div class="text-sm font-semibold tracking-tight truncate">{{ localConfig?.title || 'Widget configuration' }}</div>
+        </div>
+        <button class="h-6 w-6 flex items-center justify-center hover:bg-muted text-muted-foreground rounded transition-colors" title="Cerrar" @click="handleClose">
+          <X class="w-4 h-4" />
         </button>
-        <h3 v-if="!isCollapsed" style="flex-grow: 1;">Configurar Widget</h3>
-        <button v-if="!isCollapsed" class="close-btn" @click="emit('close')">&times;</button>
-      </div>
-      <div v-show="!isCollapsed" class="config-tabs" style="margin-top: 16px;">
-        <button :class="{ active: activeTab === 'data' }" @click="activeTab = 'data'">Datos</button>
-        <button :class="{ active: activeTab === 'style' }" @click="activeTab = 'style'">Estilo</button>
-        <button :class="{ active: activeTab === 'advanced' }" @click="activeTab = 'advanced'">Avanzado</button>
-      </div>
-    </div>
-    
-    <div v-show="!isCollapsed" class="config-body">
-      <div v-if="activeTab === 'data'" class="tab-content">
-        <div class="form-group">
-        <label>Dataset Origen</label>
-        <BaseDropdown 
-          :model-value="config.dataset || dataStore.activeDatasetName" 
-          :options="datasetOptions"
-          @update:model-value="val => updateField('dataset', val)" 
-        />
       </div>
 
-      <div class="form-group">
-        <label>Título del Widget</label>
-        <BaseInput 
-          :model-value="config.title || ''" 
-          placeholder="Ej: Ventas por Región"
-          @update:model-value="val => updateField('title', val)"
-        />
-      </div>
+      <nav class="flex mt-2 h-9 border-b border-border">
+        <button 
+          v-for="tab in ['data', 'format', 'interactions', 'advanced']" 
+          :key="tab"
+          :class="[
+            'flex-1 text-[11px] font-medium tracking-tight py-2 border-b-2 -mb-[1px] transition-colors capitalize text-center', 
+            activeTab === tab ? 'border-primary text-foreground font-medium' : 'border-transparent text-muted-foreground hover:text-foreground'
+          ]" 
+          @click="activeTab = tab"
+        >
+          {{ tab }}
+        </button>
+      </nav>
+    </header>
+    
+    <div v-if="localConfig" class="flex-1 overflow-y-auto p-4 space-y-6 bg-card">
       
-      <div class="form-group">
-        <label>Tipo de Visualización</label>
-        <div class="chart-type-grid">
-          <button
-            v-for="opt in chartTypeOptions"
-            :key="opt.value"
-            class="chart-type-btn"
-            :class="{ active: config.type === opt.value }"
-            @click="updateField('type', opt.value)"
-            :title="opt.label"
-          >
-            <component :is="opt.icon" class="chart-type-icon" />
-            <span class="chart-type-label">{{ opt.label }}</span>
+      <!-- DATA TAB -->
+      <div v-if="activeTab === 'data'" class="space-y-6 animate-in fade-in duration-200">
+        
+        <!-- VISUALIZATION -->
+        <div class="space-y-2">
+          <div class="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Visualization</div>
+          <div class="grid grid-cols-5 gap-0 border border-border rounded-none overflow-y-auto bg-muted/10 max-h-[140px]">
+            <button
+              v-for="opt in chartTypeOptions"
+              :key="opt.value"
+              :class="[
+                'flex flex-col items-center justify-center gap-1.5 py-3 text-[10px] transition-colors border-r border-border last:border-r-0', 
+                localConfig.type === opt.value ? 'bg-primary/5 text-primary border-b-2 border-b-primary font-medium shadow-inner' : 'text-muted-foreground hover:bg-muted'
+              ]"
+              :title="opt.label"
+              @click="updateField('type', opt.value)"
+            >
+              <component :is="opt.icon" class="w-5 h-5 mb-0.5" :class="localConfig.type === opt.value ? 'text-primary' : 'text-muted-foreground/70'" />
+              <span>{{ opt.label }}</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- AXIS -->
+        <div v-if="!['python', 'image'].includes(localConfig.type)" class="space-y-3">
+          <div class="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Axis</div>
+          
+          <!-- X-AXIS -->
+          <div v-if="!['kpi', 'scorecard'].includes(localConfig.type)" class="border border-border rounded-none shadow-none bg-card">
+            <div class="flex items-center justify-between px-3 py-1.5 border-b border-border bg-muted/20">
+              <span class="text-[10px] uppercase tracking-wider text-muted-foreground">X-Axis</span>
+              <button class="text-muted-foreground hover:text-foreground" @click="addAxis('xAxis')"><Plus class="w-3.5 h-3.5" /></button>
+            </div>
+            <div class="p-2 space-y-2 bg-muted/5">
+              <template v-if="localConfig.xAxis && (Array.isArray(localConfig.xAxis) ? localConfig.xAxis.length > 0 : true)">
+                <div v-for="(col, idx) in (Array.isArray(localConfig.xAxis) ? localConfig.xAxis : [localConfig.xAxis])" :key="idx" class="flex items-center gap-2 border border-border bg-card px-2 py-1.5 rounded-none">
+                  <GripVertical class="w-3.5 h-3.5 text-muted-foreground/50 cursor-grab shrink-0" />
+                  <BaseDropdown size="compact" class="flex-1 text-xs" :model-value="col" :options="columnOptions" placeholder="Select column..." @update:model-value="val => updateAxis('xAxis', idx, val)" />
+                  <button class="text-muted-foreground hover:text-destructive shrink-0" @click="removeAxis('xAxis', idx)"><X class="w-3.5 h-3.5" /></button>
+                </div>
+              </template>
+              <div v-else class="text-[11px] text-muted-foreground/60 italic p-1">Drop fields here</div>
+            </div>
+          </div>
+
+          <!-- Y-AXIS (VALUES) -->
+          <div class="border border-border rounded-none shadow-none bg-card">
+            <div class="flex items-center justify-between px-3 py-1.5 border-b border-border bg-muted/20">
+              <span class="text-[10px] uppercase tracking-wider text-muted-foreground">Y-Axis (Values)</span>
+              <button class="text-muted-foreground hover:text-foreground" @click="addAxis('yAxis')"><Plus class="w-3.5 h-3.5" /></button>
+            </div>
+            <div class="p-2 space-y-2 bg-muted/5">
+              <template v-if="localConfig.yAxis && (Array.isArray(localConfig.yAxis) ? localConfig.yAxis.length > 0 : true)">
+                <div v-for="(col, idx) in (Array.isArray(localConfig.yAxis) ? localConfig.yAxis : [localConfig.yAxis])" :key="idx" class="flex items-center gap-2 border border-border bg-card px-2 py-1.5 rounded-none">
+                  <GripVertical class="w-3.5 h-3.5 text-muted-foreground/50 cursor-grab shrink-0" />
+                  <BaseDropdown size="compact" class="flex-1 text-xs" :model-value="col" :options="columnOptions" placeholder="Select value..." @update:model-value="val => updateAxis('yAxis', idx, val)" />
+                  <button class="text-muted-foreground hover:text-destructive shrink-0" @click="removeAxis('yAxis', idx)"><X class="w-3.5 h-3.5" /></button>
+                </div>
+              </template>
+              <div v-else class="text-[11px] text-muted-foreground/60 italic p-1">Drop fields here</div>
+              
+              <!-- AGGREGATION SELECTOR -->
+              <div class="flex items-center gap-2 mt-2 pt-2 border-t border-border border-dashed">
+                <span class="text-[10px] text-muted-foreground/70 w-16 uppercase tracking-wider">Agregación</span>
+                <BaseDropdown 
+                  v-model="localConfig.aggregation" 
+                  size="compact" 
+                  class="flex-1 text-xs" 
+                  :options="[
+                    {label: 'Suma (SUM)', value: 'SUM'},
+                    {label: 'Promedio (AVG)', value: 'AVG'},
+                    {label: 'Mínimo (MIN)', value: 'MIN'},
+                    {label: 'Máximo (MAX)', value: 'MAX'},
+                    {label: 'Conteo (COUNT)', value: 'COUNT'}
+                  ]" 
+                />
+              </div>
+
+              <!-- CUSTOM LABEL -->
+              <div class="flex items-center gap-2 mt-2 pt-2 border-t border-border border-dashed">
+                <span class="text-[10px] text-muted-foreground/70 w-16 uppercase tracking-wider">Etiqueta</span>
+                <BaseInput 
+                  v-model="localConfig.yAxisLabel" 
+                  size="compact" 
+                  class="flex-1 text-xs" 
+                  placeholder="Ej. Total Ventas"
+                />
+              </div>
+            </div>
+          </div>
+
+          <!-- LEGEND -->
+          <div v-if="!['python', 'image', 'kpi', 'scorecard', 'grid'].includes(localConfig.type)" class="border border-border rounded-none shadow-none bg-card">
+            <div class="flex items-center justify-between px-3 py-1.5 border-b border-border bg-muted/20">
+              <span class="text-[10px] uppercase tracking-wider text-muted-foreground">Legend</span>
+              <button class="text-muted-foreground hover:text-foreground" @click="addAxis('legend')"><Plus class="w-3.5 h-3.5" /></button>
+            </div>
+            <div class="p-2 space-y-2 bg-muted/5">
+              <template v-if="localConfig.legend && (Array.isArray(localConfig.legend) ? localConfig.legend.length > 0 : true)">
+                <div v-for="(col, idx) in (Array.isArray(localConfig.legend) ? localConfig.legend : [localConfig.legend])" :key="idx" class="flex items-center gap-2 border border-border bg-card px-2 py-1.5 rounded-none">
+                  <GripVertical class="w-3.5 h-3.5 text-muted-foreground/50 cursor-grab shrink-0" />
+                  <BaseDropdown size="compact" class="flex-1 text-xs" :model-value="col" :options="columnOptions" placeholder="Select column..." @update:model-value="val => updateAxis('legend', idx, val)" />
+                  <button class="text-muted-foreground hover:text-destructive shrink-0" @click="removeAxis('legend', idx)"><X class="w-3.5 h-3.5" /></button>
+                </div>
+              </template>
+              <div v-else class="text-[11px] text-muted-foreground/60 italic p-1">Drop fields here</div>
+            </div>
+          </div>
+
+          <!-- TOOLTIPS -->
+          <div v-if="!['python', 'image', 'kpi', 'scorecard', 'grid'].includes(localConfig.type)" class="border border-border rounded-none shadow-none bg-card">
+            <div class="flex items-center justify-between px-3 py-1.5 border-b border-border bg-muted/20">
+              <span class="text-[10px] uppercase tracking-wider text-muted-foreground">Tooltips</span>
+              <button class="text-muted-foreground hover:text-foreground" @click="addAxis('tooltips')"><Plus class="w-3.5 h-3.5" /></button>
+            </div>
+            <div class="p-2 space-y-2 bg-muted/5">
+              <template v-if="localConfig.tooltips && (Array.isArray(localConfig.tooltips) ? localConfig.tooltips.length > 0 : true)">
+                <div v-for="(col, idx) in (Array.isArray(localConfig.tooltips) ? localConfig.tooltips : [localConfig.tooltips])" :key="idx" class="flex items-center gap-2 border border-border bg-card px-2 py-1.5 rounded-none">
+                  <GripVertical class="w-3.5 h-3.5 text-muted-foreground/50 cursor-grab shrink-0" />
+                  <BaseDropdown size="compact" class="flex-1 text-xs" :model-value="col" :options="columnOptions" placeholder="Select value..." @update:model-value="val => updateAxis('tooltips', idx, val)" />
+                  <button class="text-muted-foreground hover:text-destructive shrink-0" @click="removeAxis('tooltips', idx)"><X class="w-3.5 h-3.5" /></button>
+                </div>
+              </template>
+              <div v-else class="text-[11px] text-muted-foreground/60 italic px-2 py-1.5">Drop fields here</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- FILTERS ON THIS WIDGET -->
+        <div class="space-y-2">
+          <div class="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Filters on this widget</div>
+          <div class="border border-border rounded-none shadow-none bg-card">
+            <div class="flex items-center justify-between px-3 py-1.5 border-b border-border bg-muted/20">
+              <span class="text-[10px] uppercase tracking-wider text-muted-foreground">Filter fields</span>
+              <button class="text-muted-foreground hover:text-foreground" @click="addFilter"><Plus class="w-3.5 h-3.5" /></button>
+            </div>
+            <div class="p-2 space-y-2 bg-muted/5">
+              <div v-if="localConfig.filters && localConfig.filters.length > 0" class="space-y-2">
+                <div v-for="(f, idx) in localConfig.filters" :key="idx" class="flex flex-col gap-1.5 border border-border bg-card p-2 rounded-none">
+                  <div class="flex items-center justify-between gap-2">
+                    <span class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Filtro {{ idx + 1 }}</span>
+                    <button class="text-muted-foreground hover:text-destructive shrink-0" @click="removeFilter(idx)"><X class="w-3.5 h-3.5" /></button>
+                  </div>
+                  <div class="flex flex-col gap-1">
+                    <BaseDropdown size="compact" class="text-xs" :model-value="f.column" :options="columnOptions" placeholder="Select column..." @update:model-value="val => updateFilter(idx, 'column', val)" />
+                    <div class="flex gap-1">
+                      <BaseDropdown
+size="compact" class="w-24 text-xs" :model-value="f.operator" :options="[
+                        {value: '=', label: '='},
+                        {value: '!=', label: '!='},
+                        {value: '<', label: '<'},
+                        {value: '<=', label: '<='},
+                        {value: '>', label: '>'},
+                        {value: '>=', label: '>='},
+                        {value: 'LIKE', label: 'LIKE'}
+                      ]" @update:model-value="val => updateFilter(idx, 'operator', val)" />
+                      <BaseInput size="compact" class="flex-1 text-xs" :model-value="f.value" placeholder="Value..." @update:model-value="val => updateFilter(idx, 'value', val)" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div v-else class="text-[11px] text-muted-foreground/60 italic px-2 py-1.5">No active filters</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SORT & LIMIT -->
+        <div v-if="!['python', 'image', 'kpi', 'scorecard'].includes(localConfig.type)" class="space-y-3 pt-2">
+          <div class="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Sort & Limit</div>
+          
+          <div class="flex items-center gap-3">
+            <span class="text-xs text-muted-foreground w-20">Sort by</span>
+            <div class="flex-1">
+              <BaseDropdown size="compact" :model-value="localConfig.sortBy || ''" :options="columnOptions" placeholder="[Total Revenue]" @update:model-value="val => localConfig.sortBy = val" />
+            </div>
+          </div>
+          <div class="flex items-center gap-3">
+            <span class="text-xs text-muted-foreground w-20">Direction</span>
+            <div class="flex-1">
+              <BaseDropdown size="compact" :model-value="localConfig.sortDir || 'desc'" :options="[{value:'desc',label:'Descending'}, {value:'asc',label:'Ascending'}]" @update:model-value="val => localConfig.sortDir = val" />
+            </div>
+          </div>
+          <div class="flex items-center gap-3">
+            <span class="text-xs text-muted-foreground w-20">Top N</span>
+            <div class="flex-1 flex justify-end">
+              <BaseInput size="compact" type="number" :model-value="localConfig.topN || 12" class="w-24 text-right" @update:model-value="val => localConfig.topN = Number(val)" />
+            </div>
+          </div>
+        </div>
+
+        <!-- PYTHON SPECIFIC -->
+        <div v-if="localConfig.type === 'python'" class="space-y-3 pt-2">
+          <div class="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Python Script</div>
+          <div class="border border-border bg-muted/10 h-64 relative rounded">
+            <CodeEditor v-model="localConfig.pythonCode" language="python" />
+          </div>
+          <p class="text-[10px] text-muted-foreground">The script runs on the server and receives `df`. It should return a base64 image or execute plotting functions.</p>
+        </div>
+
+        <!-- IMAGE SPECIFIC -->
+        <div v-if="localConfig.type === 'image'" class="space-y-3 pt-2">
+          <div class="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Image Source</div>
+          <div class="flex flex-col gap-2">
+            <span class="text-xs text-muted-foreground">Image URL</span>
+            <BaseInput v-model="localConfig.imageUrl" size="compact" placeholder="https://example.com/image.png" class="w-full" />
+          </div>
+        </div>
+
+      </div>
+
+      <!-- FORMAT TAB -->
+      <div v-if="activeTab === 'format'" class="space-y-6 animate-in fade-in duration-200">
+        
+        <!-- TITLE -->
+        <div class="space-y-3">
+          <div class="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Title</div>
+          <div class="flex items-center justify-between">
+            <span class="text-xs text-muted-foreground">Show title</span>
+            <BaseSwitch v-model="localConfig.styles.showTitle" square />
+          </div>
+          <div class="flex items-center gap-3">
+            <span class="text-xs text-muted-foreground w-20">Text</span>
+            <div class="flex-1">
+              <BaseInput v-model="localConfig.styles.titleText" size="compact" placeholder="Customer acquisition" />
+            </div>
+          </div>
+          <div class="flex items-center gap-3">
+            <span class="text-xs text-muted-foreground w-20">Align</span>
+            <div class="flex-1 flex border border-border rounded-none overflow-hidden bg-card text-xs">
+              <button class="flex-1 py-1.5 text-center transition-colors border-r border-border hover:bg-muted text-muted-foreground" :class="localConfig.styles.titleAlign === 'left' ? 'bg-primary text-primary-foreground font-medium hover:bg-primary' : ''" @click="localConfig.styles.titleAlign = 'left'">Left</button>
+              <button class="flex-1 py-1.5 text-center transition-colors border-r border-border hover:bg-muted text-muted-foreground" :class="localConfig.styles.titleAlign === 'center' ? 'bg-primary text-primary-foreground font-medium hover:bg-primary' : ''" @click="localConfig.styles.titleAlign = 'center'">Center</button>
+              <button class="flex-1 py-1.5 text-center transition-colors hover:bg-muted text-muted-foreground" :class="localConfig.styles.titleAlign === 'right' ? 'bg-primary text-primary-foreground font-medium hover:bg-primary' : ''" @click="localConfig.styles.titleAlign = 'right'">Right</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- COLORS -->
+        <div v-if="!['python', 'image', 'grid', 'kpi', 'scorecard'].includes(localConfig.type)" class="space-y-3 pt-2">
+          <div class="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Colors</div>
+          <div class="flex items-center gap-3">
+            <span class="text-xs text-muted-foreground w-20">Palette</span>
+            <div class="flex-1">
+              <BaseDropdown v-model="localConfig.styles.palette" size="compact" :options="[{value:'slate_indigo',label:'Slate / Indigo'}, {value:'emerald',label:'Emerald'}, {value:'rose',label:'Rose'}]" placeholder="Slate / Indigo" />
+            </div>
+          </div>
+          <div class="flex gap-1.5 mt-2 ml-24">
+            <div class="w-6 h-6 rounded bg-slate-900"></div>
+            <div class="w-6 h-6 rounded bg-blue-600"></div>
+            <div class="w-6 h-6 rounded bg-emerald-600"></div>
+            <div class="w-6 h-6 rounded bg-amber-600"></div>
+            <div class="w-6 h-6 rounded bg-purple-600"></div>
+          </div>
+          <div class="flex items-center justify-between pt-2">
+            <span class="text-xs text-muted-foreground">Data labels</span>
+            <BaseSwitch v-model="localConfig.styles.dataLabels" square />
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-xs text-muted-foreground">Gridlines</span>
+            <BaseSwitch v-model="localConfig.styles.gridlines" square />
+          </div>
+        </div>
+
+        <!-- NUMBER FORMAT -->
+        <div v-if="!['python', 'image'].includes(localConfig.type)" class="space-y-3 pt-2">
+          <div class="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Number format</div>
+          <div class="flex items-center gap-3">
+            <span class="text-xs text-muted-foreground w-28">Format</span>
+            <div class="flex-1">
+              <BaseDropdown v-model="localConfig.styles.numberFormat" size="compact" :options="[{value:'currency',label:'Currency (USD)'}, {value:'percent',label:'Percentage'}, {value:'decimal',label:'Decimal'}]" placeholder="Currency (USD)" />
+            </div>
+          </div>
+          <div class="flex items-center gap-3">
+            <span class="text-xs text-muted-foreground w-28">Decimals</span>
+            <div class="flex-1 flex justify-end">
+              <BaseInput v-model="localConfig.styles.decimals" size="compact" type="number" class="w-24 text-right" placeholder="0" />
+            </div>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-xs text-muted-foreground">Thousands sep</span>
+            <BaseSwitch v-model="localConfig.styles.thousandsSep" square />
+          </div>
+        </div>
+
+        <!-- BACKGROUND & BORDER -->
+        <div class="space-y-3 pt-2">
+          <div class="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Background & Border</div>
+          <div class="flex items-center gap-3">
+            <span class="text-xs text-muted-foreground w-24">Background</span>
+            <div class="flex-1">
+              <BaseDropdown v-model="localConfig.styles.background" size="compact" :options="[{value:'card',label:'Card'}, {value:'transparent',label:'Transparent'}]" placeholder="Card" />
+            </div>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-xs text-muted-foreground">Border</span>
+            <BaseSwitch v-model="localConfig.styles.border" square />
+          </div>
+          <div class="flex items-center gap-3">
+            <span class="text-xs text-muted-foreground w-24">Shadow</span>
+            <div class="flex-1">
+              <BaseDropdown v-model="localConfig.styles.shadow" size="compact" :options="[{value:'none',label:'None'}, {value:'sm',label:'Small'}, {value:'md',label:'Medium'}]" placeholder="None" />
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- INTERACTIONS TAB -->
+      <div v-if="activeTab === 'interactions'" class="space-y-6 animate-in fade-in duration-200">
+        
+        <!-- CROSS-FILTERING -->
+        <div class="space-y-3">
+          <div class="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Cross-filtering</div>
+          <p class="text-xs text-muted-foreground mb-4">Choose how this widget reacts to selections on other widgets.</p>
+          
+          <div v-for="w in otherWidgets" :key="w.id" class="flex items-center justify-between gap-4">
+            <span class="text-xs text-foreground truncate flex-1">{{ w.title || `Widget ${w.id.slice(0,4)}` }} ({{ w.type }})</span>
+            <div class="flex border border-border rounded-none overflow-hidden text-[11px] bg-card w-44 shrink-0">
+              <button 
+                class="flex-1 py-1 text-center transition-colors border-r border-border hover:bg-muted text-xs" 
+                :class="(localConfig.interactions.crossFilter[w.id] || 'filter') === 'filter' ? 'bg-primary text-primary-foreground font-medium hover:bg-primary' : 'text-muted-foreground'"
+                @click="localConfig.interactions.crossFilter[w.id] = 'filter'"
+              >
+                Filter
+              </button>
+              <button 
+                class="flex-1 py-1 text-center transition-colors border-r border-border hover:bg-muted text-xs" 
+                :class="localConfig.interactions.crossFilter[w.id] === 'highlight' ? 'bg-primary text-primary-foreground font-medium hover:bg-primary' : 'text-muted-foreground'"
+                @click="localConfig.interactions.crossFilter[w.id] = 'highlight'"
+              >
+                Highlight
+              </button>
+              <button 
+                class="flex-1 py-1 text-center transition-colors hover:bg-muted text-xs" 
+                :class="localConfig.interactions.crossFilter[w.id] === 'none' ? 'bg-primary text-primary-foreground font-medium hover:bg-primary' : 'text-muted-foreground'"
+                @click="localConfig.interactions.crossFilter[w.id] = 'none'"
+              >
+                None
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- DRILL-THROUGH -->
+        <div class="space-y-3 pt-4">
+          <div class="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Drill-through</div>
+          <div class="flex items-center justify-between">
+            <span class="text-xs text-muted-foreground">Enable</span>
+            <BaseSwitch v-model="localConfig.interactions.drillThrough.enabled" square />
+          </div>
+          <div class="flex items-center gap-3">
+            <span class="text-xs text-muted-foreground w-20">Target page</span>
+            <div class="flex-1">
+              <BaseDropdown v-model="localConfig.interactions.drillThrough.targetPage" size="compact" :options="[{value:'customer_detail',label:'Customer detail'}, {value:'product_detail',label:'Product detail'}]" placeholder="Customer detail" />
+            </div>
+          </div>
+        </div>
+
+        <!-- TOOLTIP PAGE -->
+        <div class="space-y-3 pt-4">
+          <div class="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Tooltip Page</div>
+          <div class="flex items-center justify-between">
+            <span class="text-xs text-muted-foreground">Use page tooltip</span>
+            <BaseSwitch v-model="localConfig.interactions.tooltipPage.enabled" square />
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ADVANCED TAB -->
+      <div v-if="activeTab === 'advanced'" class="space-y-6 animate-in fade-in duration-200">
+        
+        <!-- IDENTITY -->
+        <div class="space-y-3">
+          <div class="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Identity</div>
+          <div class="flex items-center justify-between">
+            <span class="text-xs text-muted-foreground">Widget ID</span>
+            <span class="font-mono text-xs text-foreground bg-muted/30 px-2 py-1 rounded">{{ localConfig.id }}</span>
+          </div>
+          <div class="flex items-center gap-3">
+            <span class="text-xs text-muted-foreground w-28">Bookmark group</span>
+            <div class="flex-1">
+              <BaseDropdown v-model="localConfig.advanced.bookmarkGroup" size="compact" :options="[{value:'default',label:'Default'}, {value:'group_1',label:'Group 1'}]" placeholder="Default" />
+            </div>
+          </div>
+        </div>
+
+        <!-- QUERY -->
+        <div class="space-y-3 pt-2">
+          <div class="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Query</div>
+          <div class="flex items-center gap-3">
+            <span class="text-xs text-muted-foreground w-28">Aggregation mode</span>
+            <div class="flex-1">
+              <BaseDropdown v-model="localConfig.advanced.query.aggMode" size="compact" :options="[{value:'import',label:'Import'}, {value:'direct_query',label:'Direct Query'}]" placeholder="Import" />
+            </div>
+          </div>
+          <div class="flex items-center gap-3">
+            <span class="text-xs text-muted-foreground w-28">Cache TTL</span>
+            <div class="flex-1">
+              <BaseDropdown v-model="localConfig.advanced.query.cacheTtl" size="compact" :options="[{value:'5m',label:'5 minutes'}, {value:'1h',label:'1 hour'}, {value:'none',label:'None'}]" placeholder="5 minutes" />
+            </div>
+          </div>
+          <div class="flex items-center gap-3">
+            <span class="text-xs text-muted-foreground w-28">Row limit</span>
+            <div class="flex-1 flex justify-end">
+              <BaseInput v-model="localConfig.advanced.query.rowLimit" size="compact" type="number" class="w-32 text-right" placeholder="10000" />
+            </div>
+          </div>
+        </div>
+
+        <!-- CONDITIONAL FORMATTING -->
+        <div class="space-y-3 pt-2">
+          <div class="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Conditional Formatting</div>
+          <button class="w-full h-8 border border-dashed border-border text-xs text-muted-foreground hover:text-foreground hover:border-primary/60 flex items-center justify-center gap-1.5 rounded-none transition-colors bg-muted/5">
+            <Plus class="w-3.5 h-3.5" /> Add rule
           </button>
         </div>
-      </div>
-      
-      <div v-if="config.type !== 'kpi' && config.type !== 'pie' && config.type !== 'scatter' && config.type !== 'slicer' && config.type !== 'parameter' && config.type !== 'image' && config.type !== 'calendar'" class="form-group">
-        <label>Orientación</label>
-        <BaseDropdown 
-          :model-value="config.orientation || 'vertical'" 
-          :options="[{value:'vertical', label:'Vertical'}, {value:'horizontal', label:'Horizontal'}]"
-          @update:model-value="val => updateField('orientation', val)" 
-        />
-      </div>
 
-      <div v-if="config.type === 'calendar'" class="form-group">
-        <label>Modo del Calendario</label>
-        <BaseDropdown 
-          :model-value="config.calendarMode || 'heatmap'" 
-          :options="[{value:'heatmap', label:'Heatmap (Color)'}, {value:'scatter', label:'Scatter (Puntos)'}, {value:'effectScatter', label:'Effect Scatter (Ondas)'}]"
-          @update:model-value="val => updateField('calendarMode', val)" 
-        />
-      </div>
-      
-      <hr class="divider" />
-
-      <div v-if="config.type === 'image'" class="form-group">
-        <label>Imagen</label>
-        <BaseInput 
-          :model-value="config.imageUrl || ''" 
-          placeholder="URL de imagen..."
-          @update:model-value="val => updateField('imageUrl', val)"
-        />
-        <label style="margin-top: 8px;">O subir archivo (Max 2MB):</label>
-        <input type="file" accept="image/*" @change="handleImageUpload" />
-        <label style="margin-top: 8px;">Ajuste de Imagen</label>
-        <BaseDropdown 
-          :model-value="config.imageFit || 'contain'" 
-          :options="[{value:'contain', label:'Contener (No recortar)'}, {value:'cover', label:'Cubrir (Recortar)'}, {value:'fill', label:'Rellenar (Estirar)'}]"
-          @update:model-value="val => updateField('imageFit', val)" 
-        />
-      </div>
-
-      <div v-if="config.type === 'python'" class="form-group">
-        <label>Código Python (PyPlot)</label>
-        <p style="font-size: var(--text-xs); color: var(--color-text-secondary); margin: 0 0 8px 0;">
-          Usa <code>df_{{ config.dataset ? config.dataset.replace(/[^a-zA-Z0-9_]/g, '_') : 'dataset' }}</code> para acceder a los datos de este widget.
-        </p>
-        <textarea 
-          :value="config.pythonCode || defaultPythonCode" 
-          @input="e => updateField('pythonCode', e.target.value)"
-          style="width: 100%; min-height: 250px; background-color: var(--color-bg-secondary); color: var(--color-text-primary); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-3); font-family: monospace; font-size: var(--text-xs); resize: vertical;"
-          spellcheck="false"
-        ></textarea>
-      </div>
-      
-      <div v-if="config.type === 'slicer'" class="form-group">
-        <label>Tipo de Segmentador</label>
-        <BaseDropdown 
-          :model-value="config.slicerType || 'list'" 
-          :options="[{value:'list', label:'Lista (Checkboxes)'}, {value:'button', label:'Botones (Píldoras)'}, {value:'slider', label:'Rango Numérico'}, {value:'input', label:'Buscador de Texto'}]"
-          @update:model-value="val => updateField('slicerType', val)" 
-        />
-      </div>
-
-      <div v-if="config.type === 'parameter'" class="form-group">
-        <label>Nombre del Parámetro</label>
-        <BaseInput 
-          :model-value="config.parameterName || ''" 
-          placeholder="Ej: Descuento"
-          @update:model-value="val => updateField('parameterName', val)"
-        />
-        <label style="margin-top: 8px;">Rango Numérico</label>
-        <div style="display: flex; gap: 8px;">
-          <BaseInput :model-value="config.min || 0" type="number" placeholder="Min" @update:model-value="val => updateField('min', Number(val))" />
-          <BaseInput :model-value="config.max || 100" type="number" placeholder="Max" @update:model-value="val => updateField('max', Number(val))" />
-          <BaseInput :model-value="config.step || 1" type="number" placeholder="Step" @update:model-value="val => updateField('step', Number(val))" />
-        </div>
-        <label style="margin-top: 8px;">Valor por Defecto</label>
-        <BaseInput :model-value="config.defaultValue || 0" type="number" placeholder="Default" @update:model-value="val => updateField('defaultValue', Number(val))" />
-      </div>
-
-      <div v-if="config.type === 'map'" class="form-group">
-        <label>Modo de Mapa</label>
-        <BaseDropdown 
-          :model-value="config.mapMode || 'choropleth'" 
-          :options="[{value:'choropleth', label:'Áreas Pintadas (Regiones)'}, {value:'scatter', label:'Puntos (Coordenadas)'}, {value:'custom', label:'GeoJSON Personalizado'}]"
-          @update:model-value="val => updateField('mapMode', val)" 
-        />
-        
-        <template v-if="config.mapMode === 'custom'">
-          <label style="margin-top: 8px;">URL GeoJSON</label>
-          <BaseInput 
-            :model-value="config.customGeoJson?.type === 'url' ? config.customGeoJson.url : ''" 
-            placeholder="https://..."
-            @update:model-value="val => updateField('customGeoJson', { type: 'url', url: val })"
-          />
-          <label style="margin-top: 8px;">O subir archivo GeoJSON:</label>
-          <input type="file" accept=".json,application/json" @change="handleGeoJsonUpload" />
-          <span v-if="config.customGeoJson?.type === 'file'" style="font-size: 11px; color: var(--color-success); margin-top: 4px;">
-            Archivo cargado: {{ config.customGeoJson.name }}
-          </span>
-        </template>
-      </div>
-
-      <!-- Dimensión (X) -->
-      <div v-if="config.type !== 'kpi' && config.type !== 'gauge' && config.type !== 'image' && config.type !== 'parameter' && config.type !== 'python'" class="form-group">
-        <label>{{ config.type === 'scatter' ? 'Eje X (Numérico)' : config.type === 'slicer' ? 'Campo a Filtrar' : config.type === 'map' ? (config.mapMode === 'scatter' ? 'Longitud (X)' : 'Región (Nombre del País)') : 'Dimensión (Jerarquía X)' }}</label>
-        
-        <!-- Jerarquía List -->
-        <div v-if="Array.isArray(config.xAxis) && config.xAxis.length > 0" class="hierarchy-list">
-          <div v-for="(col, idx) in config.xAxis" :key="idx" class="hierarchy-item">
-            <span class="hierarchy-label">{{ idx + 1 }}. {{ col }}</span>
-            <button class="remove-btn" @click="removeHierarchyLevel(idx)">&times;</button>
+        <!-- PERMISSIONS -->
+        <div class="space-y-3 pt-2">
+          <div class="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Permissions</div>
+          <div class="flex items-center gap-3">
+            <span class="text-xs text-muted-foreground w-28">Visibility</span>
+            <div class="flex-1">
+              <BaseDropdown v-model="localConfig.advanced.permissions.visibility" size="compact" :options="[{value:'all',label:'All viewers'}, {value:'admins',label:'Admins only'}]" placeholder="All viewers" />
+            </div>
           </div>
-        </div>
-        <div v-else-if="typeof config.xAxis === 'string' && config.xAxis" class="hierarchy-list">
-          <div class="hierarchy-item">
-            <span class="hierarchy-label">1. {{ config.xAxis }}</span>
-            <button class="remove-btn" @click="removeHierarchyLevel(0)">&times;</button>
+          <div class="flex items-center justify-between">
+            <span class="text-xs text-muted-foreground">Export to CSV</span>
+            <BaseSwitch v-model="localConfig.advanced.permissions.exportCsv" square />
           </div>
         </div>
 
-        <BaseDropdown 
-          :model-value="''" 
-          :options="(config.type === 'scatter' || (config.type === 'map' && config.mapMode === 'scatter')) ? numericColumnOptions : columnOptions"
-          placeholder="Añadir nivel de jerarquía..." 
-          @update:model-value="addHierarchyLevel"
-        />
-        <BaseInput 
-          v-if="config.xAxis && config.xAxis.length > 0"
-          :model-value="config.xAxisLabel || ''" 
-          placeholder="Etiqueta personalizada (Opcional)"
-          @update:model-value="val => updateField('xAxisLabel', val)"
-        />
-      </div>
-      
-      <!-- Métrica (Y) -->
-      <template v-if="config.type !== 'slicer' && config.type !== 'image' && config.type !== 'parameter' && config.type !== 'python'">
-        <div class="form-group">
-          <label>{{ config.type === 'kpi' || config.type === 'scorecard' ? 'Métrica a Calcular' : config.type === 'scatter' ? 'Eje Y (Numérico)' : config.type === 'map' && config.mapMode === 'scatter' ? 'Latitud (Y)' : 'Métrica (Eje Y)' }}</label>
-          <BaseDropdown 
-            :model-value="config.yAxis || ''" 
-            :options="numericColumnOptions"
-            placeholder="Seleccionar métrica numérica..." 
-            @update:model-value="val => updateField('yAxis', val)"
-          />
-          <BaseInput 
-            v-if="config.yAxis"
-            :model-value="config.yAxisLabel || ''" 
-            placeholder="Etiqueta personalizada (Opcional)"
-            @update:model-value="val => updateField('yAxisLabel', val)"
-          />
-        </div>
-        
-        <!-- Combo Chart Secondary Y Axis or Heatmap Y Axis -->
-        <div v-if="config.type === 'combo' || config.type === 'line' || config.type === 'heatmap' || config.type === 'scorecard' || (config.type === 'map' && config.mapMode === 'scatter')" class="form-group">
-          <label>{{ config.type === 'heatmap' ? 'Eje Y (Categoría Secundaria)' : config.type === 'map' ? 'Métrica (Tamaño/Color)' : config.type === 'scorecard' ? 'Métrica Objetivo (Target)' : 'Métrica Secundaria (Opcional)' }}</label>
-          <BaseDropdown 
-            :model-value="config.secondaryYAxis || ''" 
-            :options="config.type === 'heatmap' ? columnOptions : numericColumnOptions"
-            placeholder="Seleccionar métrica secundaria..." 
-            @update:model-value="val => updateField('secondaryYAxis', val)"
-          />
-          <BaseInput 
-            v-if="config.secondaryYAxis"
-            :model-value="config.secondaryYAxisLabel || ''" 
-            placeholder="Etiqueta personalizada (Opcional)"
-            @update:model-value="val => updateField('secondaryYAxisLabel', val)"
-          />
-        </div>
+        <!-- GEOJSON MAP SETTINGS -->
+        <div v-if="localConfig.type === 'map'" class="space-y-3 pt-2">
+          <div class="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Map Settings</div>
+          
+          <div class="space-y-1">
+            <div class="flex items-center justify-between">
+              <span class="text-xs text-muted-foreground">Map Mode</span>
+            </div>
+            <BaseDropdown v-model="localConfig.mapMode" size="compact" :options="[{value:'world',label:'World Map'}, {value:'custom',label:'Custom GeoJSON'}, {value:'scatter',label:'Scatter on Map'}]" placeholder="World Map" />
+          </div>
 
-        <!-- Gauge Target Value -->
-        <div v-if="config.type === 'gauge'" class="form-group">
-          <label>Valor Meta (Target)</label>
-          <BaseInput 
-            :model-value="config.targetValue || 100" 
-            type="number"
-            @update:model-value="val => updateField('targetValue', Number(val))"
-          />
-        </div>
-        
-        <div v-if="config.type !== 'scatter' && !(config.type === 'map' && config.mapMode === 'scatter') && !config.yAxis?.startsWith('__METRIC__')" class="form-group">
-          <label>Agregación</label>
-          <BaseDropdown 
-            :model-value="config.aggregation || 'SUM'" 
-            :options="aggregationOptions"
-            @update:model-value="val => updateField('aggregation', val)" 
-          />
-        </div>
-      </template>
+          <div v-if="localConfig.mapMode === 'custom'" class="space-y-3 pt-2">
+            <div class="space-y-1">
+              <div class="flex items-center justify-between">
+                <span class="text-xs text-muted-foreground">Map Name</span>
+              </div>
+              <BaseInput v-model="localConfig.customGeoJson.name" size="compact" placeholder="e.g. mi_mapa" class="w-full" />
+            </div>
 
-      <!-- Local Filters -->
-      <hr class="divider" />
-      <div class="form-group">
-        <label>Filtros Locales (Widget)</label>
-        <div v-for="(filter, index) in config.filters || []" :key="index" class="filter-item">
-          <BaseDropdown 
-            :model-value="filter.column" 
-            :options="columnOptions"
-            placeholder="Columna" 
-            @update:model-value="val => updateFilter(index, 'column', val)"
-          />
-          <BaseDropdown 
-            :model-value="filter.operator" 
-            :options="filterOperators"
-            placeholder="Operador" 
-            @update:model-value="val => updateFilter(index, 'operator', val)"
-          />
-          <div style="display: flex; gap: 4px;">
-            <BaseInput 
-              :model-value="filter.value || ''" 
-              placeholder="Valor"
-              @update:model-value="val => updateFilter(index, 'value', val)"
-            />
-            <button class="close-btn" style="background: var(--color-bg-secondary); border: 1px solid var(--color-border); padding: 0 8px; border-radius: var(--radius-sm);" @click="removeFilter(index)">&times;</button>
+            <div class="space-y-1">
+              <div class="flex items-center justify-between">
+                <span class="text-xs text-muted-foreground">GeoJSON URL</span>
+              </div>
+              <BaseInput v-model="localConfig.customGeoJson.url" size="compact" placeholder="https://..." class="w-full" />
+              <p class="text-[10px] text-muted-foreground/70 mt-1">URL must return a valid GeoJSON object</p>
+            </div>
+
+            <div class="space-y-1 mt-2">
+              <div class="flex items-center justify-between">
+                <span class="text-xs text-muted-foreground">GeoJSON Property Key</span>
+              </div>
+              <BaseInput v-model="localConfig.customGeoJson.featureKey" size="compact" placeholder="e.g. name, departamento, ID" class="w-full" />
+              <p class="text-[10px] text-muted-foreground/70 mt-1">The property in the GeoJSON that matches your dataset's column (default: "name")</p>
+            </div>
           </div>
         </div>
-        <BaseButton variant="secondary" size="sm" style="width: 100%; margin-top: 8px;" @click="addFilter">
-          + Añadir Filtro
-        </BaseButton>
-      </div>
 
-      </div> <!-- End Data Tab -->
-
-      <div v-if="activeTab === 'style'" class="tab-content">
-      <div v-if="config.type === 'line' || config.type === 'bar'" class="form-group">
-        <label>Apilar Series (Stacked)</label>
-        <BaseDropdown 
-          :model-value="config.styles?.stacked === true ? 'true' : 'false'" 
-          :options="[{value:'true', label:'Sí'}, {value:'false', label:'No'}]"
-          @update:model-value="val => updateField('styles', { ...(config.styles || {}), stacked: val === 'true' })" 
-        />
-      </div>
-      <div v-if="config.type === 'line'" class="form-group">
-        <label>Rellenar Área bajo la Curva</label>
-        <BaseDropdown 
-          :model-value="config.styles?.areaType || 'none'" 
-          :options="[{value:'none', label:'Ninguna'}, {value:'axis', label:'Hasta el Eje'}, {value:'between', label:'Entre Métricas (Stack)'}]"
-          @update:model-value="val => updateField('styles', { ...(config.styles || {}), areaType: val })" 
-        />
-      </div>
-      <div v-if="config.type === 'pie'" class="form-group">
-        <label>Radio Interno (Donut %)</label>
-        <BaseInput 
-          :model-value="config.styles?.innerRadius ?? 40" 
-          type="number"
-          min="0"
-          max="90"
-          @update:model-value="val => updateField('styles', { ...(config.styles || {}), innerRadius: Number(val) })"
-        />
-      </div>
-      <div class="form-group">
-        <label>Mostrar Leyenda</label>
-        <BaseDropdown 
-          :model-value="config.styles?.showLegend === false ? 'false' : 'true'" 
-          :options="[{value:'true', label:'Sí'}, {value:'false', label:'No'}]"
-          @update:model-value="val => updateField('styles', { ...(config.styles || {}), showLegend: val === 'true' })" 
-        />
-      </div>
-      <div class="form-group">
-        <label>Mostrar Ejes / Etiquetas</label>
-        <BaseDropdown 
-          :model-value="config.styles?.showAxisLabels === false ? 'false' : 'true'" 
-          :options="[{value:'true', label:'Sí'}, {value:'false', label:'No'}]"
-          @update:model-value="val => updateField('styles', { ...(config.styles || {}), showAxisLabels: val === 'true' })" 
-        />
-      </div>
-      <div class="form-group">
-        <label>Redondeo (Border Radius)</label>
-        <BaseInput 
-          :model-value="config.styles?.borderRadius || 0" 
-          type="number"
-          @update:model-value="val => updateField('styles', { ...(config.styles || {}), borderRadius: Number(val) })"
-        />
-      </div>
-      <div class="form-group">
-        <label>Color de Fondo</label>
-        <BaseInput 
-          :model-value="config.styles?.backgroundColor || ''" 
-          placeholder="Ej: #ffffff, transparent"
-          @update:model-value="val => updateField('styles', { ...(config.styles || {}), backgroundColor: val })"
-        />
-      </div>
-      <div class="form-group">
-        <label>Paleta Personalizada (Hex, sep. comas)</label>
-        <BaseInput 
-          :model-value="config.styles?.customColors ? config.styles.customColors.join(',') : ''" 
-          placeholder="Ej: #ff0000,#00ff00"
-          @update:model-value="val => updateField('styles', { ...(config.styles || {}), customColors: val.split(',').map(c => c.trim()).filter(c => c) })"
-        />
-      </div>
-
-      <div class="form-group">
-        <label>Tipografía (Font Family)</label>
-        <BaseInput 
-          :model-value="config.styles?.fontFamily || ''" 
-          placeholder="Ej: Inter, Roboto, sans-serif"
-          @update:model-value="val => updateField('styles', { ...(config.styles || {}), fontFamily: val })"
-        />
-      </div>
-      </div> <!-- End Style Tab -->
-
-      <div v-if="activeTab === 'advanced'" class="tab-content">
-      <template v-if="config.type === 'scatter' || config.type === 'line' || config.type === 'bar'">
-        <h4>Machine Learning (Avanzado)</h4>
-        
-        <div class="form-group">
-          <label>Tendencia (Regresión)</label>
-          <BaseDropdown 
-            :model-value="config.ml?.regressionType || 'none'" 
-            :options="[
-              {value: 'none', label: 'Ninguna'},
-              {value: 'linear', label: 'Lineal'},
-              {value: 'exponential', label: 'Exponencial'},
-              {value: 'polynomial', label: 'Polinómica'}
-            ]"
-            @update:model-value="val => updateField('ml', { ...(config.ml || {}), regressionType: val })" 
-          />
-        </div>
-        
-        <div v-if="config.type === 'scatter'" class="form-group">
-          <label>Agrupamiento (K-Means Clustering)</label>
-          <BaseDropdown 
-            :model-value="config.ml?.clusterCount || 'none'" 
-            :options="[
-              {value: 'none', label: 'Ninguno'},
-              {value: '2', label: '2 Clusters'},
-              {value: '3', label: '3 Clusters'},
-              {value: '4', label: '4 Clusters'},
-              {value: '5', label: '5 Clusters'},
-              {value: '6', label: '6 Clusters'}
-            ]"
-            @update:model-value="val => updateField('ml', { ...(config.ml || {}), clusterCount: val })" 
-          />
-        </div>
-
-        <div v-if="config.type === 'line' || config.type === 'bar'" class="form-group">
-          <label>Predicción (Forecasting JS)</label>
-          <div style="display: flex; gap: 8px;">
-            <BaseDropdown 
-              :model-value="config.ml?.forecasting ? 'true' : 'false'" 
-              :options="[{value:'false', label:'Desactivado'}, {value:'true', label:'Activado (Holt-Winters)'}]"
-              @update:model-value="val => updateField('ml', { ...(config.ml || {}), forecasting: val === 'true' })" 
-              style="flex-grow: 1;"
-            />
-            <BaseInput 
-              v-if="config.ml?.forecasting"
-              :model-value="config.ml?.forecastPeriods || 3" 
-              type="number"
-              placeholder="Periodos"
-              @update:model-value="val => updateField('ml', { ...(config.ml || {}), forecastPeriods: Number(val) })"
-              style="width: 80px;"
-            />
+        <!-- ADVANCED JSON -->
+        <div class="space-y-3 pt-2">
+          <div class="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Custom JSON</div>
+          <div class="flex items-center justify-between">
+            <span class="text-xs text-muted-foreground">ECharts Option (JSON)</span>
           </div>
+          <textarea v-model="localConfig.advancedJsonString" rows="4" class="w-full text-xs font-mono p-2 bg-muted/30 border border-border rounded-none focus:outline-none focus:border-primary" placeholder='{&#10;  "series": []&#10;}'></textarea>
         </div>
-      </template>
 
-      <hr class="divider" />
-      <h4>Avanzado (ECharts JSON)</h4>
-      <div class="form-group">
-        <label>Sobreescribir Opciones (JSON)</label>
-        <textarea 
-          v-model="advancedJsonString"
-          rows="6"
-          placeholder='{ "title": { "text": "Custom" } }'
-          style="width: 100%; font-family: monospace; font-size: 12px; padding: 8px; border: 1px solid var(--color-border); border-radius: var(--radius-sm);"
-        ></textarea>
-        <span style="font-size: 11px; color: var(--color-text-secondary);">Este JSON se fusionará con la configuración base del gráfico.</span>
       </div>
-
-      </div> <!-- End Advanced Tab -->
 
     </div>
-  </div>
+
+    <!-- FOOTER -->
+    <footer class="p-4 border-t border-border flex items-center justify-between shrink-0 bg-card">
+      <button class="text-xs text-muted-foreground hover:text-foreground transition-colors" @click="handleReset">Reset</button>
+      <div class="flex items-center gap-2">
+        <BaseButton variant="outline" size="sm" class="bg-card" @click="handleClose">Close</BaseButton>
+        <BaseButton variant="primary" size="sm" @click="handleApply">Apply</BaseButton>
+      </div>
+    </footer>
+  </aside>
 </template>
-
-<style scoped>
-.configurator {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  background-color: var(--color-bg-surface);
-  border-left: 1px solid var(--color-border);
-  transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  overflow: visible;
-}
-
-.config-header {
-  display: flex;
-  flex-direction: column;
-  padding: var(--space-4);
-  padding-bottom: 0;
-}
-
-.chart-type-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
-  gap: 8px;
-  margin-top: 4px;
-}
-
-.chart-type-btn {
-  background-color: var(--color-bg-primary);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  padding: 8px 4px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  color: var(--color-text-secondary);
-  transition: all 0.2s;
-  height: 64px;
-}
-
-.chart-type-btn:hover {
-  background-color: var(--color-bg-secondary);
-  color: var(--color-text-primary);
-  border-color: var(--color-border-hover);
-}
-
-.chart-type-btn.active {
-  background-color: var(--color-accent-light);
-  color: var(--color-accent);
-  border-color: var(--color-accent);
-}
-
-.chart-type-icon {
-  width: 20px;
-  height: 20px;
-  margin-bottom: 4px;
-}
-
-.chart-type-label {
-  font-size: 10px;
-  text-align: center;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  width: 100%;
-}
-.config-header h3 {
-  margin: 0;
-  font-size: var(--text-base);
-  font-weight: var(--font-semibold);
-  margin-bottom: var(--space-3);
-}
-
-.filter-item {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-bottom: 8px;
-  padding: 8px;
-  background-color: var(--color-bg-secondary);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-}
-
-.config-tabs {
-  display: flex;
-  gap: var(--space-2);
-}
-
-.config-tabs button {
-  background: none;
-  border: none;
-  padding: var(--space-2) var(--space-3);
-  font-size: var(--text-sm);
-  font-weight: var(--font-medium);
-  color: var(--color-text-secondary);
-  cursor: pointer;
-  border-bottom: 2px solid transparent;
-}
-
-.config-tabs button.active {
-  color: var(--color-accent);
-  border-bottom: 2px solid var(--color-accent);
-}
-
-.config-tabs button:hover:not(.active) {
-  color: var(--color-text-primary);
-}
-
-.close-btn {
-  background: none;
-  border: none;
-  font-size: 1.5rem;
-  line-height: 1;
-  color: var(--color-text-tertiary);
-  cursor: pointer;
-}
-.close-btn:hover { color: var(--color-text-primary); }
-
-.config-body {
-  flex-grow: 1;
-  padding: var(--space-4);
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-}
-
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.form-group label {
-  font-size: var(--text-sm);
-  font-weight: var(--font-medium);
-  color: var(--color-text-secondary);
-}
-
-.divider {
-  border: none;
-  border-top: 1px solid var(--color-border);
-  margin: var(--space-4) 0;
-}
-
-.hierarchy-list {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-bottom: 8px;
-}
-
-.hierarchy-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background-color: var(--color-bg-secondary);
-  padding: 4px 8px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--color-border);
-  font-size: var(--text-xs);
-}
-
-.hierarchy-label {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 220px;
-}
-
-.remove-btn {
-  background: none;
-  border: none;
-  color: var(--color-text-secondary);
-  font-size: 16px;
-  line-height: 1;
-  cursor: pointer;
-  padding: 0 4px;
-}
-
-.remove-btn:hover {
-  color: var(--color-danger);
-}
-</style>

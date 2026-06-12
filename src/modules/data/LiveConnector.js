@@ -76,16 +76,36 @@ export class LiveConnector {
     return this._mockSqlResponse(type, credentials)
   }
 
-  static _mockSqlResponse(type, credentials) {
+  static async _mockSqlResponse(type, credentials) {
+    if (type === 'postgres' || type === 'mysql') {
+      try {
+        const response = await fetch('http://localhost:3001/api/query', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type, credentials, query: credentials.query })
+        });
+        
+        if (!response.ok) {
+          const errData = await response.json().catch(()=>({}));
+          throw new Error(errData.error || `Error del backend HTTP ${response.status}`);
+        }
+        
+        const blob = await response.blob();
+        return new File([blob], `${credentials.datasetName || 'export'}.parquet`, { type: 'application/vnd.apache.parquet' });
+      } catch (err) {
+        Logger.error('LiveConnector', 'Backend Fetch Error', err);
+        throw err;
+      }
+    }
+    
+    // Fallback Mock para SQL Server
     const { query } = credentials
     
-    // Dataset simulado: Ventas ERP
     const data = []
     const regions = ['Norteamérica', 'Europa', 'Latinoamérica', 'Asia']
     const products = ['Servidores', 'Laptops', 'Software Empresarial', 'Licencias', 'Consultoría']
     
-    // Generar entre 100 y 500 filas simuladas según el tipo
-    const numRows = type === 'postgres' ? 500 : 250
+    const numRows = 250
     
     for (let i = 1; i <= numRows; i++) {
       const date = new Date()
@@ -102,7 +122,6 @@ export class LiveConnector {
       })
     }
     
-    // Simular un fallo genérico si el query contiene un error de sintaxis evidente
     if (query && query.toLowerCase().includes('error')) {
       throw new Error(`[${type.toUpperCase()}] Syntax Error at or near "error"`)
     }

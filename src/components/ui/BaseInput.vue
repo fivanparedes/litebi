@@ -26,6 +26,11 @@ const props = defineProps({
   disabled: {
     type: Boolean,
     default: false
+  },
+  size: {
+    type: String,
+    default: 'default',
+    validator: (v) => ['default', 'compact'].includes(v)
   }
 })
 
@@ -39,7 +44,7 @@ const id = computed(() => `input-${Math.random().toString(36).substr(2, 9)}`)
 </script>
 
 <template>
-  <div class="input-wrapper" :class="{ 'input-wrapper--error': error, 'input-wrapper--disabled': disabled }">
+  <div class="input-wrapper" :class="[{ 'input-wrapper--error': error, 'input-wrapper--disabled': disabled }, `input-wrapper--size-${size}`]">
     <label v-if="label" :for="id" class="input-label">{{ label }}</label>
     
     <div class="input-container">
@@ -77,8 +82,8 @@ const id = computed(() => `input-${Math.random().toString(36).substr(2, 9)}`)
 .input-label {
   font-size: var(--text-sm);
   font-weight: var(--font-medium);
-  color: var(--color-text-primary);
-  margin-bottom: 4px;
+  color: var(--foreground);
+  margin-bottom: var(--space-1);
 }
 
 .input-container {
@@ -86,7 +91,7 @@ const id = computed(() => `input-${Math.random().toString(36).substr(2, 9)}`)
   align-items: center;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  background-color: var(--color-bg-surface);
+  background-color: var(--background);
   height: 36px;
   transition: all var(--transition-fast);
   overflow: hidden;
@@ -106,17 +111,17 @@ const id = computed(() => `input-${Math.random().toString(36).substr(2, 9)}`)
   padding: 0 var(--space-3);
   font-family: var(--font-family);
   font-size: var(--text-sm);
-  color: var(--color-text-primary);
+  color: var(--foreground);
   outline: none;
 }
 
 .input-field::placeholder {
-  color: var(--color-text-tertiary);
+  color: var(--muted-foreground);
 }
 
 .input-field:disabled {
   cursor: not-allowed;
-  color: var(--color-text-secondary);
+  color: var(--muted-foreground);
 }
 
 .input-prefix,
@@ -124,7 +129,7 @@ const id = computed(() => `input-${Math.random().toString(36).substr(2, 9)}`)
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--color-text-secondary);
+  color: var(--muted-foreground);
   padding: 0 var(--space-3);
 }
 
@@ -147,12 +152,28 @@ const id = computed(() => `input-${Math.random().toString(36).substr(2, 9)}`)
 .input-error-text {
   color: var(--color-danger);
   font-size: var(--text-xs);
-  margin-top: 4px;
+  margin-top: var(--space-1);
+}
+
+/* Compact input styles */
+.input-wrapper--size-compact .input-container {
+  height: 28px;
+}
+.input-wrapper--size-compact .input-field {
+  font-size: var(--text-xs);
+  padding: 0 var(--space-2);
+}
+.input-wrapper--size-compact .input-prefix,
+.input-wrapper--size-compact .input-suffix {
+  padding: 0 var(--space-2);
+}
+.input-wrapper--size-compact .input-label {
+  font-size: var(--text-xs);
 }
 
 /* Disabled State */
 .input-wrapper--disabled .input-container {
-  background-color: var(--color-bg-secondary);
+  background-color: var(--muted);
   border-color: var(--color-border);
 }
 </style>

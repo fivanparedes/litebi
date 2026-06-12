@@ -93,11 +93,11 @@ const saveDataset = async () => {
     </div>
     
     <div class="editor-actions">
-      <BaseButton variant="secondary" size="sm" @click="addColumn">
+      <BaseButton variant="outline" size="sm" @click="addColumn">
         <template #icon-left><Plus size="16" /></template>
         Añadir Columna
       </BaseButton>
-      <BaseButton variant="secondary" size="sm" @click="addRow">
+      <BaseButton variant="outline" size="sm" @click="addRow">
         <template #icon-left><Plus size="16" /></template>
         Añadir Fila
       </BaseButton>
@@ -117,7 +117,7 @@ const saveDataset = async () => {
                   <option value="boolean">Booleano</option>
                   <option value="date">Fecha</option>
                 </select>
-                <button class="remove-btn" @click="removeColumn(idx)" title="Eliminar columna">
+                <button class="remove-btn" title="Eliminar columna" @click="removeColumn(idx)">
                   <Trash size="14"/>
                 </button>
               </div>
@@ -127,7 +127,7 @@ const saveDataset = async () => {
         <tbody>
           <tr v-for="(row, rIdx) in rows" :key="row.id">
             <td class="action-cell">
-              <button class="remove-btn" @click="removeRow(rIdx)" title="Eliminar fila">
+              <button class="remove-btn" title="Eliminar fila" @click="removeRow(rIdx)">
                 <Trash size="14"/>
               </button>
             </td>
@@ -154,7 +154,7 @@ const saveDataset = async () => {
   justify-content: space-between;
   align-items: flex-end;
   gap: var(--space-4);
-  background-color: var(--color-bg-surface);
+  background-color: var(--background);
   padding: var(--space-4);
   border-radius: var(--radius-lg);
   border: 1px solid var(--color-border);
@@ -171,7 +171,7 @@ const saveDataset = async () => {
 .header-left label {
   font-size: var(--text-sm);
   font-weight: var(--font-medium);
-  color: var(--color-text-secondary);
+  color: var(--muted-foreground);
 }
 
 .header-right {
@@ -188,7 +188,7 @@ const saveDataset = async () => {
   overflow-x: auto;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  background-color: var(--color-bg-surface);
+  background-color: var(--background);
 }
 
 .editor-grid {
@@ -204,7 +204,7 @@ const saveDataset = async () => {
 }
 
 .editor-grid th {
-  background-color: var(--color-bg-primary);
+  background-color: var(--card);
   position: sticky;
   top: 0;
   z-index: 10;
@@ -220,7 +220,7 @@ const saveDataset = async () => {
   width: 40px;
   min-width: 40px !important;
   text-align: center;
-  background-color: var(--color-bg-primary);
+  background-color: var(--card);
 }
 
 .col-header {
@@ -234,7 +234,7 @@ const saveDataset = async () => {
   border: 1px solid transparent;
   background: transparent;
   font-weight: var(--font-semibold);
-  color: var(--color-text-primary);
+  color: var(--foreground);
   padding: var(--space-1);
   border-radius: var(--radius-sm);
   width: 100%;
@@ -247,8 +247,8 @@ const saveDataset = async () => {
 
 .col-type-select {
   border: 1px solid var(--color-border);
-  background-color: var(--color-bg-surface);
-  color: var(--color-text-secondary);
+  background-color: var(--background);
+  color: var(--muted-foreground);
   border-radius: var(--radius-sm);
   padding: 2px 4px;
   font-size: var(--text-xs);
@@ -259,20 +259,20 @@ const saveDataset = async () => {
   border: 1px solid transparent;
   background: transparent;
   padding: var(--space-2);
-  color: var(--color-text-primary);
+  color: var(--foreground);
 }
 
 .cell-input:focus {
   border-color: var(--color-accent);
   outline: none;
-  background-color: var(--color-bg-primary);
+  background-color: var(--card);
   border-radius: var(--radius-sm);
 }
 
 .remove-btn {
   background: none;
   border: none;
-  color: var(--color-text-tertiary);
+  color: var(--muted-foreground);
   cursor: pointer;
   padding: var(--space-1);
   border-radius: var(--radius-sm);
@@ -283,7 +283,7 @@ const saveDataset = async () => {
 }
 
 .remove-btn:hover {
-  background-color: var(--color-bg-secondary);
+  background-color: var(--muted);
   color: var(--color-error);
 }
 </style>

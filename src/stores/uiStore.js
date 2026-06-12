@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 
 export const useUiStore = defineStore('ui', () => {
   // Sidebar
@@ -10,7 +10,12 @@ export const useUiStore = defineStore('ui', () => {
   }
 
   // Locale
-  const locale = ref('es')
+  const locale = ref(localStorage.getItem('litebi_locale') || 'es')
+  document.documentElement.lang = locale.value
+
+  watch(locale, (newLocale) => {
+    localStorage.setItem('litebi_locale', newLocale)
+  })
 
   function setLocale(newLocale) {
     locale.value = newLocale
@@ -60,6 +65,13 @@ export const useUiStore = defineStore('ui', () => {
   // Active view title (for header)
   const activeViewTitle = ref('')
 
+  // Pipeline Execution Trigger
+  const runPipelineTrigger = ref(0)
+  
+  function triggerRunPipeline() {
+    runPipelineTrigger.value++
+  }
+
   return {
     // Sidebar
     sidebarCollapsed,
@@ -80,6 +92,9 @@ export const useUiStore = defineStore('ui', () => {
     openModal,
     closeModal,
     // View
-    activeViewTitle
+    activeViewTitle,
+    // Pipeline
+    runPipelineTrigger,
+    triggerRunPipeline
   }
 })

@@ -27,7 +27,7 @@ const router = useRouter()
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: var(--color-bg-primary);
+  background-color: var(--card);
 }
 
 .not-found-content {
@@ -47,13 +47,13 @@ const router = useRouter()
 .error-title {
   font-size: var(--text-2xl);
   font-weight: var(--font-semibold);
-  color: var(--color-text-primary);
+  color: var(--foreground);
   margin: 0 0 var(--space-3) 0;
 }
 
 .error-desc {
   font-size: var(--text-base);
-  color: var(--color-text-secondary);
+  color: var(--muted-foreground);
   margin: 0 0 var(--space-6) 0;
   line-height: 1.5;
 }

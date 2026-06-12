@@ -67,7 +67,7 @@ const processFile = async (file, fastImport) => {
   
   // Basic validation
   const extension = file.name.split('.').pop().toLowerCase()
-  if (!['csv', 'xlsx', 'xls'].includes(extension)) {
+  if (!['csv', 'xlsx', 'xls', 'parquet'].includes(extension)) {
     error.value = `El archivo ${file.name} no es soportado.`
     return
   }
@@ -75,16 +75,27 @@ const processFile = async (file, fastImport) => {
   isLoading.value = true
   
   try {
-    let parsedData
+    const datasetName = file.name.replace(/\.[^/.]+$/, "")
     
+    // Ingesta nativa para CSV y Parquet si es Fast Import
+    if (fastImport && ['csv', 'parquet'].includes(extension)) {
+      await dataStore.addDatasetFromFile(datasetName, file)
+      emit('imported', datasetName)
+      return
+    }
+
+    if (extension === 'parquet') {
+      error.value = "Los archivos Parquet solo soportan Importación Rápida."
+      isLoading.value = false
+      return
+    }
+
+    let parsedData
     if (extension === 'csv') {
       parsedData = await parseCsv(file)
     } else {
       parsedData = await parseXlsx(file)
     }
-    
-    // Clean up filename to use as dataset name
-    const datasetName = file.name.replace(/\.[^/.]+$/, "")
     
     if (fastImport) {
       await dataStore.addDataset(datasetName, parsedData.data, parsedData.schema)
@@ -105,7 +116,7 @@ const loadExampleData = async () => {
   error.value = null
   
   try {
-    const response = await fetch('/sample-data/ventas_ejemplo.csv')
+    const response = await fetch('/sample_data/ventas_ejemplo.csv')
     if (!response.ok) throw new Error('No se pudo cargar el archivo de ejemplo')
     
     const blob = await response.blob()
@@ -133,7 +144,7 @@ const loadExampleData = async () => {
         ref="fileInput" 
         type="file" 
         class="file-input" 
-        accept=".csv, .xlsx, .xls"
+        accept=".csv, .xlsx, .xls, .parquet"
         multiple
         @change="handleFileSelect"
       >
@@ -153,8 +164,8 @@ const loadExampleData = async () => {
     </div>
     
     <div style="display: flex; align-items: center; justify-content: center; gap: var(--space-2); margin-top: var(--space-2);">
-      <input type="checkbox" id="fast-import" v-model="isFastImport" />
-      <label for="fast-import" style="font-size: var(--text-sm); color: var(--color-text-secondary); cursor: pointer;">
+      <input id="fast-import" v-model="isFastImport" type="checkbox" />
+      <label for="fast-import" style="font-size: var(--text-sm); color: var(--muted-foreground); cursor: pointer;">
         Importación Rápida (Omitir selección de columnas)
       </label>
     </div>
@@ -168,7 +179,7 @@ const loadExampleData = async () => {
       <div class="divider">
         <span>O</span>
       </div>
-      <BaseButton variant="secondary" :disabled="isLoading" @click="loadExampleData">
+      <BaseButton variant="outline" :disabled="isLoading" @click="loadExampleData">
         <template #icon-left><FileSpreadsheet /></template>
         {{ $t('data.loadExample') }}
       </BaseButton>
@@ -190,7 +201,7 @@ const loadExampleData = async () => {
   text-align: center;
   cursor: pointer;
   transition: all var(--transition-normal);
-  background-color: var(--color-bg-primary);
+  background-color: var(--card);
 }
 
 .drop-zone:hover {
@@ -224,7 +235,7 @@ const loadExampleData = async () => {
 .drop-zone__icon {
   width: 48px;
   height: 48px;
-  color: var(--color-text-secondary);
+  color: var(--muted-foreground);
   margin-bottom: var(--space-2);
 }
 
@@ -235,18 +246,18 @@ const loadExampleData = async () => {
 
 .drop-zone h3 {
   font-size: var(--text-lg);
-  color: var(--color-text-primary);
+  color: var(--foreground);
   margin: 0;
 }
 
 .drop-zone p {
-  color: var(--color-text-secondary);
+  color: var(--muted-foreground);
   margin: 0;
 }
 
 .drop-zone__hint {
   font-size: var(--text-xs);
-  color: var(--color-text-tertiary);
+  color: var(--muted-foreground);
   margin-top: var(--space-2);
 }
 
@@ -278,7 +289,7 @@ const loadExampleData = async () => {
   align-items: center;
   text-align: center;
   width: 100%;
-  color: var(--color-text-tertiary);
+  color: var(--muted-foreground);
   font-size: var(--text-xs);
   text-transform: uppercase;
 }

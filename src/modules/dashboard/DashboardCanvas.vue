@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import 'gridstack/dist/gridstack.min.css'
 import { GridStack } from 'gridstack'
 import { X, Settings, Pause, Play, RefreshCw, Copy, Download } from '@lucide/vue'
@@ -102,14 +102,15 @@ watch(() => uiStore.isViewerMode, (newVal) => {
 })
 
 watch(() => props.layout, async (newLayout) => {
-  if (!grid) return
+  if (isUnmounting || !grid || isSyncing) return
+  
+  isSyncing = true
   
   // Wait for Vue to render any new DOM elements via v-for
   await nextTick() 
   
   const domItems = gridElement.value.querySelectorAll('.grid-stack-item')
   
-  isSyncing = true
   
   // 1. Añadir widgets nuevos al motor de GridStack (aquellos renderizados por Vue pero aún no manejados por GS)
   domItems.forEach(el => {
@@ -125,9 +126,8 @@ watch(() => props.layout, async (newLayout) => {
     grid.removeWidget(node.el, false) // false = no intentes borrar el DOM (Vue ya lo hizo)
   })
   
-  // Damos un margen a que las animaciones terminen para evitar eventos `change` rezagados
-  setTimeout(() => {
-    if (!grid) return
+  syncTimeout = setTimeout(() => {
+    if (isUnmounting || !grid) return
     // Force sync the layout back to Vue so Vue's VNode matches GridStack's calculated positions
     const updatedLayout = grid.engine.nodes.map(node => {
       const widgetId = node.id || node.el?.getAttribute('gs-id') || node.el?.id;
@@ -147,7 +147,7 @@ watch(() => props.layout, async (newLayout) => {
       return !oldNode || oldNode.x !== n.x || oldNode.y !== n.y || oldNode.w !== n.w || oldNode.h !== n.h
     })
     
-    if (hasChanges) {
+    if (hasChanges && !isUnmounting) {
       emit('update:layout', updatedLayout)
     }
     isSyncing = false
@@ -155,11 +155,12 @@ watch(() => props.layout, async (newLayout) => {
   
 }, { deep: true })
 
-onUnmounted(() => {
-  if (grid) {
-    grid.destroy(false)
-    grid = null
-  }
+let isUnmounting = false
+let syncTimeout = null
+
+onBeforeUnmount(() => {
+  isUnmounting = true
+  if (syncTimeout) clearTimeout(syncTimeout)
   document.removeEventListener('mousedown', handleOutsideClick)
 })
 
@@ -226,11 +227,11 @@ const exportCsv = (widgetId) => {
         <div
           class="grid-stack-item-content custom-widget"
           :class="{ 'focused': focusedWidgetId === widget.id }"
-          @mousedown="focusedWidgetId = widget.id"
           :style="[
             widget.config?.styles?.backgroundColor ? { backgroundColor: widget.config.styles.backgroundColor } : {},
             widget.config?.styles?.borderRadius ? { borderRadius: widget.config.styles.borderRadius + 'px' } : {}
           ]"
+          @mousedown="focusedWidgetId = widget.id"
         >
           <div class="widget-header" :style="uiStore.isViewerMode ? { cursor: 'default' } : {}">
             <span class="widget-title">
@@ -278,7 +279,7 @@ const exportCsv = (widgetId) => {
 }
 
 .custom-widget {
-  background-color: var(--color-bg-surface);
+  background-color: var(--background);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
@@ -301,40 +302,63 @@ const exportCsv = (widgetId) => {
   right: 0;
   z-index: 10;
   padding: var(--space-2) var(--space-3);
-  border-bottom: 1px solid var(--color-border);
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  background-color: rgba(255, 255, 255, 0.95);
-  cursor: grab;
+  align-items: flex-start;
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.2s ease;
 }
 
-:deep(.dark) .widget-header {
-  background-color: rgba(30, 41, 59, 0.95);
+:deep(.dark) .widget-title, :deep(.dark) .widget-actions {
+  background-color: var(--card);
+  border-color: var(--color-border);
 }
 
+.custom-widget:hover .widget-header,
 .custom-widget.focused .widget-header {
   opacity: 1;
   pointer-events: auto;
+  cursor: grab;
 }
 
 .widget-header:active {
   cursor: grabbing;
 }
 
+.widget-title:active {
+  cursor: grabbing;
+}
+
 .widget-title {
   font-weight: var(--font-semibold);
   font-size: var(--text-sm);
-  color: var(--color-text-primary);
+  color: var(--foreground);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   display: flex;
   align-items: center;
   gap: 8px;
+  background-color: var(--card);
+  padding: 4px 8px;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--color-border);
+  pointer-events: auto;
+  cursor: grab;
+}
+
+.widget-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background-color: var(--card);
+  padding: 4px;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--color-border);
+  pointer-events: auto;
 }
 
 .paused-badge {
@@ -346,7 +370,7 @@ const exportCsv = (widgetId) => {
 .w-btn {
   background: none;
   border: none;
-  color: var(--color-text-secondary);
+  color: var(--muted-foreground);
   cursor: pointer;
   padding: 4px;
   border-radius: var(--radius-sm);
@@ -354,13 +378,13 @@ const exportCsv = (widgetId) => {
   align-items: center;
 }
 
-.w-btn:hover { background-color: var(--color-bg-secondary); color: var(--color-text-primary); }
+.w-btn:hover { background-color: var(--muted); color: var(--foreground); }
 .w-btn-danger:hover { background-color: var(--color-danger-light); color: var(--color-danger); }
 .w-btn svg { width: 14px; height: 14px; }
 
 .widget-body {
   flex-grow: 1;
-  color: var(--color-text-tertiary);
+  color: var(--muted-foreground);
   font-size: var(--text-sm);
   text-align: center;
 }

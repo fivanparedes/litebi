@@ -90,7 +90,7 @@ const handleExportTemplate = () => {
   a.download = `report-template.litebireport`
   a.click()
   URL.revokeObjectURL(url)
-  uiStore.addToast({ message: 'Plantilla de reporte exportada', type: 'success' })
+  uiStore.addToast({ message: t('reportView.templateExported'), type: 'success' })
 }
 
 const templateInputRef = ref(null)
@@ -105,12 +105,12 @@ const handleImportTemplate = (e) => {
       if (parsed && parsed.pages && Array.isArray(parsed.pages)) {
         reportStore.pages = parsed.pages
         reportStore.activePageId = parsed.pages[0]?.id || 'page_1'
-        uiStore.addToast({ message: 'Plantilla de reporte cargada', type: 'success' })
+        uiStore.addToast({ message: t('reportView.templateLoaded'), type: 'success' })
       } else {
         throw new Error('Formato inválido')
       }
     } catch(err) {
-      uiStore.addToast({ message: 'Error al cargar plantilla de reporte', type: 'error' })
+      uiStore.addToast({ message: t('reportView.errorLoadingTemplate'), type: 'error' })
     }
   }
   reader.readAsText(file)
@@ -124,15 +124,15 @@ const handleImportTemplate = (e) => {
       <!-- Toolbar -->
       <div class="report-toolbar">
         <div class="toolbar-left">
-          <h2>Reporte A4</h2>
-          <BaseButton v-if="!uiStore.isViewerMode" variant="secondary" size="sm" @click="reportStore.addPage()">
+          <h2>{{ $t('reportView.title') }}</h2>
+          <BaseButton v-if="!uiStore.isViewerMode" variant="outline" size="sm" @click="reportStore.addPage()">
             <template #icon-left><Plus /></template>
-            Nueva Página
+            {{ $t('reportView.newPage') }}
           </BaseButton>
 
           <!-- Active Filters Bar -->
           <div v-if="dashboardStore.globalFilters.length > 0" class="active-filters">
-            <span class="filter-label">Filtros Cruzados:</span>
+            <span class="filter-label">{{ $t('reportView.crossFilters') }}</span>
             <div 
               v-for="f in dashboardStore.globalFilters" 
               :key="f.id"
@@ -143,27 +143,27 @@ const handleImportTemplate = (e) => {
                 <X size="12" />
               </button>
             </div>
-            <button class="clear-filters-btn" @click="dashboardStore.clearFilters()">Limpiar</button>
+            <button class="clear-filters-btn" @click="dashboardStore.clearFilters()">{{ $t('reportView.clear') }}</button>
           </div>
         </div>
         <div class="toolbar-right">
           <input ref="templateInputRef" type="file" accept=".litebireport" style="display: none" @change="handleImportTemplate" />
-          <BaseButton v-if="!uiStore.isViewerMode" variant="ghost" size="sm" @click="templateInputRef.click()" title="Importar Diseño (.litebireport)">
+          <BaseButton v-if="!uiStore.isViewerMode" variant="ghost" size="sm" title="Importar Diseño (.litebireport)" @click="templateInputRef.click()">
             <template #icon-left><ArrowDownToLine style="transform: rotate(180deg);" /></template>
-            Importar
+            {{ $t('reportView.import') }}
           </BaseButton>
-          <BaseButton v-if="!uiStore.isViewerMode" variant="ghost" size="sm" @click="handleExportTemplate" title="Exportar Diseño (.litebireport)">
+          <BaseButton v-if="!uiStore.isViewerMode" variant="ghost" size="sm" title="Exportar Diseño (.litebireport)" @click="handleExportTemplate">
             <template #icon-left><ArrowDownToLine /></template>
-            Exportar
+            {{ $t('reportView.export') }}
           </BaseButton>
           <div class="divider" style="width: 1px; height: 24px; background-color: var(--color-border); margin: 0 var(--space-2);"></div>
-          <BaseButton variant="secondary" size="sm" @click="handleExportPPTX">
+          <BaseButton variant="outline" size="sm" @click="handleExportPPTX">
             <template #icon-left><Presentation /></template>
-            Exportar PPTX
+            {{ $t('reportView.exportPPTX') }}
           </BaseButton>
           <BaseButton variant="primary" size="sm" @click="handleExportPDF">
             <template #icon-left><ArrowDownToLine /></template>
-            Exportar PDF
+            {{ $t('reportView.exportPDF') }}
           </BaseButton>
         </div>
       </div>
@@ -177,14 +177,14 @@ const handleImportTemplate = (e) => {
             class="report-page-wrapper custom-widget"
           >
             <div class="page-header is-export-hidden">
-              <span>Página {{ index + 1 }}</span>
-              <div class="page-actions" v-if="!uiStore.isViewerMode">
-                <button class="w-btn" :title="page.orientation === 'landscape' ? 'Cambiar a Vertical' : 'Cambiar a Horizontal'" @click="toggleOrientation(page.id, page.orientation)">
+              <span>{{ $t('reportView.page', { num: index + 1 }) }}</span>
+              <div v-if="!uiStore.isViewerMode" class="page-actions">
+                <button class="w-btn" :title="page.orientation === 'landscape' ? $t('reportView.toPortrait') : $t('reportView.toLandscape')" @click="toggleOrientation(page.id, page.orientation)">
                   <Monitor v-if="page.orientation === 'landscape'" />
                   <Smartphone v-else />
                 </button>
-                <button class="w-btn" title="Añadir gráfico" @click="handleAddWidget(page.id)"><Plus /></button>
-                <button v-if="reportStore.pages.length > 1" class="w-btn w-btn-danger" title="Eliminar página" @click="reportStore.removePage(page.id)"><X /></button>
+                <button class="w-btn" :title="$t('reportView.addChart')" @click="handleAddWidget(page.id)"><Plus /></button>
+                <button v-if="reportStore.pages.length > 1" class="w-btn w-btn-danger" :title="$t('reportView.deletePage')" @click="reportStore.removePage(page.id)"><X /></button>
               </div>
             </div>
             <div class="report-page-a4" :class="{ 'landscape': page.orientation === 'landscape' }">
@@ -202,7 +202,7 @@ const handleImportTemplate = (e) => {
         <!-- Configurator Sidebar -->
         <div v-if="editingWidgetId" class="configurator-sidebar">
           <div class="sidebar-header">
-            <h3>Configurar Widget</h3>
+            <h3>{{ $t('reportView.configureWidget') }}</h3>
             <button class="close-btn" @click="closeEditor"><X size="18" /></button>
           </div>
           <WidgetConfigurator v-model:config="editingWidgetConfig" @close="closeEditor" />
@@ -213,17 +213,17 @@ const handleImportTemplate = (e) => {
     <!-- Export PPTX Modal -->
     <BaseModal 
       v-model="isExportModalOpen" 
-      title="Exportar a PowerPoint"
+      :title="$t('reportView.exportToPowerPoint')"
       size="sm"
     >
       <div style="display: flex; flex-direction: column; gap: 16px; padding: 8px 0;">
         <div>
-          <label style="display: block; margin-bottom: 4px; font-size: 14px;">Título de la presentación:</label>
+          <label style="display: block; margin-bottom: 4px; font-size: 14px;">{{ $t('reportView.presentationTitle') }}</label>
           <BaseInput v-model="exportTitle" placeholder="Ej: Reporte Trimestral" />
         </div>
         <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px;">
-          <BaseButton variant="ghost" @click="isExportModalOpen = false">Cancelar</BaseButton>
-          <BaseButton variant="primary" @click="confirmExportPPTX">Exportar</BaseButton>
+          <BaseButton variant="ghost" @click="isExportModalOpen = false">{{ $t('reportView.cancel') }}</BaseButton>
+          <BaseButton variant="primary" @click="confirmExportPPTX">{{ $t('reportView.export') }}</BaseButton>
         </div>
       </div>
     </BaseModal>
@@ -243,7 +243,7 @@ const handleImportTemplate = (e) => {
   flex-direction: column;
   width: 100%;
   height: 100%;
-  background-color: var(--color-bg-primary);
+  background-color: var(--card);
 }
 
 .report-toolbar {
@@ -251,7 +251,7 @@ const handleImportTemplate = (e) => {
   justify-content: space-between;
   align-items: center;
   padding: var(--space-3) var(--space-4);
-  background-color: var(--color-bg-surface);
+  background-color: var(--background);
   border-bottom: 1px solid var(--color-border);
 }
 
@@ -265,7 +265,7 @@ const handleImportTemplate = (e) => {
   font-size: var(--text-lg);
   font-weight: var(--font-semibold);
   margin: 0;
-  color: var(--color-text-primary);
+  color: var(--foreground);
 }
 
 .active-filters {
@@ -278,7 +278,7 @@ const handleImportTemplate = (e) => {
 
 .filter-label {
   font-size: var(--text-xs);
-  color: var(--color-text-secondary);
+  color: var(--muted-foreground);
   font-weight: var(--font-medium);
 }
 
@@ -337,7 +337,7 @@ const handleImportTemplate = (e) => {
   flex-direction: column;
   align-items: center;
   gap: var(--space-8);
-  background-color: var(--color-bg-secondary);
+  background-color: var(--muted);
 }
 
 /* A4 Proportions */
@@ -406,7 +406,7 @@ const handleImportTemplate = (e) => {
 /* Sidebar */
 .configurator-sidebar {
   width: 320px;
-  background-color: var(--color-bg-surface);
+  background-color: var(--background);
   border-left: 1px solid var(--color-border);
   display: flex;
   flex-direction: column;
@@ -425,21 +425,21 @@ const handleImportTemplate = (e) => {
   margin: 0;
   font-size: var(--text-base);
   font-weight: var(--font-semibold);
-  color: var(--color-text-primary);
+  color: var(--foreground);
 }
 
 .close-btn {
   background: none;
   border: none;
-  color: var(--color-text-secondary);
+  color: var(--muted-foreground);
   cursor: pointer;
   padding: 4px;
   border-radius: var(--radius-sm);
 }
 
 .close-btn:hover {
-  background-color: var(--color-bg-secondary);
-  color: var(--color-text-primary);
+  background-color: var(--muted);
+  color: var(--foreground);
 }
 
 /* Hide UI on export */
