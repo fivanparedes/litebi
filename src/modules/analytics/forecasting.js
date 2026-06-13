@@ -6,7 +6,7 @@ import { pythonClient } from '@/modules/python/PythonClient'
  * en un hilo secundario sin bloquear la UI.
  */
 export const generateForecastDataset = async (originalData, xAxisData, periodsToForecast = 3) => {
-  const values = originalData.map(d => Number(d.value))
+  const values = new Float64Array(originalData.map(d => Number(d.value)))
   
   const pythonCode = `
 import numpy as np
@@ -16,7 +16,7 @@ def forecast(series, periods):
     if n < 2:
         return [series[0]] * periods
     x = np.arange(n)
-    y = np.array(series)
+    y = np.asarray(series)
     
     # ML: Regresión polinomial de grado 1 (Línea de tendencia)
     coeffs = np.polyfit(x, y, 1)

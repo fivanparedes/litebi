@@ -30,7 +30,7 @@ class PythonClient {
    * @param {Object|Array} data - Datos opcionales para inyectar como `input_data`.
    * @returns {Promise<*>}
    */
-  async runPython(pythonCode, data = null) {
+  async runPython(pythonCode, data = null, arrowBuffer = null) {
     return new Promise((resolve, reject) => {
       const id = ++this.msgId
       const timeout = setTimeout(() => {
@@ -43,14 +43,14 @@ class PythonClient {
         reject: (err) => { clearTimeout(timeout); reject(err) }
       })
       
-      this.worker.postMessage({ id, pythonCode, data })
+      this.worker.postMessage({ id, pythonCode, data, arrowBuffer })
     })
   }
 
   /**
    * Ejecuta código Python asumiendo el uso de matplotlib y devuelve una cadena en base64 de la figura.
    */
-  async runPythonPlot(pythonCode, data = null, datasetName = null) {
+  async runPythonPlot(pythonCode, data = null, arrowBuffer = null, datasetName = null) {
     const wrappedCode = `
 import base64
 import io
@@ -64,7 +64,15 @@ except ImportError:
     pass
 
 # Preparar datos
-if 'input_data' in globals() and input_data is not None:
+if 'input_arrow_buffer' in globals() and input_arrow_buffer is not None:
+    import pyarrow as pa
+    import pyarrow.ipc as ipc
+    buffer = pa.py_buffer(input_arrow_buffer)
+    reader = ipc.open_stream(buffer)
+    table = reader.read_all()
+    df = table.to_pandas()
+    ${datasetName ? `globals()['${datasetName.replace(/[^a-zA-Z0-9_]/g, '_')}'] = df` : ''}
+elif 'input_data' in globals() and input_data is not None:
     df = pd.DataFrame(input_data)
     ${datasetName ? `globals()['${datasetName.replace(/[^a-zA-Z0-9_]/g, '_')}'] = df` : ''}
 
@@ -85,7 +93,7 @@ if 'matplotlib' in globals() or 'matplotlib.pyplot' in globals():
 
 result_img
 `
-    return await this.runPython(wrappedCode, data)
+    return await this.runPython(wrappedCode, data, arrowBuffer)
   }
 }
 

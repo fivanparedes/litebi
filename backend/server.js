@@ -14,7 +14,7 @@ app.use(express.json());
 // Helper to infer Parquet schema from a sample row
 const inferParquetSchema = (row) => {
   const schema = {};
-  for (const [key, value] = Object.entries(row)) {
+  for (const [key, value] of Object.entries(row)) {
     if (typeof value === 'number') {
       schema[key] = { type: Number.isInteger(value) ? 'INT64' : 'DOUBLE', optional: true };
     } else if (typeof value === 'boolean') {

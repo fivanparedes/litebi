@@ -12,20 +12,29 @@ async function initPyodide() {
   })
   
   // Cargar paquetes comunes de análisis de datos y visualización
-  await pyodide.loadPackage(['pandas', 'numpy', 'matplotlib'])
+  await pyodide.loadPackage(['pandas', 'numpy', 'matplotlib', 'pyarrow'])
 }
 
 const pyodideReadyPromise = initPyodide()
 
 self.onmessage = async (event) => {
-  const { id, pythonCode, data } = event.data
+  const { id, pythonCode, data, arrowBuffer } = event.data
   
   try {
     await pyodideReadyPromise
     
-    // Inyectar datos en el entorno global de Python (opcional)
+    // Inyectar Arrow Buffer si se provee
+    if (arrowBuffer) {
+      pyodide.globals.set("input_arrow_buffer", pyodide.toPy(arrowBuffer))
+    } else {
+      pyodide.globals.set("input_arrow_buffer", null)
+    }
+
+    // Inyectar datos JSON/Array nativo si se provee
     if (data) {
       pyodide.globals.set("input_data", pyodide.toPy(data))
+    } else {
+      pyodide.globals.set("input_data", null)
     }
     
     // Ejecutar el código Python

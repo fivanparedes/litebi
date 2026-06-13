@@ -1,7 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { sqlClient } from '@/modules/data/SqlWorkerClient'
-import { coerceData, inferSchema } from '@/modules/data/SchemaManager'
 import { useUiStore } from './uiStore'
 import { Logger } from '@/utils/Logger'
 import { generateId } from '@/utils/generateId'
@@ -38,13 +37,15 @@ export const useDataStore = defineStore('data', () => {
             const arrayProp = Object.values(resultData).find(val => Array.isArray(val))
             targetData = arrayProp || [resultData]
           }
-          const finalSchema = ds.schema || inferSchema(targetData)
-          const cleanedData = coerceData(targetData, finalSchema)
           
           await sqlClient.dropTable(datasetName)
-          await sqlClient.createTable(datasetName, cleanedData)
+          await sqlClient.createTable(datasetName, targetData, ds.schema)
           
-          ds.rowCount = cleanedData.length
+          const finalSchema = await sqlClient.getTableSchema(datasetName)
+          ds.schema = finalSchema
+          
+          const countRes = await sqlClient.query(`SELECT COUNT(*) as "count" FROM "${datasetName}"`)
+          ds.rowCount = countRes[0]?.count || targetData.length
           ds.importedAt = new Date()
           dataVersion.value++
           
@@ -76,22 +77,22 @@ export const useDataStore = defineStore('data', () => {
         }
       }
 
-      // 1. Coerce data based on inferred schema
-      const finalSchema = schema || inferSchema(targetData)
-      const cleanedData = coerceData(targetData, finalSchema)
-      
-      // 2. Format name (safe for SQL)
+      // Format name (safe for SQL)
       const safeName = name.replace(/[^a-zA-Z0-9_]/g, '_').toLowerCase()
       
-      // 3 & 4. Create table and insert data in Worker
-      await sqlClient.createTable(safeName, cleanedData)
+      // Create table and insert data in Worker (DuckDB natively infers schema, or uses TRY_CAST if schema is passed)
+      await sqlClient.createTable(safeName, targetData, schema)
       
-      // 5. Save metadata
+      const finalSchema = await sqlClient.getTableSchema(safeName)
+      const countRes = await sqlClient.query(`SELECT COUNT(*) as "count" FROM "${safeName}"`)
+      const finalRowCount = countRes[0]?.count || targetData.length
+      
+      // Save metadata
       const datasetMeta = {
         name: safeName,
         originalName: name,
         schema: finalSchema,
-        rowCount: cleanedData.length,
+        rowCount: finalRowCount,
         colCount: finalSchema.length,
         importedAt: new Date(),
         transformations: [],
@@ -137,8 +138,7 @@ export const useDataStore = defineStore('data', () => {
       
       await sqlClient.createTableFromFile(safeName, file)
       
-      const sample = await sqlClient.query(`SELECT * FROM "${safeName}" LIMIT 100`)
-      const finalSchema = inferSchema(sample)
+      const finalSchema = await sqlClient.getTableSchema(safeName)
       
       const countRes = await sqlClient.query(`SELECT COUNT(*) as "count" FROM "${safeName}"`)
       const rowCount = countRes[0]?.count || 0
@@ -179,6 +179,56 @@ export const useDataStore = defineStore('data', () => {
       throw error
     }
   }
+
+  const addDatasetFromRegisteredFile = async (name, tempFileName, schema, selectedColumns = [], connectorConfig = null, refreshInterval = 0) => {
+    try {
+      const safeName = name.replace(/[^a-zA-Z0-9_]/g, '_').toLowerCase()
+      
+      await sqlClient.createTableFromRegisteredFile(safeName, tempFileName, selectedColumns)
+      
+      const countRes = await sqlClient.query(`SELECT COUNT(*) as "count" FROM "${safeName}"`)
+      const rowCount = countRes[0]?.count || 0
+      
+      const finalSchema = await sqlClient.getTableSchema(safeName)
+      
+      const datasetMeta = {
+        name: safeName,
+        originalName: name,
+        schema: finalSchema,
+        rowCount,
+        colCount: finalSchema.length,
+        importedAt: new Date(),
+        transformations: [],
+        ui: { x: 50, y: 50 },
+        connectorConfig,
+        refreshInterval,
+        tags: []
+      }
+      
+      datasets.value.set(safeName, datasetMeta)
+      
+      if (refreshInterval > 0) scheduleRefresh(safeName)
+      if (!activeDatasetName.value || datasets.value.size === 1) activeDatasetName.value = safeName
+      dataVersion.value++
+      
+      uiStore.addToast({
+        message: `Dataset "${name}" importado con éxito (${rowCount} filas)`,
+        type: 'success'
+      })
+      
+      await sqlClient.cleanupFile(tempFileName)
+      return safeName
+    } catch (error) {
+      Logger.error('DataStore', `Error adding dataset from registered file: ${name}`, error)
+      console.error('Error adding dataset from registered file:', error)
+      uiStore.addToast({
+        message: `Error al importar: ${error.message}`,
+        type: 'error'
+      })
+      await sqlClient.cleanupFile(tempFileName)
+      throw error
+    }
+  }
   
   const appendData = async (datasetName, newData) => {
     try {
@@ -187,14 +237,12 @@ export const useDataStore = defineStore('data', () => {
       
       let targetData = Array.isArray(newData) ? newData : [newData]
       
-      // Coerce con el esquema existente
-      const cleanedData = coerceData(targetData, ds.schema)
-      
-      // Insertar en worker
-      await sqlClient.insertIntoTable(datasetName, cleanedData)
+      // DuckDB handles coercion natively on insertion from JSON
+      await sqlClient.insertIntoTable(datasetName, targetData, ds.schema)
       
       // Actualizar metadatos
-      ds.rowCount += cleanedData.length
+      const countRes = await sqlClient.query(`SELECT COUNT(*) as "count" FROM "${datasetName}"`)
+      ds.rowCount = countRes[0]?.count || (ds.rowCount + targetData.length)
       dataVersion.value++
       
       console.log(`[Streaming] ${cleanedData.length} filas añadidas a ${datasetName}.`)
@@ -440,7 +488,7 @@ export const useDataStore = defineStore('data', () => {
       const cleanSteps = JSON.parse(JSON.stringify(pipelineSteps))
 
       await sqlClient.dropTable(name)
-      await sqlClient.createTable(name, cleanData)
+      await sqlClient.createTable(name, cleanData, cleanSchema)
       
       const ds = datasets.value.get(name)
       if (ds) {
@@ -478,6 +526,7 @@ export const useDataStore = defineStore('data', () => {
     activeDatasetMeta,
     addDataset,
     addDatasetFromFile,
+    addDatasetFromRegisteredFile,
     appendData,
     removeDataset,
     setActiveDataset,

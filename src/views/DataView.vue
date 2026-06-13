@@ -39,6 +39,11 @@ const previewSchema = ref(null)
 const previewConnectorConfig = ref(null)
 const previewRefreshInterval = ref(0)
 
+const previewTempFileName = ref('')
+const previewRows = ref([])
+const previewTotalRows = ref(0)
+const isFileImport = ref(false)
+
 const isAddingSource = ref(false)
 
 onMounted(() => {
@@ -73,12 +78,26 @@ const onDatasetImported = (name) => {
   isAddingSource.value = false
 }
 
-const onPreviewRequested = ({ datasetName, parsedData, connectorConfig, refreshInterval }) => {
+const onPreviewRequested = ({ datasetName, parsedData, connectorConfig, refreshInterval, isFile, tempFileName, previewRows: pRows, totalRows, schema }) => {
   previewDatasetName.value = datasetName
-  previewRawData.value = parsedData.data
-  previewSchema.value = parsedData.schema
   previewConnectorConfig.value = connectorConfig || null
   previewRefreshInterval.value = refreshInterval || 0
+  
+  if (isFile) {
+    isFileImport.value = true
+    previewTempFileName.value = tempFileName
+    previewRows.value = pRows
+    previewTotalRows.value = totalRows
+    previewSchema.value = schema
+    previewRawData.value = []
+  } else {
+    isFileImport.value = false
+    previewTempFileName.value = ''
+    previewRows.value = []
+    previewTotalRows.value = 0
+    previewRawData.value = parsedData?.data || []
+    previewSchema.value = parsedData?.schema || null
+  }
   
   // Close the import wizard modal since preview takes over
   isImportModalOpen.value = false
@@ -90,16 +109,40 @@ const onPreviewRequested = ({ datasetName, parsedData, connectorConfig, refreshI
 }
 
 const handlePreviewImport = async (filteredResult) => {
-  await dataStore.addDataset(
-    filteredResult.datasetName, 
-    filteredResult.data, 
-    filteredResult.schema,
-    previewConnectorConfig.value,
-    previewRefreshInterval.value
-  )
+  if (isFileImport.value) {
+    await dataStore.addDatasetFromRegisteredFile(
+      filteredResult.datasetName,
+      previewTempFileName.value,
+      previewSchema.value,
+      filteredResult.selectedColumns,
+      previewConnectorConfig.value,
+      previewRefreshInterval.value
+    )
+  } else {
+    await dataStore.addDataset(
+      filteredResult.datasetName, 
+      filteredResult.data, 
+      filteredResult.schema,
+      previewConnectorConfig.value,
+      previewRefreshInterval.value
+    )
+  }
   isPreviewModalOpen.value = false
   onDatasetImported(filteredResult.datasetName)
 }
+
+watch(isPreviewModalOpen, async (isOpen) => {
+  if (!isOpen && isFileImport.value && previewTempFileName.value) {
+    try {
+      const { sqlClient } = await import('@/modules/data/SqlWorkerClient')
+      await sqlClient.cleanupFile(previewTempFileName.value)
+    } catch (e) {
+      console.warn('Failed to cleanup preview file:', e)
+    }
+    previewTempFileName.value = ''
+    isFileImport.value = false
+  }
+})
 
 const onManualDatasetSaved = (name) => {
   isManualModalOpen.value = false
@@ -264,6 +307,9 @@ const handleGenerateCalendar = () => {
       :dataset-name="previewDatasetName"
       :raw-data="previewRawData"
       :inferred-schema="previewSchema"
+      :is-file-import="isFileImport"
+      :preview-rows="previewRows"
+      :total-rows="previewTotalRows"
       @import="handlePreviewImport"
     />
 

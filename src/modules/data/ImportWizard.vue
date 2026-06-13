@@ -1,9 +1,9 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref } from 'vue'
 import { Upload, FileSpreadsheet, AlertTriangle, Loader2 } from '@lucide/vue'
-import { parseCsv } from './CsvParser'
-import { parseXlsx } from './XlsxParser'
+import { parseXlsxToCsvBlob } from './XlsxParser'
 import { useDataStore } from '@/stores/dataStore'
+import { sqlClient } from '@/modules/data/SqlWorkerClient'
 import BaseButton from '@/components/ui/BaseButton.vue'
 const emit = defineEmits(['imported', 'cancel', 'preview'])
 
@@ -77,31 +77,40 @@ const processFile = async (file, fastImport) => {
   try {
     const datasetName = file.name.replace(/\.[^/.]+$/, "")
     
+    let fileToProcess = file
+    
+    // Convert Excel files to CSV Blob transparently
+    if (['xlsx', 'xls'].includes(extension)) {
+      const csvBlob = await parseXlsxToCsvBlob(file)
+      fileToProcess = new File([csvBlob], `${datasetName}.csv`, { type: 'text/csv' })
+    }
+
+    const effectiveExtension = fileToProcess.name.split('.').pop().toLowerCase()
+    
     // Ingesta nativa para CSV y Parquet si es Fast Import
-    if (fastImport && ['csv', 'parquet'].includes(extension)) {
-      await dataStore.addDatasetFromFile(datasetName, file)
+    if (fastImport && ['csv', 'parquet'].includes(effectiveExtension)) {
+      await dataStore.addDatasetFromFile(datasetName, fileToProcess)
       emit('imported', datasetName)
       return
     }
 
-    if (extension === 'parquet') {
+    if (effectiveExtension === 'parquet') {
       error.value = "Los archivos Parquet solo soportan Importación Rápida."
       isLoading.value = false
       return
     }
 
-    let parsedData
-    if (extension === 'csv') {
-      parsedData = await parseCsv(file)
-    } else {
-      parsedData = await parseXlsx(file)
-    }
-    
-    if (fastImport) {
-      await dataStore.addDataset(datasetName, parsedData.data, parsedData.schema)
-      emit('imported', datasetName)
-    } else {
-      emit('preview', { datasetName, parsedData })
+    if (effectiveExtension === 'csv') {
+      // Usar DuckDB para previsualizar sin cargar todo en memoria JS
+      const preview = await sqlClient.getFilePreview(fileToProcess)
+      emit('preview', {
+        datasetName,
+        isFile: true,
+        tempFileName: preview.tempFileName,
+        previewRows: preview.previewRows,
+        totalRows: preview.totalRows,
+        schema: preview.schema
+      })
     }
   } catch (err) {
     console.error(`Error procesando archivo ${file.name}:`, err)

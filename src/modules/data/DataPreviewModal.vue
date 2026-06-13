@@ -3,7 +3,7 @@ import { ref, computed, watch } from 'vue'
 import BaseModal from '@/components/ui/BaseModal.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import { Filter, Check, X, AlertTriangle } from '@lucide/vue'
-import { inferSchema } from '@/modules/data/SchemaManager'
+
 
 const props = defineProps({
   modelValue: {
@@ -16,35 +16,61 @@ const props = defineProps({
   },
   rawData: {
     type: Array,
-    required: true
+    default: () => []
   },
   inferredSchema: {
     type: Array,
     default: null
+  },
+  isFileImport: {
+    type: Boolean,
+    default: false
+  },
+  previewRows: {
+    type: Array,
+    default: () => []
+  },
+  totalRows: {
+    type: Number,
+    default: 0
   }
 })
 
 const emit = defineEmits(['update:modelValue', 'import'])
 
 const columns = ref([])
-const previewRows = ref([])
+const displayRows = ref([])
+
+const getFallbackSchema = (data) => {
+  if (!data || data.length === 0) return []
+  return Object.keys(data[0]).map(k => ({ name: k, type: 'string' }))
+}
 
 watch(() => props.modelValue, (isOpen) => {
-  if (isOpen && props.rawData && props.rawData.length > 0) {
-    // Generate schema if not provided
+  if (isOpen) {
     let schemaToUse = props.inferredSchema
-    if (!schemaToUse || schemaToUse.length === 0) {
-      schemaToUse = inferSchema(props.rawData)
+    
+    if (props.isFileImport) {
+      if (!schemaToUse || schemaToUse.length === 0) {
+        schemaToUse = getFallbackSchema(props.previewRows)
+      }
+      columns.value = schemaToUse.map(col => ({
+        name: col.name,
+        type: col.type,
+        selected: true
+      }))
+      displayRows.value = props.previewRows
+    } else if (props.rawData && props.rawData.length > 0) {
+      if (!schemaToUse || schemaToUse.length === 0) {
+        schemaToUse = getFallbackSchema(props.rawData)
+      }
+      columns.value = schemaToUse.map(col => ({
+        name: col.name,
+        type: col.type,
+        selected: true
+      }))
+      displayRows.value = props.rawData.slice(0, 50)
     }
-    
-    columns.value = schemaToUse.map(col => ({
-      name: col.name,
-      type: col.type,
-      selected: true
-    }))
-    
-    // Select first 50 rows for preview
-    previewRows.value = props.rawData.slice(0, 50)
   }
 })
 
@@ -60,24 +86,40 @@ const handleImport = () => {
     return
   }
   
-  // Filter the data
-  const filteredData = props.rawData.map(row => {
-    const newRow = {}
-    selectedColNames.forEach(col => {
-      newRow[col] = row[col]
+  let schemaToUse = props.inferredSchema
+  
+  if (props.isFileImport) {
+    if (!schemaToUse || schemaToUse.length === 0) {
+      schemaToUse = getFallbackSchema(props.previewRows)
+    }
+    const filteredSchema = schemaToUse.filter(c => selectedColNames.includes(c.name))
+    
+    emit('import', {
+      datasetName: props.datasetName,
+      selectedColumns: selectedColNames,
+      schema: filteredSchema
     })
-    return newRow
-  })
-  
-  // Filter schema
-  let schemaToUse = props.inferredSchema || inferSchema(props.rawData)
-  const filteredSchema = schemaToUse.filter(c => selectedColNames.includes(c.name))
-  
-  emit('import', {
-    datasetName: props.datasetName,
-    data: filteredData,
-    schema: filteredSchema
-  })
+  } else {
+    if (!schemaToUse || schemaToUse.length === 0) {
+      schemaToUse = getFallbackSchema(props.rawData)
+    }
+    const filteredSchema = schemaToUse.filter(c => selectedColNames.includes(c.name))
+    
+    // Filter the data in memory
+    const filteredData = props.rawData.map(row => {
+      const newRow = {}
+      selectedColNames.forEach(col => {
+        newRow[col] = row[col]
+      })
+      return newRow
+    })
+    
+    emit('import', {
+      datasetName: props.datasetName,
+      data: filteredData,
+      schema: filteredSchema
+    })
+  }
 }
 </script>
 
@@ -91,7 +133,7 @@ const handleImport = () => {
     <div class="preview-modal">
       <div class="preview-header">
         <div class="preview-stats">
-          Total de registros a importar: <strong>{{ rawData.length }}</strong>. Mostrando los primeros 50.
+          Total de registros a importar: <strong>{{ isFileImport ? totalRows : rawData.length }}</strong>. Mostrando los primeros 50.
         </div>
         <div class="column-actions">
           <BaseButton variant="ghost" size="sm" @click="toggleAll(true)">Seleccionar Todo</BaseButton>
@@ -115,7 +157,7 @@ const handleImport = () => {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="(row, idx) in previewRows" :key="idx">
+            <tr v-for="(row, idx) in displayRows" :key="idx">
               <td v-for="col in columns" :key="col.name" :class="{ 'col-disabled': !col.selected }">
                 {{ row[col.name] !== null && row[col.name] !== undefined ? row[col.name] : 'null' }}
               </td>

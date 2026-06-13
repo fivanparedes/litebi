@@ -1,47 +1,47 @@
-import { inferSchema } from './SchemaManager'
-
-// Import xlsx lazily to reduce initial bundle size
-export const parseXlsx = async (file) => {
-  const xlsx = await import('xlsx')
-  
+export const parseXlsxToCsvBlob = async (file) => {
   return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    
-    reader.onload = (e) => {
-      try {
-        const data = new Uint8Array(e.target.result)
-        const workbook = xlsx.read(data, { type: 'array' })
-        
-        // We'll just read the first sheet for the MVP
-        const firstSheetName = workbook.SheetNames[0]
-        const worksheet = workbook.Sheets[firstSheetName]
-        
-        // Convert to JSON (array of objects)
-        const jsonData = xlsx.utils.sheet_to_json(worksheet, {
-          raw: true, // Keep actual values, don't format as strings
-          defval: null // Set empty cells to null
-        })
-        
-        if (jsonData.length === 0) {
-          throw new Error('El archivo Excel está vacío')
+    // Dynamically import the worker using Vite's ?worker suffix
+    import('@/workers/xlsx.worker.js?worker').then((WorkerModule) => {
+      const worker = new WorkerModule.default()
+      const reader = new FileReader()
+      const id = Date.now().toString()
+
+      worker.onmessage = (e) => {
+        const { id: responseId, success, blob, error } = e.data
+        if (responseId === id) {
+          worker.terminate()
+          if (success) {
+            resolve(blob)
+          } else {
+            reject(new Error(error || 'Error procesando archivo Excel en el worker'))
+          }
         }
-        
-        const schema = inferSchema(jsonData)
-        
-        resolve({
-          data: jsonData,
-          schema,
-          meta: { sheetName: firstSheetName }
-        })
-      } catch (error) {
-        reject(error)
       }
-    }
-    
-    reader.onerror = () => {
-      reject(new Error('Error al leer el archivo'))
-    }
-    
-    reader.readAsArrayBuffer(file)
+
+      worker.onerror = (e) => {
+        worker.terminate()
+        reject(new Error('Error en el Web Worker de Excel'))
+      }
+
+      reader.onload = (e) => {
+        try {
+          const fileBuffer = e.target.result
+          worker.postMessage({ id, fileBuffer }, [fileBuffer]) // Transfer the buffer to the worker
+        } catch (err) {
+          worker.terminate()
+          reject(err)
+        }
+      }
+
+      reader.onerror = () => {
+        worker.terminate()
+        reject(new Error('Error al leer el archivo en el navegador'))
+      }
+
+      reader.readAsArrayBuffer(file)
+    }).catch(err => {
+      reject(new Error('Error al inicializar el Worker de Excel: ' + err.message))
+    })
   })
 }
+

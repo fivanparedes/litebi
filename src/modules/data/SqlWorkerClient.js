@@ -7,6 +7,22 @@ import { Logger } from '@/utils/Logger'
 
 const MAX_CACHE_SIZE = 200
 
+const mapDuckDbToUiType = (duckDbType) => {
+  const t = (duckDbType || '').toUpperCase()
+  if (t.includes('INT') || t.includes('FLOAT') || t.includes('DOUBLE') || t.includes('DECIMAL') || t.includes('NUMERIC')) return 'number'
+  if (t.includes('DATE') || t.includes('TIME')) return 'date'
+  if (t.includes('BOOL')) return 'boolean'
+  return 'string'
+}
+
+const mapUiToDuckDbType = (uiType) => {
+  const t = (uiType || '').toLowerCase()
+  if (t === 'number') return 'DOUBLE'
+  if (t === 'date') return 'TIMESTAMP'
+  if (t === 'boolean') return 'BOOLEAN'
+  return 'VARCHAR'
+}
+
 const safeStringify = (obj) => {
   return JSON.stringify(obj, (key, value) => {
     if (typeof value === 'bigint') {
@@ -89,13 +105,6 @@ class SqlClient {
           const val = json[key]
           if (typeof val === 'bigint') {
             json[key] = Number(val)
-          } else if (val !== null && typeof val === 'object' && !Array.isArray(val) && !(val instanceof Date)) {
-            try {
-              const str = val.toString()
-              if (/^-?\d+(\.\d+)?$/.test(str)) {
-                json[key] = Number(str)
-              }
-            } catch (e) { /* ignore */ }
           }
         }
         return json
@@ -123,7 +132,42 @@ class SqlClient {
     return result
   }
 
-  async createTable(name, data = null) {
+  async queryToArrowIPC(sql, params = []) {
+    await this.initPromise
+    let finalSql = sql
+    
+    try {
+      const { useDashboardStore } = await import('@/stores/dashboardStore')
+      const dashStore = useDashboardStore()
+      const globalParams = dashStore.globalParameters || {}
+      
+      for (const [key, value] of Object.entries(globalParams)) {
+        const regex = new RegExp(`@${key}\\b`, 'gi')
+        finalSql = finalSql.replace(regex, typeof value === 'number' ? value : `'${value}'`)
+      }
+    } catch (e) {
+      // Ignore if store not ready
+    }
+
+    let ipcBuffer;
+    try {
+      if (params && params.length > 0) {
+        const stmt = await this.conn.prepare(finalSql)
+        const arrowResult = await stmt.query(...params)
+        ipcBuffer = arrowResult.serialize()
+        await stmt.close()
+      } else {
+        const arrowResult = await this.conn.query(finalSql)
+        ipcBuffer = arrowResult.serialize()
+      }
+    } catch (err) {
+      throw new Error(`DuckDB Query Error: ${err.message}`)
+    }
+
+    return ipcBuffer
+  }
+
+  async createTable(name, data = null, schema = null) {
     this.clearCache()
     await this.initPromise
     
@@ -133,7 +177,15 @@ class SqlClient {
       const fileName = `${name}.json`
       await this.db.registerFileText(fileName, safeStringify(data))
       // DuckDB uses double quotes for table names
-      await this.conn.query(`CREATE TABLE "${name}" AS SELECT * FROM read_json_auto('${fileName}')`)
+      if (schema && schema.length > 0) {
+        const selectParts = schema.map(col => {
+          const duckType = mapUiToDuckDbType(col.type)
+          return `TRY_CAST("${col.name}" AS ${duckType}) AS "${col.name}"`
+        }).join(', ')
+        await this.conn.query(`CREATE TABLE "${name}" AS SELECT ${selectParts} FROM read_json_auto('${fileName}')`)
+      } else {
+        await this.conn.query(`CREATE TABLE "${name}" AS SELECT * FROM read_json_auto('${fileName}')`)
+      }
     } else {
       await this.conn.query(`CREATE TABLE "${name}" (id INTEGER)`)
     }
@@ -175,14 +227,122 @@ class SqlClient {
     }
   }
 
-  async insertIntoTable(name, data) {
+  async getFilePreview(file, limit = 50) {
+    await this.initPromise
+    
+    const buffer = await file.arrayBuffer()
+    const uint8array = new Uint8Array(buffer)
+    
+    const tempFileName = `temp_preview_${Date.now()}_${file.name}`
+    await this.db.registerFileBuffer(tempFileName, uint8array)
+    
+    try {
+      const isParquet = tempFileName.toLowerCase().endsWith('.parquet')
+      const queryStr = isParquet
+        ? `SELECT * FROM read_parquet('${tempFileName}') LIMIT ${limit}`
+        : `SELECT * FROM read_csv_auto('${tempFileName}') LIMIT ${limit}`
+        
+      const previewRows = await this.query(queryStr)
+      
+      const countQueryStr = isParquet
+        ? `SELECT COUNT(*) as "count" FROM read_parquet('${tempFileName}')`
+        : `SELECT COUNT(*) as "count" FROM read_csv_auto('${tempFileName}')`
+        
+      const countRes = await this.query(countQueryStr)
+      const totalRows = countRes[0]?.count || 0
+      
+      const schemaQueryStr = isParquet
+        ? `DESCRIBE SELECT * FROM read_parquet('${tempFileName}')`
+        : `DESCRIBE SELECT * FROM read_csv_auto('${tempFileName}')`
+      const rawSchema = await this.query(schemaQueryStr)
+      const schema = rawSchema.map(col => ({
+        name: col.column_name,
+        type: mapDuckDbToUiType(col.column_type),
+        originalType: col.column_type
+      }))
+      
+      return {
+        previewRows,
+        totalRows,
+        schema,
+        tempFileName
+      }
+    } catch (err) {
+      console.error('[SqlClient] Error in getFilePreview:', err)
+      try {
+        await this.db.registerFileBuffer(tempFileName, null)
+      } catch (e) {
+        // ignore
+      }
+      throw err
+    }
+  }
+
+  async cleanupFile(fileName) {
+    await this.initPromise
+    try {
+      await this.db.registerFileBuffer(fileName, null)
+    } catch (err) {
+      console.warn('[SqlClient] Failed to cleanup file:', fileName, err)
+    }
+  }
+
+  async createTableFromRegisteredFile(tableName, tempFileName, selectedColumns = []) {
+    this.clearCache()
+    await this.initPromise
+    
+    try {
+      await this.dropTable(tableName)
+      
+      const colsPart = selectedColumns.length > 0
+        ? selectedColumns.map(c => `"${c}"`).join(', ')
+        : '*'
+        
+      const isParquet = tempFileName.toLowerCase().endsWith('.parquet')
+      const queryStr = isParquet
+        ? `CREATE TABLE "${tableName}" AS SELECT ${colsPart} FROM read_parquet('${tempFileName}')`
+        : `CREATE TABLE "${tableName}" AS SELECT ${colsPart} FROM read_csv_auto('${tempFileName}')`
+        
+      await this.conn.query(queryStr)
+      return true
+    } catch (err) {
+      console.error('[SqlClient] Error in createTableFromRegisteredFile:', err)
+      throw err
+    }
+  }
+
+  async getTableSchema(tableName) {
+    await this.initPromise
+    try {
+      const info = await this.query(`PRAGMA table_info("${tableName}")`)
+      return info.map(col => ({
+        name: col.name,
+        type: mapDuckDbToUiType(col.type),
+        originalType: col.type
+      }))
+    } catch (err) {
+      console.error('[SqlClient] Error in getTableSchema:', err)
+      return []
+    }
+  }
+
+  async insertIntoTable(name, data, schema = null) {
     this.clearCache()
     await this.initPromise
     if (!data || data.length === 0) return true
     
     const tempName = `${name}_temp_${Date.now()}.json`
     await this.db.registerFileText(tempName, safeStringify(data))
-    await this.conn.query(`INSERT INTO "${name}" SELECT * FROM read_json_auto('${tempName}')`)
+    
+    if (schema && schema.length > 0) {
+      const selectParts = schema.map(col => {
+        const duckType = mapUiToDuckDbType(col.type)
+        return `TRY_CAST("${col.name}" AS ${duckType}) AS "${col.name}"`
+      }).join(', ')
+      await this.conn.query(`INSERT INTO "${name}" SELECT ${selectParts} FROM read_json_auto('${tempName}')`)
+    } else {
+      await this.conn.query(`INSERT INTO "${name}" SELECT * FROM read_json_auto('${tempName}')`)
+    }
     return true
   }
 
@@ -200,13 +360,6 @@ class SqlClient {
           const val = json[key]
           if (typeof val === 'bigint') {
             json[key] = Number(val)
-          } else if (val !== null && typeof val === 'object' && !Array.isArray(val) && !(val instanceof Date)) {
-            try {
-              const str = val.toString()
-              if (/^-?\d+(\.\d+)?$/.test(str)) {
-                json[key] = Number(str)
-              }
-            } catch (e) { /* ignore */ }
           }
         }
         return json
@@ -289,195 +442,153 @@ class SqlClient {
           await this.conn.query(`UPDATE "${tempTableName}" SET "${step.config.column}" = ${newVal} WHERE "${step.config.column}" = ${oldVal}`)
         }
       }
-      // Future steps can be migrated progressively. We will do a full data fetch, process in JS, and recreate if the step is too complex.
+      else if (step.transformId === 'fill_nulls') {
+        const { column: col, method, value } = step.config
+        if (method === 'value') {
+          const newVal = _formatVal(value)
+          await this.conn.query(`UPDATE "${tempTableName}" SET "${col}" = ${newVal} WHERE "${col}" IS NULL OR "${col}" = ''`)
+        } else if (method === 'mean') {
+          await this.conn.query(`UPDATE "${tempTableName}" SET "${col}" = (SELECT AVG(CAST("${col}" AS DOUBLE)) FROM "${tempTableName}") WHERE "${col}" IS NULL OR "${col}" = ''`)
+        } else if (method === 'ffill') {
+          const selectList = currentColumns.map(c => {
+            if (c === col) {
+              return `COALESCE("${c}", LAST_VALUE("${c}") IGNORE NULLS OVER (ORDER BY rowid)) AS "${c}"`
+            }
+            return `"${c}"`
+          }).join(', ')
+          await this.conn.query(`CREATE TABLE "${tempTableName}_tmp" AS SELECT ${selectList} FROM "${tempTableName}"`)
+          await this.dropTable(tempTableName)
+          await this.conn.query(`ALTER TABLE "${tempTableName}_tmp" RENAME TO "${tempTableName}"`)
+        }
+      }
+      else if (step.transformId === 'text_transform') {
+        const { column, operation } = step.config
+        const sqlExpr = operation === 'trim' ? `TRIM(CAST("${column}" AS VARCHAR))` 
+                      : operation === 'upper' ? `UPPER(CAST("${column}" AS VARCHAR))`
+                      : `LOWER(CAST("${column}" AS VARCHAR))`
+        const selectList = currentColumns.map(c => {
+          if (c === column) {
+            return `${sqlExpr} AS "${c}"`
+          }
+          return `"${c}"`
+        }).join(', ')
+        await this.conn.query(`CREATE TABLE "${tempTableName}_tmp" AS SELECT ${selectList} FROM "${tempTableName}"`)
+        await this.dropTable(tempTableName)
+        await this.conn.query(`ALTER TABLE "${tempTableName}_tmp" RENAME TO "${tempTableName}"`)
+      }
+      else if (step.transformId === 'extract_date') {
+        const { column, component, newColumnName } = step.config
+        const newCol = newColumnName || `${column}_${component}`
+        const part = component.toUpperCase()
+        
+        await this.conn.query(`CREATE TABLE "${tempTableName}_tmp" AS SELECT *, EXTRACT(${part} FROM TRY_CAST("${column}" AS TIMESTAMP)) AS "${newCol}" FROM "${tempTableName}"`)
+        await this.dropTable(tempTableName)
+        await this.conn.query(`ALTER TABLE "${tempTableName}_tmp" RENAME TO "${tempTableName}"`)
+        if (!currentColumns.includes(newCol)) {
+          currentColumns.push(newCol)
+        }
+      }
+      else if (step.transformId === 'remove_duplicates') {
+        const cols = step.config.columns || currentColumns
+        if (cols.length > 0) {
+          const partitionCols = cols.map(c => `"${c}"`).join(', ')
+          await this.conn.query(`CREATE TABLE "${tempTableName}_tmp" AS SELECT * EXCLUDE (row_num) FROM (
+            SELECT *, ROW_NUMBER() OVER (PARTITION BY ${partitionCols} ORDER BY rowid) as row_num FROM "${tempTableName}"
+          ) WHERE row_num = 1`)
+          await this.dropTable(tempTableName)
+          await this.conn.query(`ALTER TABLE "${tempTableName}_tmp" RENAME TO "${tempTableName}"`)
+        }
+      }
+      else if (step.transformId === 'date_diff') {
+        const { column: col1, columnEnd: col2, unit, newColumnName } = step.config
+        const newCol = newColumnName || `${col1}_${col2}_diff`
+        const duckdbUnit = unit === 'days' ? 'day' : unit === 'months' ? 'month' : unit === 'years' ? 'year' : 'millisecond'
+        
+        await this.conn.query(`CREATE TABLE "${tempTableName}_tmp" AS SELECT *, 
+          DATE_DIFF('${duckdbUnit}', TRY_CAST("${col1}" AS TIMESTAMP), TRY_CAST("${col2}" AS TIMESTAMP)) AS "${newCol}" 
+          FROM "${tempTableName}"`)
+        await this.dropTable(tempTableName)
+        await this.conn.query(`ALTER TABLE "${tempTableName}_tmp" RENAME TO "${tempTableName}"`)
+        if (!currentColumns.includes(newCol)) {
+          currentColumns.push(newCol)
+        }
+      }
+      else if (step.transformId === 'date_add') {
+        const { column: col, offsetValue, unit, newColumnName } = step.config
+        const newCol = newColumnName || `${col}_add`
+        const offset = Number(offsetValue) || 0
+        const intervalUnit = unit === 'days' ? 'days' : unit === 'months' ? 'months' : unit === 'years' ? 'years' : 'days'
+        const intervalStr = `${offset} ${intervalUnit}`
+        
+        await this.conn.query(`CREATE TABLE "${tempTableName}_tmp" AS SELECT *, 
+          CAST((TRY_CAST("${col}" AS TIMESTAMP) + INTERVAL '${intervalStr}') AS DATE) AS "${newCol}" 
+          FROM "${tempTableName}"`)
+        await this.dropTable(tempTableName)
+        await this.conn.query(`ALTER TABLE "${tempTableName}_tmp" RENAME TO "${tempTableName}"`)
+        if (!currentColumns.includes(newCol)) {
+          currentColumns.push(newCol)
+        }
+      }
+      else if (step.transformId === 'groupby') {
+        const { column: groupCol, groupMetric, groupOperation, newColumnName } = step.config
+        const newCol = newColumnName || `${groupMetric}_${groupOperation.toLowerCase()}`
+        
+        await this.conn.query(`CREATE TABLE "${tempTableName}_tmp" AS SELECT 
+          "${groupCol}", 
+          ${groupOperation}("${groupMetric}") AS "${newCol}" 
+          FROM "${tempTableName}" 
+          GROUP BY "${groupCol}"`)
+        await this.dropTable(tempTableName)
+        await this.conn.query(`ALTER TABLE "${tempTableName}_tmp" RENAME TO "${tempTableName}"`)
+        currentColumns = [groupCol, newCol]
+      }
+      else if (step.transformId === 'split') {
+        const { column: col, separator, newColumns } = step.config
+        const sep = separator || ' '
+        const targets = newColumns || []
+        
+        const selectParts = targets.map((newCol, i) => {
+          return `string_split(CAST("${col}" AS VARCHAR), '${sep.replace(/'/g, "''")}')[${i + 1}] AS "${newCol}"`
+        })
+        
+        await this.conn.query(`CREATE TABLE "${tempTableName}_tmp" AS SELECT *, 
+          ${selectParts.join(', ')} 
+          FROM "${tempTableName}"`)
+        await this.dropTable(tempTableName)
+        await this.conn.query(`ALTER TABLE "${tempTableName}_tmp" RENAME TO "${tempTableName}"`)
+        
+        targets.forEach(newCol => {
+          if (!currentColumns.includes(newCol)) {
+            currentColumns.push(newCol)
+          }
+        })
+      }
+      else if (step.transformId === 'cast') {
+        const { column: col, castType } = step.config
+        let sqlCastType = 'VARCHAR'
+        if (castType === 'integer') sqlCastType = 'BIGINT'
+        else if (castType === 'decimal') sqlCastType = 'DOUBLE'
+        else if (castType === 'date') sqlCastType = 'DATE'
+        else if (castType === 'boolean') sqlCastType = 'BOOLEAN'
+        
+        const selectList = currentColumns.map(c => {
+          if (c === col) {
+            return `TRY_CAST("${c}" AS ${sqlCastType}) AS "${c}"`
+          }
+          return `"${c}"`
+        }).join(', ')
+        
+        await this.conn.query(`CREATE TABLE "${tempTableName}_tmp" AS SELECT ${selectList} FROM "${tempTableName}"`)
+        await this.dropTable(tempTableName)
+        await this.conn.query(`ALTER TABLE "${tempTableName}_tmp" RENAME TO "${tempTableName}"`)
+      }
       else {
-        // Fallback for complex operations (e.g. fill_nulls, split, date diff)
-        // Fetch data, process in JS (like alasql did), recreate table
-        let fallbackData = await this.query(`SELECT * FROM "${tempTableName}"`)
-        
-        if (step.transformId === 'fill_nulls') {
-          const { column: col, method, value } = step.config
-          let fillValue = value
-          if (method === 'mean' || method === 'median' || method === 'mode') {
-             // simplified mean calculation
-             const vals = fallbackData.map(r => r[col]).filter(v => v != null && v !== '')
-             if (vals.length > 0 && method === 'mean') fillValue = vals.reduce((a, b) => Number(a) + Number(b), 0) / vals.length
-          }
-          let lastValid = null
-          fallbackData.forEach(row => {
-            const isNull = row[col] == null || row[col] === ''
-            if (!isNull && method === 'ffill') lastValid = row[col]
-            else if (isNull) row[col] = method === 'ffill' ? lastValid : fillValue
-          })
-        }
-        else if (step.transformId === 'text_transform') {
-           const { column, operation } = step.config
-           fallbackData.forEach(row => {
-             if (row[column] != null && typeof row[column] === 'string') {
-               if (operation === 'trim') row[column] = row[column].trim()
-               else if (operation === 'upper') row[column] = row[column].toUpperCase()
-               else if (operation === 'lower') row[column] = row[column].toLowerCase()
-             }
-           })
-        }
-        else if (step.transformId === 'extract_date') {
-          const { column, component, newColumnName } = step.config
-          const newCol = newColumnName || `${column}_${component}`
-          if (!currentColumns.includes(newCol)) currentColumns.push(newCol)
-          
-          fallbackData.forEach(row => {
-            const d = new Date(row[column])
-            if (!isNaN(d.getTime())) {
-              if (component === 'year') row[newCol] = d.getFullYear()
-              else if (component === 'month') row[newCol] = d.getMonth() + 1
-              else if (component === 'day') row[newCol] = d.getDate()
-            } else row[newCol] = null
-          })
-        }
-        else if (step.transformId === 'remove_duplicates') {
-          const cols = step.config.columns || currentColumns
-          if (cols.length > 0) {
-            const seen = new Set()
-            fallbackData = fallbackData.filter(row => {
-              const key = cols.map(c => row[c]).join('|')
-              if (!seen.has(key)) { seen.add(key); return true }
-              return false
-            })
-          }
-        }
-        else if (step.transformId === 'date_diff') {
-          const { column: col1, columnEnd: col2, unit, newColumnName } = step.config
-          const newCol = newColumnName || `${col1}_${col2}_diff`
-          if (!currentColumns.includes(newCol)) currentColumns.push(newCol)
-          
-          fallbackData.forEach(row => {
-            const d1 = new Date(row[col1])
-            const d2 = new Date(row[col2])
-            if (!isNaN(d1.getTime()) && !isNaN(d2.getTime())) {
-              const diffMs = d2.getTime() - d1.getTime()
-              if (unit === 'days') {
-                row[newCol] = Math.floor(diffMs / (1000 * 60 * 60 * 24))
-              } else if (unit === 'months') {
-                row[newCol] = (d2.getFullYear() - d1.getFullYear()) * 12 + (d2.getMonth() - d1.getMonth())
-              } else if (unit === 'years') {
-                row[newCol] = d2.getFullYear() - d1.getFullYear()
-              } else {
-                row[newCol] = diffMs
-              }
-            } else {
-              row[newCol] = null
-            }
-          })
-        }
-        else if (step.transformId === 'date_add') {
-          const { column: col, offsetValue, unit, newColumnName } = step.config
-          const newCol = newColumnName || `${col}_add`
-          if (!currentColumns.includes(newCol)) currentColumns.push(newCol)
-          
-          const offset = Number(offsetValue) || 0
-          fallbackData.forEach(row => {
-            const d = new Date(row[col])
-            if (!isNaN(d.getTime())) {
-              const newD = new Date(d)
-              if (unit === 'days') {
-                newD.setDate(newD.getDate() + offset)
-              } else if (unit === 'months') {
-                newD.setMonth(newD.getMonth() + offset)
-              } else if (unit === 'years') {
-                newD.setFullYear(newD.getFullYear() + offset)
-              }
-              row[newCol] = newD.toISOString().split('T')[0]
-            } else {
-              row[newCol] = null
-            }
-          })
-        }
-        else if (step.transformId === 'groupby') {
-          const { column: groupCol, groupMetric, groupOperation, newColumnName } = step.config
-          const newCol = newColumnName || `${groupMetric}_${groupOperation.toLowerCase()}`
-          
-          const groups = {}
-          fallbackData.forEach(row => {
-            const key = row[groupCol] !== undefined ? String(row[groupCol]) : 'null'
-            if (!groups[key]) groups[key] = []
-            groups[key].push(row)
-          })
-          
-          let newRows = []
-          for (const [key, rows] of Object.entries(groups)) {
-            const valFirst = rows[0]?.[groupCol]
-            const metricVals = rows.map(r => Number(r[groupMetric])).filter(v => !isNaN(v))
-            
-            let groupedVal = 0
-            if (groupOperation === 'SUM') {
-              groupedVal = metricVals.reduce((a, b) => a + b, 0)
-            } else if (groupOperation === 'AVG') {
-              groupedVal = metricVals.length > 0 ? metricVals.reduce((a, b) => a + b, 0) / metricVals.length : 0
-            } else if (groupOperation === 'COUNT') {
-              groupedVal = rows.length
-            } else if (groupOperation === 'MIN') {
-              groupedVal = metricVals.length > 0 ? Math.min(...metricVals) : 0
-            } else if (groupOperation === 'MAX') {
-              groupedVal = metricVals.length > 0 ? Math.max(...metricVals) : 0
-            }
-            
-            newRows.push({
-              [groupCol]: valFirst,
-              [newCol]: groupedVal
-            })
-          }
-          fallbackData = newRows
-          currentColumns = [groupCol, newCol]
-        }
-        else if (step.transformId === 'split') {
-          const { column: col, separator, newColumns } = step.config
-          const sep = separator || ' '
-          const targets = newColumns || []
-          
-          targets.forEach(newCol => {
-            if (!currentColumns.includes(newCol)) currentColumns.push(newCol)
-          })
-          
-          fallbackData.forEach(row => {
-            const val = row[col] !== undefined && row[col] !== null ? String(row[col]) : ''
-            const parts = val.split(sep)
-            targets.forEach((newCol, i) => {
-              row[newCol] = parts[i] !== undefined ? parts[i] : null
-            })
-          })
-        }
-        else if (step.transformId === 'cast') {
-          const { column: col, castType } = step.config
-          fallbackData.forEach(row => {
-            const val = row[col]
-            if (val === null || val === undefined || val === '') {
-              row[col] = null
-            } else if (castType === 'string') {
-              row[col] = String(val)
-            } else if (castType === 'integer') {
-              const num = parseInt(val, 10)
-              row[col] = isNaN(num) ? null : num
-            } else if (castType === 'decimal') {
-              const num = parseFloat(val)
-              row[col] = isNaN(num) ? null : num
-            } else if (castType === 'date') {
-              const d = new Date(val)
-              row[col] = isNaN(d.getTime()) ? null : d.toISOString().split('T')[0]
-            } else if (castType === 'boolean') {
-              row[col] = (String(val).toLowerCase() === 'true' || val === 1 || val === true)
-            }
-          })
-        }
-        
-        await this.createTable(tempTableName, fallbackData)
+        console.warn(`[SqlWorkerClient] Unhandled transformation step: ${step.transformId}`)
       }
     }
 
     const finalData = await this.query(`SELECT * FROM "${tempTableName}"`)
-    const newSchema = currentColumns.map(colName => {
-      const existing = originalSchema.find(c => c.name === colName)
-      return existing || { name: colName, type: 'string' }
-    })
+    const newSchema = await this.getTableSchema(tempTableName)
 
     return {
       data: finalData,

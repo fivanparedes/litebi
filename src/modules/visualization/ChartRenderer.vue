@@ -392,10 +392,10 @@ const loadData = async () => {
     if (props.config.type === 'python') {
       try {
         const q = `SELECT * FROM ${fromClause} WHERE 1=1${globalWhere} LIMIT 10000`
-        const rawDataForPython = markRaw(await sqlClient.query(q))
+        const arrowBuffer = await sqlClient.queryToArrowIPC(q)
         
         if (props.config.pythonCode) {
-          const b64 = await pythonClient.runPythonPlot(props.config.pythonCode, rawDataForPython, dsName)
+          const b64 = await pythonClient.runPythonPlot(props.config.pythonCode, null, arrowBuffer, dsName)
           pythonImgBase64.value = b64
           pythonError.value = null
         }
@@ -417,43 +417,52 @@ const loadData = async () => {
     const xColName = extractColStr(rawX)
     const xColMeta = dsMeta?.schema?.find(c => c.name === xColName)
     const isXDate = xColMeta?.type?.toLowerCase() === 'date' || xColMeta?.type?.toLowerCase() === 'timestamp'
+    const xSelect = isXDate ? `CAST(${xSafe} AS VARCHAR)` : xSafe
     
     const y2ColName = rawY2 ? extractColStr(rawY2) : ''
     const y2ColMeta = dsMeta?.schema?.find(c => c.name === y2ColName)
     const isY2Date = y2ColMeta?.type?.toLowerCase() === 'date' || y2ColMeta?.type?.toLowerCase() === 'timestamp'
-
-    const formatDates = (dataArray) => {
-      if (!isXDate && !isY2Date) return dataArray
-      return dataArray.map(d => {
-        const newD = { ...d }
-        if (isXDate && typeof newD.name === 'number') {
-          try { newD.name = new Date(newD.name).toISOString().split('T')[0] } catch(e){ /* ignore */ }
-        }
-        if (isY2Date && typeof newD.name2 === 'number') {
-          try { newD.name2 = new Date(newD.name2).toISOString().split('T')[0] } catch(e){ /* ignore */ }
-        }
-        return newD
-      })
-    }
+    const y2Select = rawY2 ? (isY2Date ? `CAST(${resolveY(rawY2, agg)} AS VARCHAR)` : resolveY(rawY2, agg)) : ''
     
-    if ((props.config.type === 'map' && props.config.mapMode === 'scatter') || props.config.type === 'scatter' || props.config.type === 'boxplot') {
+    if (props.config.type === 'boxplot') {
+      const q = `SELECT ${xSelect} as "name", min(${ySafeExp}) as min_val, quantile_cont(${ySafeExp}, 0.25) as q1, quantile_cont(${ySafeExp}, 0.5) as median, quantile_cont(${ySafeExp}, 0.75) as q3, max(${ySafeExp}) as max_val FROM ${fromClause} WHERE ${xSafe} IS NOT NULL${yNullCheck}${globalWhere} GROUP BY ${xSafe} LIMIT 100`
+      chartData.value = markRaw(await sqlClient.query(q))
+      isLoading.value = false
+      return
+    }
+
+    if ((props.config.type === 'map' && props.config.mapMode === 'scatter') || props.config.type === 'scatter') {
       const isMapScatter = props.config.type === 'map'
-      const selectY2 = (isMapScatter && rawY2) ? `, ${resolveY(rawY2, agg)} as "value2"` : ''
+      const selectY2 = (isMapScatter && rawY2) ? `, ${y2Select} as "value2"` : ''
       const groupByMap = (isMapScatter && rawY2) ? `GROUP BY ${xSafe}, ${ySafeExp}` : ''
       
       const q = isMapScatter && rawY2 
-        ? `SELECT ${xSafe} as "name", ${ySafeExp} as "value" ${selectY2} FROM ${fromClause} WHERE ${xSafe} IS NOT NULL${yNullCheck}${globalWhere} ${groupByMap} LIMIT 2000`
-        : `SELECT ${xSafe} as "name", ${ySafeExp} as "value" FROM ${fromClause} WHERE ${xSafe} IS NOT NULL${yNullCheck}${globalWhere} LIMIT 2000`
+        ? `SELECT ${xSelect} as "name", ${ySafeExp} as "value" ${selectY2} FROM ${fromClause} WHERE ${xSafe} IS NOT NULL${yNullCheck}${globalWhere} ${groupByMap} LIMIT 2000`
+        : `SELECT ${xSelect} as "name", ${ySafeExp} as "value" FROM ${fromClause} WHERE ${xSafe} IS NOT NULL${yNullCheck}${globalWhere} LIMIT 2000`
         
-      chartData.value = markRaw(formatDates(await sqlClient.query(q)))
+      const rawData = await sqlClient.query(q)
+      
+      if (props.config.type === 'scatter' && props.config.ml?.regressionType === 'linear') {
+        const regQ = `SELECT regr_slope(${ySafeExp}, ${xSafe}) as slope, regr_intercept(${ySafeExp}, ${xSafe}) as intercept, min(${xSafe}) as min_x, max(${xSafe}) as max_x FROM ${fromClause} WHERE ${xSafe} IS NOT NULL${yNullCheck}${globalWhere}`
+        const regRes = await sqlClient.query(regQ)
+        if (regRes && regRes.length > 0 && regRes[0].slope !== null) {
+          rawData.regressionLine = [
+            [regRes[0].min_x, regRes[0].slope * regRes[0].min_x + regRes[0].intercept],
+            [regRes[0].max_x, regRes[0].slope * regRes[0].max_x + regRes[0].intercept]
+          ]
+          rawData.regressionFormula = `Y = ${regRes[0].slope.toFixed(2)} X + ${regRes[0].intercept.toFixed(2)}`
+        }
+      }
+      
+      chartData.value = markRaw(rawData)
       isLoading.value = false
       return
     }
 
     if (props.config.type === 'heatmap' && rawY2) {
       const ySafe2Exp = resolveY(rawY2, agg)
-      const q = `SELECT ${xSafe} as "name", ${ySafe2Exp} as "name2", ${ySafeExp} as "value" FROM ${fromClause} WHERE ${xSafe} IS NOT NULL${yNullCheck}${globalWhere} GROUP BY ${xSafe}, ${ySafe2Exp} LIMIT 1000`
-      chartData.value = markRaw(formatDates(await sqlClient.query(q)))
+      const q = `SELECT ${xSelect} as "name", ${y2Select} as "name2", ${ySafeExp} as "value" FROM ${fromClause} WHERE ${xSafe} IS NOT NULL${yNullCheck}${globalWhere} GROUP BY ${xSafe}, ${ySafe2Exp} LIMIT 1000`
+      chartData.value = markRaw(await sqlClient.query(q))
       isLoading.value = false
       return
     }
@@ -482,29 +491,28 @@ const loadData = async () => {
     }
 
     if ((props.config.type === 'combo' || props.config.type === 'line' || props.config.type === 'bar') && rawY2) {
-      const ySafe2Exp = resolveY(rawY2, agg)
-      const q = `SELECT ${xSafe} as "name", ${ySafeExp} as "value", ${ySafe2Exp} as "value2" FROM ${fromClause} WHERE ${xSafe} IS NOT NULL${globalWhere} GROUP BY ${xSafe} ${getSortAndLimitClause()}`
-      chartData.value = markRaw(formatDates(await sqlClient.query(q)))
+      const q = `SELECT ${xSelect} as "name", ${ySafeExp} as "value", ${y2Select} as "value2" FROM ${fromClause} WHERE ${xSafe} IS NOT NULL${globalWhere} GROUP BY ${xSafe} ${getSortAndLimitClause()}`
+      chartData.value = markRaw(await sqlClient.query(q))
       isLoading.value = false
       return
     }
 
     if (props.config.type === 'gauge') {
       const q = `SELECT ${ySafeExp} as "value" FROM ${fromClause} WHERE 1=1${yNullCheck}${globalWhere}`
-      chartData.value = markRaw(formatDates(await sqlClient.query(q)))
+      chartData.value = markRaw(await sqlClient.query(q))
       isLoading.value = false
       return
     }
 
     if (props.config.type === 'calendar') {
-      const q = `SELECT ${xSafe} as "name", ${ySafeExp} as "value" FROM ${fromClause} WHERE ${xSafe} IS NOT NULL${globalWhere} GROUP BY ${xSafe} LIMIT 2000`
-      chartData.value = markRaw(formatDates(await sqlClient.query(q)))
+      const q = `SELECT ${xSelect} as "name", ${ySafeExp} as "value" FROM ${fromClause} WHERE ${xSafe} IS NOT NULL${globalWhere} GROUP BY ${xSafe} LIMIT 2000`
+      chartData.value = markRaw(await sqlClient.query(q))
       isLoading.value = false
       return
     }
     
-    const q = `SELECT ${xSafe} as "name", ${ySafeExp} as "value" FROM ${fromClause} WHERE ${xSafe} IS NOT NULL${globalWhere} GROUP BY ${xSafe} ${getSortAndLimitClause()}`
-    chartData.value = markRaw(formatDates(await sqlClient.query(q)))
+    const q = `SELECT ${xSelect} as "name", ${ySafeExp} as "value" FROM ${fromClause} WHERE ${xSafe} IS NOT NULL${globalWhere} GROUP BY ${xSafe} ${getSortAndLimitClause()}`
+    chartData.value = markRaw(await sqlClient.query(q))
   } catch (e) {
     console.error("Error generating chart data:", e)
     sqlError.value = e.message || 'Error de sintaxis SQL. Revisa los filtros y tipos de datos.'
@@ -639,7 +647,24 @@ const chartStrategies = {
     }
 
     if (props.config.ml) {
-      if (props.config.ml.regressionType && props.config.ml.regressionType !== 'none') {
+      if (props.config.ml.regressionType === 'linear' && data.regressionLine) {
+        result.series.push({
+          name: 'Regresión Lineal',
+          type: 'line',
+          data: data.regressionLine,
+          symbolSize: 0.1,
+          symbol: 'none',
+          endLabel: {
+            show: true,
+            formatter: data.regressionFormula || 'Tendencia',
+            fontSize: 14
+          },
+          lineStyle: {
+            type: 'dashed',
+            width: 2
+          }
+        })
+      } else if (props.config.ml.regressionType && props.config.ml.regressionType !== 'none') {
         result.dataset.push({
           transform: {
             type: 'ecStat:regression',
@@ -748,22 +773,8 @@ const chartStrategies = {
     }
   },
   boxplot: (baseOption, data, props) => {
-    const grouped = {}
-    data.forEach(d => {
-      if (!grouped[d.name]) grouped[d.name] = []
-      grouped[d.name].push(Number(d.value))
-    })
-    
-    const cats = Object.keys(grouped)
-    const boxData = cats.map(c => {
-      const vals = grouped[c].sort((a,b) => a-b)
-      const min = vals[0]
-      const max = vals[vals.length - 1]
-      const q1 = vals[Math.floor(vals.length * 0.25)] || min
-      const median = vals[Math.floor(vals.length * 0.5)] || min
-      const q3 = vals[Math.floor(vals.length * 0.75)] || max
-      return [min, q1, median, q3, max]
-    })
+    const cats = data.map(d => d.name)
+    const boxData = data.map(d => [d.min_val, d.q1, d.median, d.q3, d.max_val])
     
     return {
       ...baseOption,

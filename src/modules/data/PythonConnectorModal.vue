@@ -5,7 +5,6 @@ import BaseModal from '@/components/ui/BaseModal.vue'
 import BaseInput from '@/components/ui/BaseInput.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import { pythonClient } from '@/modules/python/PythonClient'
-import { inferSchema } from '@/modules/data/SchemaManager'
 
 const props = defineProps({
   modelValue: Boolean
@@ -67,7 +66,7 @@ const handleExecuteAndPreview = async () => {
       throw new Error("El dataset generado está vacío.")
     }
 
-    const schema = inferSchema(dataArray)
+    const schema = Object.keys(dataArray[0]).map(k => ({ name: k, type: 'string' }))
     
     emit('preview', {
       datasetName: datasetName.value.trim(),
