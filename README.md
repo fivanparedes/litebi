@@ -28,7 +28,7 @@ LiteBI es una herramienta ágil y moderna de Business Intelligence (BI) diseñad
 ## Tecnologías Utilizadas
 
 *   **Frontend:** Vue 3 (Composition API), Vite, Pinia.
-*   **Motor de Datos & SQL:** AlaSQL.
+*   **Motor de Datos & SQL:** DuckDB (Wasm).
 *   **Gráficos & Visualizaciones:** Apache ECharts (`vue-echarts`).
 *   **Colaboración P2P:** Yjs, y-webrtc.
 *   **Persistencia:** localForage (IndexedDB).

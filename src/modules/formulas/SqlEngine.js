@@ -4,7 +4,7 @@ import { sqlClient } from '@/modules/data/SqlWorkerClient'
 const MAX_EXPRESSION_LENGTH = 5000
 
 /**
- * Patrones de error comunes de AlaSQL mapeados a mensajes amigables en español.
+ * Patrones de error comunes de DuckDB mapeados a mensajes amigables en español.
  * Cada entrada es un par [RegExp, mensaje traducido].
  * @type {Array<[RegExp, string]>}
  */
@@ -21,10 +21,10 @@ const ERROR_TRANSLATIONS = [
 ]
 
 /**
- * Traduce un mensaje de error de AlaSQL a un mensaje amigable en español.
+ * Traduce un mensaje de error de DuckDB a un mensaje amigable en español.
  * Si el mensaje no coincide con ningún patrón conocido, se devuelve tal cual.
  *
- * @param {string} message - Mensaje de error original de AlaSQL
+ * @param {string} message - Mensaje de error original de DuckDB
  * @returns {string} Mensaje traducido o el original si no hay coincidencia
  */
 const translateError = (message) => {

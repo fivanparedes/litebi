@@ -14,7 +14,7 @@
 | Framework | **Vue 3** (Composition API + Vite) | ✅ Confirmado |
 | State Management | **Pinia** | ✅ Confirmado |
 | Router | **Vue Router 4** | ✅ Confirmado |
-| Motor de fórmulas | **SQL** vía **AlaSQL** | ✅ Confirmado |
+| Motor de fórmulas | **SQL** vía **DuckDB** | ✅ Confirmado |
 | Grid de datos | **Tabulator** (~99KB, MIT) | ✅ Confirmado |
 | Gráficos | **Apache ECharts** + vue-echarts (tree-shaking) | ✅ Confirmado |
 | Dashboard layout | **GridStack.js** | ✅ Confirmado |
@@ -55,8 +55,8 @@
   - `src/modules/data/CsvParser.js`, `XlsxParser.js`, `SchemaManager.js`
   - `src/modules/data/ImportWizard.vue`, `DatasetList.vue`, `DataPreview.vue`
   - `public/sample-data/ventas_ejemplo.csv`
-- **Dependencias npm**: `papaparse`, `xlsx`, `alasql`
-- **Criterio de completitud**: Import CSV/XLSX con preview, dataset de ejemplo, datos en AlaSQL
+- **Dependencias npm**: `papaparse`, `xlsx`, `@duckdb/duckdb-wasm`
+- **Criterio de completitud**: Import CSV/XLSX con preview, dataset de ejemplo, datos en DuckDB
 
 ### Etapa 3: Data Cleaning
 - **Estado**: ✅ Completada
@@ -109,7 +109,7 @@
 ### Etapa 9: Relaciones y Modelado de Datos (Data Modeling & JOINs)
 - **Estado**: ✅ Completada
 - **Descripción**: Permitir importar múltiples tablas independientes (ej. Ventas, Clientes, Productos) y establecer relaciones (1:N, N:M) entre ellas mediante una interfaz visual de diagramas de entidad-relación (ER).
-- **Criterio de completitud**: Interfaz visual de conexiones tipo "nodos", generación automática de JOINs en el motor `AlaSQL` por debajo al generar gráficos.
+- **Criterio de completitud**: Interfaz visual de conexiones tipo "nodos", generación automática de JOINs en el motor `DuckDB` por debajo al generar gráficos.
 
 ### Etapa 10: Filtros Cruzados y Tableros Dinámicos (Cross-filtering)
 - **Estado**: ✅ Completada
@@ -143,7 +143,7 @@
 
 ### Etapa 16: Multithreading con Web Workers
 - **Estado**: ✅ Completada
-- **Descripción**: Mover el motor de procesamiento de AlaSQL, parseo de CSV/XLSX y cálculos matemáticos pesados a Web Workers. Esto evitará que la UI se congele (UI Blocking) mientras se procesan datasets masivos o consultas complejas.
+- **Descripción**: Mover el motor de procesamiento de DuckDB, parseo de CSV/XLSX y cálculos matemáticos pesados a Web Workers. Esto evitará que la UI se congele (UI Blocking) mientras se procesan datasets masivos o consultas complejas.
 - **Criterio de completitud**: Importación de archivos >50MB y agrupación (GROUP BY) sin trabar las animaciones de la UI.
 
 ### Etapa 17: Query Caching y Lazy Loading
@@ -182,7 +182,7 @@ datasets: Map<string, DatasetMeta>  // nombre → metadata
 activeDataset: string | null        // dataset seleccionado
 
 // Actions
-addDataset(name, data, schema)      // Crea tabla AlaSQL
+addDataset(name, data, schema)      // Crea tabla DuckDB
 removeDataset(name)                 // Elimina tabla
 setActive(name)                     // Selecciona dataset
 getPreview(name, n)                 // Primeras n filas como objetos
@@ -277,6 +277,6 @@ redo()
 - **Naming**: componentes PascalCase, composables `use*`, stores `*Store`
 - **CSS**: Scoped styles en SFC, BEM para clases globales, custom properties para tokens
 - **i18n**: Todas las cadenas de UI en `es.json`/`en.json`, acceso vía `$t('key')` o `t('key')`
-- **AlaSQL**: Tablas nombradas como datasets, queries parametrizados
+- **DuckDB**: Tablas nombradas como datasets, queries parametrizados
 - **Tests**: archivos `.test.js` junto al módulo, Vitest + Vue Test Utils
 - **Comentarios**: JSDoc para funciones y APIs públicas de los stores/composables

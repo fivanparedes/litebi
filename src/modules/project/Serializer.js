@@ -121,7 +121,7 @@ export const serializeProject = async (dataStore, formulaStore, dashboardStore, 
   // Convert DataStore datasets map to array
   const datasets = []
   
-  // Get actual table data from AlaSQL Worker solo si se requiere (ahorro de RAM en History)
+  // Get actual table data from DuckDB Worker solo si se requiere (ahorro de RAM en History)
   let allTables = {}
   if (options.includeData) {
     allTables = await sqlClient.exportDb()

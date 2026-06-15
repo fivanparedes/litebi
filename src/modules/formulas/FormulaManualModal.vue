@@ -28,7 +28,7 @@ const close = () => {
       <div class="manual-section">
         <h3>1. Introducción al Editor de Fórmulas</h3>
         <p>
-          LiteBI utiliza un motor SQL (AlaSQL) interno que procesa las expresiones en tiempo real en tu navegador. El editor de fórmulas <strong>solamente espera la expresión o el cálculo</strong>, no debes incluir el nombre de la variable ni el signo igual inicial.
+          LiteBI utiliza un motor SQL (DuckDB) interno que procesa las expresiones en tiempo real en tu navegador. El editor de fórmulas <strong>solamente espera la expresión o el cálculo</strong>, no debes incluir el nombre de la variable ni el signo igual inicial.
         </p>
         <div class="example-box correct">
           <strong>✅ Correcto:</strong> <code>[Ingresos] - [Costos]</code>

@@ -5,7 +5,7 @@ import duckdb_wasm_eh from '@duckdb/duckdb-wasm/dist/duckdb-eh.wasm?url'
 import eh_worker from '@duckdb/duckdb-wasm/dist/duckdb-browser-eh.worker.js?url'
 import { Logger } from '@/utils/Logger'
 
-const MAX_CACHE_SIZE = 200
+const MAX_CACHE_SIZE = 30
 
 const mapDuckDbToUiType = (duckDbType) => {
   const t = (duckDbType || '').toUpperCase()

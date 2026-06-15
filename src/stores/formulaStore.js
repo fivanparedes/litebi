@@ -85,7 +85,7 @@ export const useFormulaStore = defineStore('formula', () => {
     try {
       // 1. Agregar columna
       // Nota: Usamos SELECT y reemplazamos los datos en lugar de UPDATE debido a un 
-      // bug en el compilador de AlaSQL con sentencias CASE WHEN (Identifier 'r' has already been declared)
+      // bug en el compilador de DuckDB con sentencias CASE WHEN (Identifier 'r' has already been declared)
       const compiledExpr = expression.replace(/\[([^\]]+)\]\.\[([^\]]+)\]/g, '"$1"."$2"').replace(/\[([^\]]+)\]/g, '"$1"');
       const res = await sqlClient.query(`SELECT *, (${compiledExpr}) AS "${columnName}" FROM "${datasetName}"`)
       await sqlClient.createTable(datasetName, res)

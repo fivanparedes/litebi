@@ -1,6 +1,6 @@
 /**
  * Registry of available transformation operations
- * Each transform defines how to build an AlaSQL query to apply the change
+ * Each transform defines how to build a DuckDB query to apply the change
  */
 
 /**
@@ -119,7 +119,7 @@ export const Transforms = {
     description: 'Cambia el tipo de dato de una columna',
     generateSql: (config) => {
       const { column, targetType } = config
-      // AlaSQL CAST syntax applied in SELECT; returns a column expression
+      // DuckDB CAST syntax applied in SELECT; returns a column expression
       return `CAST("${column}" AS ${targetType === 'number' ? 'NUMBER' : targetType === 'boolean' ? 'BOOLEAN' : 'STRING'})`
     }
   },
