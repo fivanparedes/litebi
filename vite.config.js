@@ -19,6 +19,9 @@ export default defineConfig({
     exclude: ['pyodide']
   },
   assetsInclude: ['**/*.whl'],
+  worker: {
+    format: 'es'
+  },
   build: {
     target: 'esnext',
     rollupOptions: {
