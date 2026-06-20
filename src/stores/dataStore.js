@@ -13,9 +13,70 @@ export const useDataStore = defineStore('data', () => {
   const activeDatasetName = ref(null)
   const relationships = ref([])
   const dataVersion = ref(0)
-  
-  // Scheduled Refresh Tasks
   const refreshTimers = new Map()
+  
+  // Helper to extract array from JSON object if needed
+  const extractArrayData = (data) => {
+    if (Array.isArray(data)) return data
+    const arrayProp = Object.values(data).find(val => Array.isArray(val))
+    if (arrayProp) return arrayProp
+    return [data]
+  }
+
+  // Factory for dataset metadata
+  const createDatasetMeta = (safeName, originalName, finalSchema, finalRowCount, connectorConfig, refreshInterval) => ({
+    name: safeName,
+    originalName,
+    schema: finalSchema,
+    rowCount: finalRowCount,
+    colCount: finalSchema.length,
+    importedAt: new Date(),
+    transformations: [],
+    ui: { x: 50, y: 50 },
+    connectorConfig,
+    refreshInterval,
+    tags: [],
+    lastRefreshStatus: 'ok',
+    failedSyncCount: 0
+  })
+
+  const refreshDataset = async (datasetName, isAuto = false) => {
+    const ds = datasets.value.get(datasetName)
+    if (!ds || !ds.connectorConfig) return false
+    
+    try {
+      const { LiveConnector } = await import('@/modules/data/LiveConnector')
+      const resultData = await LiveConnector.query(ds.connectorConfig.type, ds.connectorConfig.credentials)
+      if (resultData && resultData.length > 0) {
+        const targetData = extractArrayData(resultData)
+        
+        await sqlClient.dropTable(datasetName)
+        await sqlClient.createTable(datasetName, targetData, ds.schema)
+        
+        ds.schema = await sqlClient.getTableSchema(datasetName)
+        const countRes = await sqlClient.query(`SELECT COUNT(*) as "count" FROM "${datasetName}"`)
+        ds.rowCount = countRes[0]?.count || targetData.length
+        ds.importedAt = new Date()
+        ds.lastRefreshStatus = 'ok'
+        dataVersion.value++
+        
+        Logger.info(`[Refresh] Dataset ${datasetName} refreshed${isAuto ? ' automatically' : ''}.`)
+        if (isAuto) {
+          uiStore.addToast({ message: `Dataset ${ds.originalName} actualizado automáticamente.`, type: 'info' })
+        }
+        return true
+      }
+    } catch (e) {
+      Logger.error(`[Refresh] Failed to refresh ${datasetName}:`, e)
+      ds.lastRefreshStatus = 'error'
+      ds.failedSyncCount = (ds.failedSyncCount || 0) + 1
+      if (!isAuto) {
+        uiStore.addToast({ message: `Error al actualizar ${ds.originalName}: ${e.message}`, type: 'error' })
+      }
+      return false
+    }
+    return false
+  }
 
   const scheduleRefresh = (datasetName) => {
     const ds = datasets.value.get(datasetName)
@@ -26,61 +87,44 @@ export const useDataStore = defineStore('data', () => {
     }
     
     const intervalMs = ds.refreshInterval * 60 * 1000
-    const timerId = setInterval(async () => {
-      try {
-        const { LiveConnector } = await import('@/modules/data/LiveConnector')
-        const resultData = await LiveConnector.query(ds.connectorConfig.type, ds.connectorConfig.credentials)
-        if (resultData && resultData.length > 0) {
-          // Replace data (using internal SQL Client since table exists)
-          let targetData = resultData
-          if (!Array.isArray(resultData)) {
-            const arrayProp = Object.values(resultData).find(val => Array.isArray(val))
-            targetData = arrayProp || [resultData]
-          }
-          
-          await sqlClient.dropTable(datasetName)
-          await sqlClient.createTable(datasetName, targetData, ds.schema)
-          
-          const finalSchema = await sqlClient.getTableSchema(datasetName)
-          ds.schema = finalSchema
-          
-          const countRes = await sqlClient.query(`SELECT COUNT(*) as "count" FROM "${datasetName}"`)
-          ds.rowCount = countRes[0]?.count || targetData.length
-          ds.importedAt = new Date()
-          dataVersion.value++
-          
-          console.log(`[ScheduledRefresh] Dataset ${datasetName} refreshed automatically.`)
-          uiStore.addToast({ message: `Dataset ${ds.originalName} actualizado automáticamente.`, type: 'info' })
-        }
-      } catch (e) {
-        console.error(`[ScheduledRefresh] Failed to refresh ${datasetName}:`, e)
-      }
+    const timerId = setInterval(() => {
+      refreshDataset(datasetName, true)
     }, intervalMs)
     
     refreshTimers.set(datasetName, timerId)
   }
+
+  const refreshAll = async () => {
+    const promises = []
+    for (const [name, ds] of datasets.value.entries()) {
+      if (ds.connectorConfig) {
+        promises.push(refreshDataset(name, false))
+      }
+    }
+    await Promise.all(promises)
+  }
   
-  // Actions
+  // Cleanup timers on dispose
+  // Actually, Pinia store lacks onUnmounted, so we can expose clearAllTimers
+  const clearAllTimers = () => {
+    for (const timer of refreshTimers.values()) {
+      clearInterval(timer)
+    }
+    refreshTimers.clear()
+  }
+
   const addDataset = async (name, data, schema, connectorConfig = null, refreshInterval = 0) => {
     try {
       if (!data || typeof data !== 'object') {
         throw new Error("El resultado no es un conjunto de datos válido.")
       }
       
-      let targetData = data
-      if (!Array.isArray(data)) {
-        const arrayProp = Object.values(data).find(val => Array.isArray(val))
-        if (arrayProp) {
-          targetData = arrayProp
-        } else {
-          targetData = [data]
-        }
-      }
-
+      const targetData = extractArrayData(data)
+      
       // Format name (safe for SQL)
       const safeName = name.replace(/[^a-zA-Z0-9_]/g, '_').toLowerCase()
       
-      // Create table and insert data in Worker (DuckDB natively infers schema, or uses TRY_CAST if schema is passed)
+      // Create table and insert data in Worker
       await sqlClient.createTable(safeName, targetData, schema)
       
       const finalSchema = await sqlClient.getTableSchema(safeName)
@@ -88,20 +132,7 @@ export const useDataStore = defineStore('data', () => {
       const finalRowCount = countRes[0]?.count || targetData.length
       
       // Save metadata
-      const datasetMeta = {
-        name: safeName,
-        originalName: name,
-        schema: finalSchema,
-        rowCount: finalRowCount,
-        colCount: finalSchema.length,
-        importedAt: new Date(),
-        transformations: [],
-        ui: { x: 50, y: 50 }, // Posición inicial para Modelado
-        connectorConfig,
-        refreshInterval,
-        tags: []
-      }
-      
+      const datasetMeta = createDatasetMeta(safeName, name, finalSchema, finalRowCount, connectorConfig, refreshInterval)
       datasets.value.set(safeName, datasetMeta)
       
       if (refreshInterval > 0) {
@@ -116,14 +147,14 @@ export const useDataStore = defineStore('data', () => {
       dataVersion.value++
       
       uiStore.addToast({
-        message: `Dataset "${name}" importado con éxito (${cleanedData.length} filas)`,
+        message: `Dataset "${name}" importado con éxito (${finalRowCount} filas)`,
         type: 'success'
       })
       
       return safeName
     } catch (error) {
       Logger.error('DataStore', `Error adding dataset: ${name}`, error)
-      console.error('Error adding dataset:', error)
+      Logger.error('DataStore', 'Error adding dataset:', error)
       uiStore.addToast({
         message: `Error al importar datos: ${error.message}`,
         type: 'error'
@@ -143,19 +174,7 @@ export const useDataStore = defineStore('data', () => {
       const countRes = await sqlClient.query(`SELECT COUNT(*) as "count" FROM "${safeName}"`)
       const rowCount = countRes[0]?.count || 0
       
-      const datasetMeta = {
-        name: safeName,
-        originalName: name,
-        schema: finalSchema,
-        rowCount,
-        colCount: finalSchema.length,
-        importedAt: new Date(),
-        transformations: [],
-        ui: { x: 50, y: 50 },
-        connectorConfig,
-        refreshInterval,
-        tags: []
-      }
+      const datasetMeta = createDatasetMeta(safeName, name, finalSchema, rowCount, connectorConfig, refreshInterval)
       
       datasets.value.set(safeName, datasetMeta)
       
@@ -191,19 +210,7 @@ export const useDataStore = defineStore('data', () => {
       
       const finalSchema = await sqlClient.getTableSchema(safeName)
       
-      const datasetMeta = {
-        name: safeName,
-        originalName: name,
-        schema: finalSchema,
-        rowCount,
-        colCount: finalSchema.length,
-        importedAt: new Date(),
-        transformations: [],
-        ui: { x: 50, y: 50 },
-        connectorConfig,
-        refreshInterval,
-        tags: []
-      }
+      const datasetMeta = createDatasetMeta(safeName, name, finalSchema, rowCount, connectorConfig, refreshInterval)
       
       datasets.value.set(safeName, datasetMeta)
       
@@ -245,10 +252,10 @@ export const useDataStore = defineStore('data', () => {
       ds.rowCount = countRes[0]?.count || (ds.rowCount + targetData.length)
       dataVersion.value++
       
-      console.log(`[Streaming] ${cleanedData.length} filas añadidas a ${datasetName}.`)
+      Logger.info('DataStore', `[Streaming] ${targetData.length} filas añadidas a ${datasetName}.`)
       return true
     } catch (error) {
-      console.error(`[Streaming] Error en appendData para ${datasetName}:`, error)
+      Logger.error('DataStore', `[Streaming] Error en appendData para ${datasetName}:`, error)
       return false
     }
   }
@@ -541,6 +548,10 @@ export const useDataStore = defineStore('data', () => {
     applyTransformations,
     getAllData,
     dataVersion,
+    refreshDataset,
+    scheduleRefresh,
+    refreshAll,
+    clearAllTimers,
     
     // Getters exported via destructuring implicitly
     datasetList

@@ -186,11 +186,64 @@ const updateData = () => {
     map.value.on('mouseleave', 'unclustered-point', () => { map.value.getCanvas().style.cursor = '' })
 
   } else if (mode === 'choropleth' || mode === 'custom') {
-    // Si es choropleth, necesitamos cargar el geojson en MapLibre y colorear los polígonos
-    // MapLibre no trae un map-mundo por defecto en GeoJSON como echarts, 
-    // Por simplicidad, implementamos la base lógica, pero el usuario debe proveer el GeoJSON en 'custom'
-    // O conectar a un vector tile de polígonos.
-    console.warn("Choropleth nativo requiere un GeoJSON válido en MapLibre.")
+    // Si es choropleth, cargamos un GeoJSON mundial por defecto y coloreamos los polígonos
+    if (!map.value.getSource('world-geojson')) {
+      map.value.addSource('world-geojson', {
+        type: 'geojson',
+        data: 'https://raw.githubusercontent.com/johan/world.geo.json/master/countries.geo.json'
+      })
+    }
+
+    const matchExpression = ['match', ['get', 'name']]
+    let hasData = false
+    
+    // Scale colors based on values (simplified min/max approach)
+    let min = Infinity, max = -Infinity
+    props.chartData.forEach(row => {
+      const val = Number(row.value)
+      if (!isNaN(val)) {
+        if (val < min) min = val
+        if (val > max) max = val
+      }
+    })
+    
+    props.chartData.forEach(row => {
+      if (row.name) {
+        hasData = true
+        // Simple color scale from blue-100 to blue-600
+        const val = Number(row.value)
+        const ratio = (max === min) ? 0.5 : (val - min) / (max - min)
+        const color = ratio > 0.8 ? '#2563eb' : ratio > 0.6 ? '#3b82f6' : ratio > 0.4 ? '#60a5fa' : ratio > 0.2 ? '#93c5fd' : '#dbeafe'
+        matchExpression.push(row.name, color)
+      }
+    })
+    matchExpression.push('#e2e8f0') // Fallback color
+
+    if (map.value.getLayer('heatmap-layer')) map.value.removeLayer('heatmap-layer')
+
+    map.value.addLayer({
+      id: 'heatmap-layer',
+      type: 'fill',
+      source: 'world-geojson',
+      paint: {
+        'fill-color': hasData ? matchExpression : '#e2e8f0',
+        'fill-opacity': 0.7,
+        'fill-outline-color': '#ffffff'
+      }
+    })
+    
+    map.value.on('click', 'heatmap-layer', (e) => {
+      const prop = e.features[0].properties
+      const matchedData = props.chartData.find(d => d.name === prop.name)
+      const valStr = matchedData ? `Valor: ${matchedData.value}` : 'Sin datos'
+      emit('chart-click', { name: prop.name, value: matchedData ? matchedData.value : null })
+      new maplibregl.Popup()
+        .setLngLat(e.lngLat)
+        .setHTML(`<strong>${prop.name}</strong><br/>${valStr}`)
+        .addTo(map.value)
+    })
+    map.value.on('mouseenter', 'heatmap-layer', () => { map.value.getCanvas().style.cursor = 'pointer' })
+    map.value.on('mouseleave', 'heatmap-layer', () => { map.value.getCanvas().style.cursor = '' })
   }
 }
 

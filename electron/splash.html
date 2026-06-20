@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Iniciando LiteBI</title>
+  <style>
+    :root {
+      --bg-color: #09090b; /* Zinc 950 */
+      --text-color: #fafafa;
+      --brand-color: #3b82f6; /* Blue 500 */
+    }
+    
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg-color: #ffffff;
+        --text-color: #09090b;
+      }
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      overflow: hidden;
+      user-select: none;
+      -webkit-app-region: drag; /* Permite mover la ventana en Electron */
+    }
+
+    .logo-container {
+      position: relative;
+      width: 80px;
+      height: 80px;
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .pulse-ring {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      border: 2px solid var(--brand-color);
+      opacity: 0;
+      animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+
+    .pulse-ring:nth-child(2) {
+      animation-delay: 0.5s;
+    }
+
+    .logo {
+      width: 48px;
+      height: 48px;
+      background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+      border-radius: 12px;
+      z-index: 10;
+      box-shadow: 0 4px 20px rgba(59, 130, 246, 0.4);
+    }
+
+    h1 {
+      font-size: 24px;
+      font-weight: 600;
+      margin: 0 0 8px 0;
+      letter-spacing: -0.5px;
+    }
+
+    p {
+      font-size: 13px;
+      color: #71717a;
+      margin: 0;
+      font-weight: 500;
+    }
+    
+    @media (prefers-color-scheme: light) {
+      p { color: #a1a1aa; }
+    }
+
+    .loader-bar {
+      margin-top: 32px;
+      width: 160px;
+      height: 4px;
+      background-color: rgba(113, 113, 122, 0.2);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .loader-progress {
+      width: 30%;
+      height: 100%;
+      background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+      border-radius: 4px;
+      animation: sweep 1.5s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0% { transform: scale(0.8); opacity: 0.8; }
+      100% { transform: scale(1.5); opacity: 0; }
+    }
+
+    @keyframes sweep {
+      0% { transform: translateX(-100%); }
+      50% { width: 40%; }
+      100% { transform: translateX(350%); width: 20%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="logo-container">
+    <div class="pulse-ring"></div>
+    <div class="pulse-ring"></div>
+    <div class="logo"></div>
+  </div>
+  <h1>LiteBI</h1>
+  <p>Iniciando motores de datos...</p>
+  <div class="loader-bar">
+    <div class="loader-progress"></div>
+  </div>
+</body>
+</html>

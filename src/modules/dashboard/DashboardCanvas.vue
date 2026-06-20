@@ -6,6 +6,7 @@ import { X, Settings, Pause, Play, RefreshCw, Copy, Download } from '@lucide/vue
 import ChartRenderer from '@/modules/visualization/ChartRenderer.vue'
 import SlicerRenderer from '@/modules/visualization/SlicerRenderer.vue'
 import ParameterRenderer from '@/modules/visualization/ParameterRenderer.vue'
+import ErrorBoundary from '@/components/ui/ErrorBoundary.vue'
 import CollaboratorCursors from '@/components/collaboration/CollaboratorCursors.vue'
 import { useCollaborationStore } from '@/stores/collaborationStore'
 import { useUiStore } from '@/stores/uiStore'
@@ -226,7 +227,12 @@ const exportCsv = (widgetId) => {
       >
         <div
           class="grid-stack-item-content custom-widget"
-          :class="{ 'focused': focusedWidgetId === widget.id }"
+          :class="[
+            { 'focused': focusedWidgetId === widget.id },
+            widget.config?.styles?.background === 'transparent' ? '!bg-transparent' : '',
+            widget.config?.styles?.border === false ? '!border-transparent' : '',
+            widget.config?.styles?.shadow === 'none' ? '!shadow-none' : (widget.config?.styles?.shadow === 'md' ? '!shadow-md' : '')
+          ]"
           :style="[
             widget.config?.styles?.backgroundColor ? { backgroundColor: widget.config.styles.backgroundColor } : {},
             widget.config?.styles?.borderRadius ? { borderRadius: widget.config.styles.borderRadius + 'px' } : {}
@@ -251,14 +257,16 @@ const exportCsv = (widgetId) => {
             </div>
           </div>
           <div class="widget-body">
-            <SlicerRenderer v-if="widget.config?.type === 'slicer'" :config="widget.config" />
-            <ParameterRenderer v-else-if="widget.config?.type === 'parameter'" :config="widget.config" />
-            <ChartRenderer 
-              v-else-if="widget.config" 
-              ref="renderers"
-              :widget-id="widget.id"
-              :config="{ ...widget.config, dataset: widget.config?.dataset || 'default' }" 
-            />
+            <ErrorBoundary>
+              <SlicerRenderer v-if="widget.config?.type === 'slicer'" :config="widget.config" />
+              <ParameterRenderer v-else-if="widget.config?.type === 'parameter'" :config="widget.config" />
+              <ChartRenderer 
+                v-else-if="widget.config" 
+                ref="renderers"
+                :widget-id="widget.id"
+                :config="{ ...widget.config, dataset: widget.config?.dataset || 'default' }" 
+              />
+            </ErrorBoundary>
           </div>
         </div>
       </div>

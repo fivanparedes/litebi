@@ -60,6 +60,12 @@ const routes = [
     meta: { icon: 'Terminal', titleKey: 'nav.python' }
   },
   {
+    path: '/manual',
+    name: 'manual',
+    component: () => import('@/views/ManualView.vue'),
+    meta: { icon: 'HelpCircle', titleKey: 'nav.manual' }
+  },
+  {
     path: '/help',
     name: 'help',
     component: () => import('@/views/HelpView.vue'),

@@ -1,6 +1,6 @@
 <script setup>
 import { ref } from 'vue'
-import { Terminal, Loader2, Play, AlertTriangle } from '@lucide/vue'
+import { Loader2, Play, AlertTriangle } from '@lucide/vue'
 import BaseModal from '@/components/ui/BaseModal.vue'
 import BaseInput from '@/components/ui/BaseInput.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'

@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
+import { generateId } from '@/utils/generateId.js'
 
 export const useReportStore = defineStore('report', () => {
   const pages = ref([
@@ -9,7 +10,7 @@ export const useReportStore = defineStore('report', () => {
   const activePageId = ref('page_1')
 
   const addPage = () => {
-    const newId = `page_${Date.now()}`
+    const newId = `page_${generateId()}`
     pages.value.push({ id: newId, layout: [], orientation: 'portrait' })
     activePageId.value = newId
   }
@@ -26,7 +27,7 @@ export const useReportStore = defineStore('report', () => {
     const page = pages.value.find(p => p.id === pageId)
     if (page) {
       const newWidget = {
-        id: `rw_${Date.now()}`,
+        id: `rw_${generateId()}`,
         x: 0, y: 0, w: 4, h: 4,
         ...widgetData
       }

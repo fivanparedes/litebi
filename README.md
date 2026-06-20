@@ -69,6 +69,19 @@ Para empaquetar la aplicación de escritorio (generando el ejecutable para tu si
 npm run electron:build
 ```
 
+## Pruebas y Cobertura (Testing)
+
+LiteBI cuenta con una robusta suite de pruebas unitarias y de integración construidas sobre **Vitest**, garantizando la fiabilidad de las funcionalidades más críticas de la plataforma. La cobertura actual incluye:
+
+*   **Stores (Pinia):** Gestión de estados complejos simulando entornos con dependencias profundas (DuckDB WASM, IndexedDB) sin necesidad de infraestructura pesada. Cobertura completa del ciclo de vida del proyecto (Autoguardado, Historial de Deshacer/Rehacer), manejo de dashboards y persistencia de configuraciones.
+*   **Componentes UI (Vue Test Utils):** Pruebas unitarias para elementos interactivos principales (`BaseButton`, `BaseInput`, `BaseDropdown`, `BaseModal`, `BaseTabs`, `BaseToast`, `BaseSwitch`).
+*   **Módulos Core:** Validación estricta del procesamiento interno como el `SqlEngine` para las traducciones de DuckDB, y simuladores del DOM para garantizar que la generación y exportación multi-página de documentos (`ExportManager` a PDF, PNG, PPTX) funcione perfectamente.
+
+Para ejecutar los tests localmente con reporte de cobertura:
+```bash
+npm run test:coverage
+```
+
 ## Licencia
 
 Este proyecto está licenciado bajo la **Licencia Pública General de GNU v3.0 (GPLv3)**.

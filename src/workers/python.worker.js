@@ -1,15 +1,12 @@
 // Importación dinámica limpia para workers de tipo module en Vite
 
 
+import { loadPyodide } from 'pyodide'
+
 let pyodide = null
 
 async function initPyodide() {
-  const module = await import(/* @vite-ignore */ 'https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.mjs')
-  const loadPyodide = module.loadPyodide
-  
-  pyodide = await loadPyodide({
-    indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.24.1/full/'
-  })
+  pyodide = await loadPyodide()
   
   // Cargar paquetes comunes de análisis de datos y visualización
   await pyodide.loadPackage(['pandas', 'numpy', 'matplotlib', 'pyarrow'])

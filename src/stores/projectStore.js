@@ -8,7 +8,7 @@ import { useReportStore } from './reportStore'
 import { serializeProject, deserializeProject } from '@/modules/project/Serializer'
 import { HistoryManager } from '@/modules/project/HistoryManager'
 import localforage from 'localforage'
-
+import { Logger } from '@/utils/Logger'
 export const useProjectStore = defineStore('project', () => {
   const uiStore = useUiStore()
   const dataStore = useDataStore()
@@ -54,7 +54,6 @@ export const useProjectStore = defineStore('project', () => {
   const markDirty = () => {
     isDirty.value = true
     triggerAutoSave()
-    debouncedAutoSave()
     debouncedPushToHistory()
   }
 
@@ -93,16 +92,24 @@ export const useProjectStore = defineStore('project', () => {
 
   const autoLoad = async () => {
     try {
-      const saved = await localforage.getItem('litebi_autosave')
+      // Usar Promise.race para evitar que localforage se quede colgado eternamente por bloqueos en LevelDB (muy común en AppImages/Electron Linux)
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('IndexedDB timeout lock')), 2500)
+      )
+      const saved = await Promise.race([
+        localforage.getItem('litebi_autosave'),
+        timeoutPromise
+      ])
+      
       if (saved && saved.data) {
         await deserializeProject(saved.data, dataStore, formulaStore, dashboardStore, reportStore)
         projectName.value = saved.projectName || 'Proyecto sin título'
         isDirty.value = false
-        console.log("Sesión recuperada desde IndexedDB.")
+        Logger.info('ProjectStore', "Sesión recuperada desde IndexedDB.")
         return true
       }
     } catch (e) {
-      console.error("Error autoloading project:", e)
+      Logger.error('ProjectStore', "Error autoloading project:", e)
     }
     return false
   }
@@ -175,8 +182,6 @@ export const useProjectStore = defineStore('project', () => {
         const content = await file.text()
         
         await deserializeProject(content, dataStore, formulaStore, dashboardStore, reportStore)
-        
-        const uiStore = useUiStore()
         
         if (handle.name.endsWith('.litebi-template') || handle.name.endsWith('.litebitemplate')) {
           projectName.value = "Nuevo desde Plantilla"

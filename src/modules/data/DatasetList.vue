@@ -159,7 +159,7 @@ const getMockSubtitle = (name) => {
           </div>
           <div class="text-xs text-muted-foreground mt-0.5 truncate flex items-center gap-2">
             <span>{{ getMockSubtitle(dataset.originalName) }} — {{ getConnectorName(dataset) }}</span>
-            <span v-if="dataset.originalName.toLowerCase().includes('crm')" class="px-1.5 py-0.5 rounded-none text-[10px] font-bold bg-red-100 text-red-600 border border-red-200">ERROR</span>
+            <span v-if="dataset.lastRefreshStatus === 'error'" class="px-1.5 py-0.5 rounded-none text-[10px] font-bold bg-red-100 text-red-600 border border-red-200" title="Sync Failed">ERROR</span>
           </div>
           <div class="text-xs text-muted-foreground mt-1">
             {{ formatNumber(dataset.rowCount) }} rows · {{ dataset.colCount }} cols · {{ formatSize(dataset.rowCount, dataset.colCount) }}
@@ -173,10 +173,6 @@ const getMockSubtitle = (name) => {
           <div>
             <div class="text-[10px] font-bold uppercase text-muted-foreground tracking-wider mb-0.5">Updated</div>
             <div class="text-xs font-medium">{{ getTimeAgo(dataset.importedAt) }}</div>
-          </div>
-          <div>
-            <div class="text-[10px] font-bold uppercase text-muted-foreground tracking-wider mb-0.5">Owner</div>
-            <div class="text-xs font-medium">data-eng</div>
           </div>
         </div>
         

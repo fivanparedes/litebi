@@ -4,6 +4,7 @@ import { sqlClient } from '@/modules/data/SqlWorkerClient'
 import { useDataStore } from './dataStore'
 import { useUiStore } from './uiStore'
 import { Logger } from '@/utils/Logger'
+import { generateId } from '@/utils/generateId.js'
 
 /** Regex para nombres seguros de datasets/columnas */
 const SAFE_NAME_REGEX = /^[a-zA-Z0-9_\s\u00C0-\u024F]+$/
@@ -176,7 +177,7 @@ export const useFormulaStore = defineStore('formula', () => {
     
     const existingIdx = corporateMetrics.value[datasetName].findIndex(m => m.name === metricName)
     const metric = { 
-      id: existingIdx !== -1 ? corporateMetrics.value[datasetName][existingIdx].id : `metric_${Date.now()}`,
+      id: existingIdx !== -1 ? corporateMetrics.value[datasetName][existingIdx].id : `metric_${generateId()}`,
       name: metricName, 
       expression, 
       type 

@@ -72,22 +72,6 @@ const availableFields = computed(() => {
   }
 })
 
-const modeOptions = [
-  { value: 'columna', label: 'Nueva Columna Computada' },
-  { value: 'metrica', label: 'Nueva Métrica Agrupada' }
-]
-
-const typeOptions = [
-  { value: 'number', label: 'Número' },
-  { value: 'integer', label: 'Entero' },
-  { value: 'decimal', label: 'Decimal' },
-  { value: 'string', label: 'Texto' },
-  { value: 'boolean', label: 'Booleano' },
-  { value: 'date', label: 'Fecha' },
-  { value: 'datetime', label: 'Fecha y Hora' },
-  { value: 'time', label: 'Hora' },
-  { value: 'json', label: 'JSON / Array' }
-]
 
 const handleInsertColumn = (colStr) => {
   expression.value = expression.value ? `${expression.value} ${colStr}` : colStr

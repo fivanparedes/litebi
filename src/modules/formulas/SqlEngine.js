@@ -61,12 +61,7 @@ export const testSqlExpression = async (datasetName, expression, mode = 'columna
   const safeColName = columnName || 'Prueba'
 
   try {
-    let sql;
-    if (mode === 'metrica') {
-      sql = `SELECT ${expression} AS "${safeColName}" FROM "${datasetName}"`
-    } else {
-      sql = `SELECT ${expression} AS "${safeColName}" FROM "${datasetName}"`
-    }
+    const sql = `SELECT ${expression} AS "${safeColName}" FROM "${datasetName}"`
     
     const result = await sqlClient.query(sql)
 

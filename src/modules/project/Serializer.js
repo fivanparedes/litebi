@@ -1,4 +1,5 @@
 import { sqlClient } from '@/modules/data/SqlWorkerClient'
+import LZString from 'lz-string'
 
 /** Tamaño máximo de JSON permitido: 500 MB */
 const MAX_JSON_SIZE = 500 * 1024 * 1024
@@ -54,8 +55,36 @@ const migrateProject = (project) => {
 }
 
 // ---------------------------------------------------------------------------
-// Validación del proyecto
-// ---------------------------------------------------------------------------
+import { z } from 'zod'
+
+const datasetSchema = z.object({
+  name: z.string().min(1, 'El nombre del dataset no puede estar vacío'),
+  meta: z.object({}).passthrough(),
+  data: z.array(z.any())
+})
+
+const projectSchema = z.object({
+  version: z.string({ required_error: 'La versión es requerida' }),
+  timestamp: z.string().optional(),
+  data: z.object({
+    activeDatasetName: z.string().nullable().optional(),
+    relationships: z.array(z.any()).optional(),
+    datasets: z.array(datasetSchema)
+  }, { required_error: 'La sección data es requerida' }),
+  formulas: z.object({
+    items: z.record(z.any()).optional()
+  }).optional(),
+  dashboard: z.object({
+    tabs: z.array(z.any()).optional(),
+    layouts: z.record(z.any()).optional(),
+    activeTabId: z.string().optional(),
+    globalFilters: z.array(z.any()).optional()
+  }).optional(),
+  report: z.object({
+    pages: z.array(z.any()).optional(),
+    activePageId: z.string().optional()
+  }).optional()
+})
 
 /**
  * Valida la estructura completa del proyecto ANTES de tocar el estado.
@@ -63,44 +92,10 @@ const migrateProject = (project) => {
  * @param {Object} project - Objeto de proyecto deserializado
  */
 const validateProject = (project) => {
-  if (!project || typeof project !== 'object') {
-    throw new Error('El contenido del proyecto no es un objeto JSON válido.')
-  }
-
-  if (!project.version) {
-    throw new Error('El archivo no contiene la propiedad "version". No es un proyecto LiteBI válido.')
-  }
-
-  // --- Sección data ---
-  if (!project.data || typeof project.data !== 'object') {
-    throw new Error('La sección "data" del proyecto está ausente o no es válida.')
-  }
-
-  if (!Array.isArray(project.data.datasets)) {
-    throw new Error('La propiedad "data.datasets" debe ser un arreglo. El archivo puede estar incompleto.')
-  }
-
-  for (let i = 0; i < project.data.datasets.length; i++) {
-    const ds = project.data.datasets[i]
-    if (!ds || typeof ds.name !== 'string' || ds.name.trim() === '') {
-      throw new Error(`El dataset en la posición ${i} no tiene un nombre válido.`)
-    }
-    if (!ds.meta || typeof ds.meta !== 'object') {
-      throw new Error(`El dataset "${ds.name}" no tiene metadatos válidos.`)
-    }
-    if (!Array.isArray(ds.data)) {
-      throw new Error(`El dataset "${ds.name}" no contiene datos en formato de arreglo.`)
-    }
-  }
-
-  // --- Sección formulas ---
-  if (!project.formulas || typeof project.formulas !== 'object') {
-    throw new Error('La sección "formulas" del proyecto está ausente o no es válida.')
-  }
-
-  // --- Sección dashboard ---
-  if (!project.dashboard || typeof project.dashboard !== 'object') {
-    throw new Error('La sección "dashboard" del proyecto está ausente o no es válida.')
+  const result = projectSchema.safeParse(project)
+  if (!result.success) {
+    const errorDetails = result.error.errors.map(e => `${e.path.join('.') || 'Raíz'}: ${e.message}`).join(', ')
+    throw new Error('Estructura de proyecto inválida o corrupta: ' + errorDetails)
   }
 }
 
@@ -159,12 +154,14 @@ export const serializeProject = async (dataStore, formulaStore, dashboardStore, 
     }
   }
 
-  return JSON.stringify(projectState, (key, value) => {
+  const jsonString = JSON.stringify(projectState, (key, value) => {
     if (typeof value === 'bigint') {
       return Number(value) // Convert BigInt to Number for JSON compatibility
     }
     return value
   })
+  
+  return LZString.compressToUTF16(jsonString)
 }
 
 // ---------------------------------------------------------------------------
@@ -197,7 +194,14 @@ export const deserializeProject = async (jsonString, dataStore, formulaStore, da
   // --- Paso 1: Parsear JSON ---
     let project
     try {
-      project = JSON.parse(jsonString)
+      let targetString = jsonString
+      if (!jsonString.trim().startsWith('{')) {
+        const decompressed = LZString.decompressFromUTF16(jsonString)
+        if (decompressed) {
+          targetString = decompressed
+        }
+      }
+      project = JSON.parse(targetString)
     } catch (parseError) {
     throw new Error(
       `No se pudo interpretar el archivo como JSON. ` +
@@ -310,7 +314,7 @@ export const deserializeProject = async (jsonString, dataStore, formulaStore, da
       reportStore.pages = backup.reportPages
       reportStore.activePageId = backup.reportActivePageId
     } catch (fallbackError) {
-      console.error('Error crítico: no se pudo revertir al estado anterior:', rollbackError)
+      console.error('Error crítico: no se pudo revertir al estado anterior:', fallbackError)
     }
 
     throw new Error(

@@ -8,7 +8,7 @@ import { useProjectStore } from '@/stores/projectStore'
 import { useDataStore } from '@/stores/dataStore'
 import { useCollaborationStore } from '@/stores/collaborationStore'
 import { useReportStore } from '@/stores/reportStore'
-import { Save, SaveAll, Play, Sigma, Filter, Download, FolderOpen, FilePlus, Image, FileText, Pencil, RefreshCw, Share2, LayoutTemplate, LayoutDashboard, Database, FileSpreadsheet, Search, Bell } from '@lucide/vue'
+import { Save, SaveAll, Play, Sigma, Filter, Download, FolderOpen, FilePlus, Image, FileText, Pencil, RefreshCw, Share2, LayoutTemplate, LayoutDashboard, Database, FileSpreadsheet, Search, Bell, User } from '@lucide/vue'
 import LanguageSwitch from '@/components/ui/LanguageSwitch.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import { exportToPNG, exportToPDF } from '@/modules/project/ExportManager'
@@ -26,6 +26,68 @@ const reportStore = useReportStore()
 const isEditingName = ref(false)
 const tempName = ref('')
 const nameInputRef = ref(null)
+const searchInputRef = ref(null)
+
+const searchQuery = ref('')
+const isSearchFocused = ref(false)
+
+const searchResults = computed(() => {
+  if (!searchQuery.value) return []
+  const q = searchQuery.value.toLowerCase()
+  const results = []
+  
+  // Navigation
+  const navs = [
+    { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
+    { name: 'Data', path: '/data', icon: Database },
+    { name: 'Reports', path: '/reports', icon: FileText },
+    { name: 'Formulas', path: '/formulas', icon: Sigma }
+  ]
+  navs.forEach(nav => {
+    if (nav.name.toLowerCase().includes(q)) {
+      results.push({ type: 'Nav', title: nav.name, action: () => router.push(nav.path), icon: nav.icon })
+    }
+  })
+  
+  // Datasets
+  dataStore.datasetList.forEach(ds => {
+    if (ds.originalName.toLowerCase().includes(q) || ds.name.toLowerCase().includes(q)) {
+      results.push({ type: 'Dataset', title: ds.originalName, subtitle: ds.name, action: () => {
+        dataStore.setActiveDataset(ds.name)
+        router.push('/data')
+      }, icon: Database })
+    }
+  })
+  
+  // Dashboard Tabs
+  dashboardStore.tabs.forEach(tab => {
+    if (tab.name.toLowerCase().includes(q)) {
+      results.push({ type: 'Tab', title: tab.name, action: () => {
+        dashboardStore.activeTabId = tab.id
+        router.push('/dashboard')
+      }, icon: LayoutDashboard })
+    }
+  })
+  
+  return results.slice(0, 8)
+})
+
+const executeSearchItem = (item) => {
+  item.action()
+  searchQuery.value = ''
+  isSearchFocused.value = false
+  searchInputRef.value?.blur()
+}
+
+import { onMounted, onUnmounted } from 'vue'
+const handleKeydown = (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+    e.preventDefault()
+    searchInputRef.value?.focus()
+  }
+}
+onMounted(() => window.addEventListener('keydown', handleKeydown))
+onUnmounted(() => window.removeEventListener('keydown', handleKeydown))
 
 const fileInputRef = ref(null)
 
@@ -351,9 +413,11 @@ v-else
       <div class="relative hidden md:block">
         <Search class="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
         <input 
-          type="text" 
-          :placeholder="$t('header.search')" 
-          class="h-8 pl-8 pr-3 text-xs bg-muted border border-border rounded-md focus:outline-none focus:border-primary w-48 lg:w-64 transition-all"
+          type="text"
+          :placeholder="`${$t('header.search')} (Ctrl+K)`"
+          class="h-8 pl-8 pr-3 text-xs bg-muted border border-border rounded-md focus:outline-none focus:border-primary w-48 lg:w-64 transition-all cursor-pointer" 
+          readonly
+          @click="uiStore.toggleCommandPalette(true)"
         />
       </div>
 
@@ -402,7 +466,7 @@ v-else
       <div class="flex items-center gap-2 pl-3 border-l border-border">
         <LanguageSwitch />
         <button class="w-8 h-8 rounded-full bg-muted border border-border flex items-center justify-center text-sm font-medium hover:bg-muted/80 transition-colors">
-          JM
+          <User class="w-4 h-4 text-muted-foreground" />
         </button>
       </div>
     </div>

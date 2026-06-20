@@ -74,7 +74,7 @@ class SqlClient {
     this.cache.clear()
   }
 
-  async query(sql, params = []) {
+  async query(sql, params = [], options = {}) {
     await this.initPromise
     let finalSql = sql
     
@@ -93,8 +93,26 @@ class SqlClient {
     }
 
     const cacheKey = safeStringify({ sql: finalSql, params })
+    const now = Date.now()
+    
     if (this.cache.has(cacheKey)) {
-      return this.cache.get(cacheKey)
+      const entry = this.cache.get(cacheKey)
+      let valid = true
+      
+      if (options.ttl && options.ttl !== 'none') {
+        let ttlMs = 0
+        if (options.ttl === '5m') ttlMs = 5 * 60 * 1000
+        else if (options.ttl === '1h') ttlMs = 60 * 60 * 1000
+        
+        if (ttlMs > 0 && (now - entry.timestamp > ttlMs)) {
+          valid = false
+          this.cache.delete(cacheKey)
+        }
+      }
+      
+      if (valid) {
+        return entry.data
+      }
     }
     
     let result;
@@ -123,7 +141,7 @@ class SqlClient {
       throw new Error(`DuckDB Query Error: ${err.message}`)
     }
 
-    this.cache.set(cacheKey, result)
+    this.cache.set(cacheKey, { timestamp: now, data: result })
     if (this.cache.size > MAX_CACHE_SIZE) {
       const firstKey = this.cache.keys().next().value
       this.cache.delete(firstKey)
@@ -198,7 +216,7 @@ class SqlClient {
     try {
       await this.conn.query(`DROP TABLE IF EXISTS "${name}"`)
     } catch (e) {
-      console.warn('Drop table warning', e)
+      Logger.warn('SqlClient', 'Drop table warning', e)
     }
     return true
   }
@@ -222,7 +240,7 @@ class SqlClient {
       }
       return true
     } catch (err) {
-      console.error('[SqlClient] Error in createTableFromFile:', err)
+      Logger.error('SqlClient', 'Error in createTableFromFile:', err)
       throw err
     }
   }
@@ -270,7 +288,7 @@ class SqlClient {
     } catch (err) {
       console.error('[SqlClient] Error in getFilePreview:', err)
       try {
-        await this.db.registerFileBuffer(tempFileName, null)
+        await this.db.dropFile(tempFileName)
       } catch (e) {
         // ignore
       }
@@ -281,7 +299,7 @@ class SqlClient {
   async cleanupFile(fileName) {
     await this.initPromise
     try {
-      await this.db.registerFileBuffer(fileName, null)
+      await this.db.dropFile(fileName)
     } catch (err) {
       console.warn('[SqlClient] Failed to cleanup file:', fileName, err)
     }
@@ -321,7 +339,7 @@ class SqlClient {
         originalType: col.type
       }))
     } catch (err) {
-      console.error('[SqlClient] Error in getTableSchema:', err)
+      Logger.error('SqlClient', 'Error in getTableSchema:', err)
       return []
     }
   }
@@ -426,7 +444,7 @@ class SqlClient {
           await this.conn.query(`ALTER TABLE "${tempTableName}_tmp" RENAME TO "${tempTableName}"`)
           currentColumns.push(step.config.newColumnName)
         } catch (err) {
-          console.warn(`Formula error:`, err)
+          Logger.warn('SqlClient', `Formula error:`, err)
         }
       }
       else if (step.transformId === 'remove_nulls') {
@@ -583,7 +601,7 @@ class SqlClient {
         await this.conn.query(`ALTER TABLE "${tempTableName}_tmp" RENAME TO "${tempTableName}"`)
       }
       else {
-        console.warn(`[SqlWorkerClient] Unhandled transformation step: ${step.transformId}`)
+        Logger.warn('SqlClient', `Unhandled transformation step: ${step.transformId}`)
       }
     }
 

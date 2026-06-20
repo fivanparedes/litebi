@@ -2,11 +2,14 @@
 import { onMounted, onUnmounted } from 'vue'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import BaseToast from '@/components/ui/BaseToast.vue'
+import CommandPalette from '@/components/ui/CommandPalette.vue'
 import { useProjectStore } from '@/stores/projectStore'
 import { useSettingsStore } from '@/stores/settingsStore'
+import { useUiStore } from '@/stores/uiStore'
 
 const projectStore = useProjectStore()
 const settingsStore = useSettingsStore()
+const uiStore = useUiStore()
 
 const handleKeydown = (e) => {
   if (e.ctrlKey && e.key === 's') {
@@ -24,11 +27,34 @@ const handleKeydown = (e) => {
   }
 }
 
-onMounted(() => {
-  projectStore.autoLoad()
-  settingsStore.setTheme(settingsStore.theme)
-  settingsStore.setUiScale(settingsStore.uiScale)
-  window.addEventListener('keydown', handleKeydown)
+onMounted(async () => {
+  const removeLoaders = () => {
+    const loader = document.getElementById('global-loader')
+    if (loader) {
+      loader.classList.add('fade-out')
+      setTimeout(() => {
+        if (loader.parentNode) loader.remove()
+      }, 400)
+    }
+    if (window.electronAPI && window.electronAPI.appReady) {
+      window.electronAPI.appReady()
+    }
+  }
+
+  // Failsafe timer: always hide loaders after 10 seconds, regardless of hangs
+  const failsafeTimer = setTimeout(removeLoaders, 10000)
+
+  try {
+    await projectStore.autoLoad()
+  } catch (error) {
+    console.error("Error durante autoLoad en inicio:", error)
+  } finally {
+    clearTimeout(failsafeTimer)
+    settingsStore.setTheme(settingsStore.theme)
+    settingsStore.setUiScale(settingsStore.uiScale)
+    window.addEventListener('keydown', handleKeydown)
+    removeLoaders()
+  }
 })
 
 onUnmounted(() => {
@@ -38,6 +64,7 @@ onUnmounted(() => {
 
 <template>
   <AppLayout />
+  <CommandPalette v-model="uiStore.isCommandPaletteOpen" />
   <BaseToast />
 </template>
 

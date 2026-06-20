@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
-import { Database, Link, AlertTriangle, Loader2, Play } from '@lucide/vue'
+import { AlertTriangle, Loader2, Play } from '@lucide/vue'
 import BaseModal from '@/components/ui/BaseModal.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseInput from '@/components/ui/BaseInput.vue'
@@ -93,7 +93,7 @@ const handleConnect = async () => {
           await dataStore.addDataset(credentials.value.datasetName, resultData, null, config, refreshInterval.value)
         }
         uiStore.addToast({
-          message: `Importados ${resultData.length} registros exitosamente.`,
+          message: resultData instanceof File ? 'Importación de datos completada exitosamente.' : `Importados ${resultData.length} registros exitosamente.`,
           type: 'success'
         })
         emit('imported', credentials.value.datasetName)
@@ -129,6 +129,10 @@ const handleTest = async () => {
       // Si es un archivo (Parquet), por ahora no podemos previsualizarlo tan fácil
       // sin cargarlo a DuckDB, así que simularemos que fue exitoso o mostraremos metadatos.
       previewData.value = [{ 
+        Estado: 'Conexión Exitosa',
+        Origen: `${credentials.value.host}:${credentials.value.port}`,
+        'Base de Datos': credentials.value.database,
+        Usuario: credentials.value.user,
         Archivo: resultData.name, 
         Tamaño: (resultData.size / 1024).toFixed(2) + ' KB',
         Formato: 'Parquet Binario' 

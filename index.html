@@ -5,15 +5,109 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="LiteBI — Herramienta de Business Intelligence ligera para análisis de datos y dashboards interactivos">
   <meta name="theme-color" content="#ffffff">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' data: blob: https:;">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' data: blob: https: http://localhost:* ws://localhost:*;">
   <title>LiteBI — Business Intelligence</title>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    /* Estilos del Loading Screen Global (Web) */
+    #global-loader {
+      position: fixed;
+      inset: 0;
+      z-index: 99999;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background-color: #09090b; /* Default dark */
+      color: #fafafa;
+      font-family: 'Inter', sans-serif;
+      transition: opacity 0.4s ease-out;
+    }
+    @media (prefers-color-scheme: light) {
+      #global-loader {
+        background-color: #ffffff;
+        color: #09090b;
+      }
+    }
+    #global-loader.fade-out {
+      opacity: 0;
+      pointer-events: none;
+    }
+    .gl-logo-container {
+      position: relative;
+      width: 64px;
+      height: 64px;
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .gl-pulse-ring {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      border: 2px solid #3b82f6;
+      opacity: 0;
+      animation: gl-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+    .gl-pulse-ring:nth-child(2) {
+      animation-delay: 0.5s;
+    }
+    .gl-logo {
+      width: 40px;
+      height: 40px;
+      background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+      border-radius: 10px;
+      z-index: 10;
+      box-shadow: 0 4px 20px rgba(59, 130, 246, 0.4);
+    }
+    .gl-title {
+      font-size: 20px;
+      font-weight: 600;
+      margin: 0 0 6px 0;
+      letter-spacing: -0.5px;
+    }
+    .gl-subtitle {
+      font-size: 13px;
+      color: #71717a;
+      margin: 0;
+    }
+    @media (prefers-color-scheme: light) {
+      .gl-subtitle { color: #a1a1aa; }
+    }
+    @keyframes gl-pulse {
+      0% { transform: scale(0.8); opacity: 0.8; }
+      100% { transform: scale(1.5); opacity: 0; }
+    }
+  </style>
 </head>
 <body>
   <noscript>LiteBI requiere JavaScript para funcionar.</noscript>
+  <div id="global-loader">
+    <div class="gl-logo-container">
+      <div class="gl-pulse-ring"></div>
+      <div class="gl-pulse-ring"></div>
+      <div class="gl-logo"></div>
+    </div>
+    <h1 class="gl-title">LiteBI</h1>
+    <p class="gl-subtitle">Iniciando aplicación...</p>
+  </div>
+  <script>
+    // Failsafe crítico: Si Vue crashea silenciosamente, quitar el loader web
+    setTimeout(() => {
+      const loader = document.getElementById('global-loader')
+      if (loader) {
+        loader.classList.add('fade-out')
+        setTimeout(() => {
+          if (loader.parentNode) loader.remove()
+        }, 400)
+      }
+    }, 12000)
+  </script>
   <div id="app"></div>
   <script type="module" src="/src/main.js"></script>
 </body>

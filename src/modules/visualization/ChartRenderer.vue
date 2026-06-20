@@ -32,7 +32,7 @@ import DataGrid from '@/modules/cleaning/DataGrid.vue'
 import MapRenderer from './MapRenderer.vue'
 import { generateForecastDataset } from '@/modules/analytics/forecasting'
 import { useUiStore } from '@/stores/uiStore'
-
+import AdvancedTooltip from '@/components/ui/AdvancedTooltip.vue'
 registerTransform(ecStat.transform.regression)
 registerTransform(ecStat.transform.clustering)
 
@@ -113,6 +113,13 @@ const currentXAxis = computed(() => {
 
 const forecastData = ref(null)
 
+// Advanced Tooltip State
+const advTooltipVisible = ref(false)
+const advTooltipX = ref(0)
+const advTooltipY = ref(0)
+const advTooltipParams = ref([])
+const advTooltipMode = computed(() => props.config.interactions?.tooltipPage?.mode || 'list')
+const useAdvancedTooltip = computed(() => props.config.interactions?.tooltipPage?.enabled === true)
 watch([() => chartData.value, () => props.config.ml?.forecasting, () => props.config.ml?.forecastPeriods], async ([data, isForecasting, periods]) => {
   if (isForecasting && data && data.length > 0) {
     const xAxisData = data.map(d => d.name)
@@ -152,6 +159,10 @@ const loadData = async () => {
   isLoading.value = true
   sqlError.value = null
   pythonError.value = null
+
+  const runQuery = async (queryStr) => {
+    return await sqlClient.query(queryStr, [], { ttl: props.config.advanced?.query?.cacheTtl })
+  }
   
   // Permitir que el hilo de UI se libere antes de cálculos pesados
   await new Promise(resolve => setTimeout(resolve, 0))
@@ -258,7 +269,7 @@ const loadData = async () => {
       if (props.config.type === 'scorecard' && rawY2) {
         const y2SafeExp = resolveY(rawY2, agg)
         const q = `SELECT ${ySafeExp} as "total", ${y2SafeExp} as "target" FROM ${fromClause} WHERE 1=1 ${globalWhere}`
-        const res = markRaw(await sqlClient.query(q))
+        const res = markRaw(await runQuery(q))
         kpiValue.value = {
           total: res[0]?.total || 0,
           target: res[0]?.target || 0
@@ -268,7 +279,7 @@ const loadData = async () => {
         const baseColExp = rawY.startsWith('__METRIC__') ? '1' : parseCol(rawY)
         const nullCheck = baseColExp === '1' ? '' : ` AND ${baseColExp} IS NOT NULL`
         const q = `SELECT ${ySafeExp} as "total" FROM ${fromClause} WHERE 1=1${nullCheck}${globalWhere}`
-        const res = markRaw(await sqlClient.query(q))
+        const res = markRaw(await runQuery(q))
         kpiValue.value = res[0]?.total || 0
       }
     } catch (e) {
@@ -288,8 +299,11 @@ const loadData = async () => {
   
   const dsName = props.config.dataset
   const rawX = currentXAxis.value
-  const rawY = Array.isArray(props.config.yAxis) ? props.config.yAxis[0] : props.config.yAxis
+  const yAxes = Array.isArray(props.config.yAxis) ? props.config.yAxis.filter(Boolean) : (props.config.yAxis ? [props.config.yAxis] : [])
+  const rawY = yAxes[0]
   const rawY2 = Array.isArray(props.config.secondaryYAxis) ? props.config.secondaryYAxis[0] : props.config.secondaryYAxis
+  const extraTooltips = Array.isArray(props.config.tooltips) ? props.config.tooltips.filter(Boolean) : (props.config.tooltips ? [props.config.tooltips] : [])
+  const rawLegend = Array.isArray(props.config.legend) ? props.config.legend[0] : props.config.legend
   const agg = props.config.aggregation || 'SUM'
   
   const parseCol = (colStr, fallbackTable = dsName) => {
@@ -333,8 +347,11 @@ const loadData = async () => {
   }
 
   let globalWhere = ''
-  const requiredTables = [dsName, extractTable(rawX), extractTable(rawY)]
+  const requiredTables = [dsName, extractTable(rawX)]
+  yAxes.forEach(y => requiredTables.push(extractTable(y)))
+  extraTooltips.forEach(t => requiredTables.push(extractTable(t)))
   if (rawY2) requiredTables.push(extractTable(rawY2))
+  if (rawLegend) requiredTables.push(extractTable(rawLegend))
   
   dashboardStore.globalFilters.forEach(f => {
     if (f.dataset !== dsName) {
@@ -427,7 +444,7 @@ const loadData = async () => {
     
     if (props.config.type === 'boxplot') {
       const q = `SELECT ${xSelect} as "name", min(${ySafeExp}) as min_val, quantile_cont(${ySafeExp}, 0.25) as q1, quantile_cont(${ySafeExp}, 0.5) as median, quantile_cont(${ySafeExp}, 0.75) as q3, max(${ySafeExp}) as max_val FROM ${fromClause} WHERE ${xSafe} IS NOT NULL${yNullCheck}${globalWhere} GROUP BY ${xSafe} LIMIT 100`
-      chartData.value = markRaw(await sqlClient.query(q))
+      chartData.value = markRaw(await runQuery(q))
       isLoading.value = false
       return
     }
@@ -441,11 +458,11 @@ const loadData = async () => {
         ? `SELECT ${xSelect} as "name", ${ySafeExp} as "value" ${selectY2} FROM ${fromClause} WHERE ${xSafe} IS NOT NULL${yNullCheck}${globalWhere} ${groupByMap} LIMIT 2000`
         : `SELECT ${xSelect} as "name", ${ySafeExp} as "value" FROM ${fromClause} WHERE ${xSafe} IS NOT NULL${yNullCheck}${globalWhere} LIMIT 2000`
         
-      const rawData = await sqlClient.query(q)
+      const rawData = await runQuery(q)
       
       if (props.config.type === 'scatter' && props.config.ml?.regressionType === 'linear') {
         const regQ = `SELECT regr_slope(${ySafeExp}, ${xSafe}) as slope, regr_intercept(${ySafeExp}, ${xSafe}) as intercept, min(${xSafe}) as min_x, max(${xSafe}) as max_x FROM ${fromClause} WHERE ${xSafe} IS NOT NULL${yNullCheck}${globalWhere}`
-        const regRes = await sqlClient.query(regQ)
+        const regRes = await runQuery(regQ)
         if (regRes && regRes.length > 0 && regRes[0].slope !== null) {
           rawData.regressionLine = [
             [regRes[0].min_x, regRes[0].slope * regRes[0].min_x + regRes[0].intercept],
@@ -463,7 +480,7 @@ const loadData = async () => {
     if (props.config.type === 'heatmap' && rawY2) {
       const ySafe2Exp = resolveY(rawY2, agg)
       const q = `SELECT ${xSelect} as "name", ${y2Select} as "name2", ${ySafeExp} as "value" FROM ${fromClause} WHERE ${xSafe} IS NOT NULL${yNullCheck}${globalWhere} GROUP BY ${xSafe}, ${ySafe2Exp} LIMIT 1000`
-      chartData.value = markRaw(await sqlClient.query(q))
+      chartData.value = markRaw(await runQuery(q))
       isLoading.value = false
       return
     }
@@ -475,8 +492,9 @@ const loadData = async () => {
         const sortByClean = props.config.sortBy
         if (sortByClean === props.config.xAxis || sortByClean === rawX) {
           sortCol = '"name"'
-        } else if (sortByClean === props.config.yAxis || sortByClean === rawY) {
-          sortCol = '"value"'
+        } else if (yAxes.includes(sortByClean)) {
+          const idx = yAxes.indexOf(sortByClean)
+          sortCol = `"${idx === 0 ? 'value' : 'value_' + idx}"`
         } else if (sortByClean === props.config.secondaryYAxis || sortByClean === rawY2) {
           sortCol = '"value2"'
         }
@@ -485,35 +503,50 @@ const loadData = async () => {
         orderClause = `ORDER BY ${sortCol} ${dir}`
       }
       
-      const limitVal = props.config.topN ? parseInt(props.config.topN, 10) : 100
+      const limitVal = props.config.topN ? parseInt(props.config.topN, 10) : (props.config.advanced?.query?.rowLimit ? parseInt(props.config.advanced.query.rowLimit, 10) : 100)
       const safeLimit = !isNaN(limitVal) && limitVal > 0 ? limitVal : 100
       
       return `${orderClause} LIMIT ${safeLimit}`
     }
 
-    if ((props.config.type === 'combo' || props.config.type === 'line' || props.config.type === 'bar') && rawY2) {
-      const q = `SELECT ${xSelect} as "name", ${ySafeExp} as "value", ${y2Select} as "value2" FROM ${fromClause} WHERE ${xSafe} IS NOT NULL${globalWhere} GROUP BY ${xSafe} ${getSortAndLimitClause()}`
-      chartData.value = markRaw(await sqlClient.query(q))
+    if (props.config.type === 'combo' || props.config.type === 'line' || props.config.type === 'bar') {
+      let selectCols = `${xSelect} as "name"`
+      if (rawLegend) {
+        selectCols += `, ${parseCol(rawLegend, dsName)} as "category"`
+      }
+
+      yAxes.forEach((yCol, idx) => {
+        selectCols += `, ${resolveY(yCol, agg)} as "${idx === 0 ? 'value' : 'value_' + idx}"`
+      })
+      if (rawY2) selectCols += `, ${y2Select} as "value2"`
+      
+      extraTooltips.forEach((tCol, idx) => {
+        selectCols += `, ${resolveY(tCol, agg)} as "tooltip_${idx}"`
+      })
+
+      const groupByCols = rawLegend ? `${xSafe}, ${parseCol(rawLegend, dsName)}` : `${xSafe}`
+      const q = `SELECT ${selectCols} FROM ${fromClause} WHERE ${xSafe} IS NOT NULL${globalWhere} GROUP BY ${groupByCols} ${getSortAndLimitClause()}`
+      chartData.value = markRaw(await runQuery(q))
       isLoading.value = false
       return
     }
 
     if (props.config.type === 'gauge') {
       const q = `SELECT ${ySafeExp} as "value" FROM ${fromClause} WHERE 1=1${yNullCheck}${globalWhere}`
-      chartData.value = markRaw(await sqlClient.query(q))
+      chartData.value = markRaw(await runQuery(q))
       isLoading.value = false
       return
     }
 
     if (props.config.type === 'calendar') {
       const q = `SELECT ${xSelect} as "name", ${ySafeExp} as "value" FROM ${fromClause} WHERE ${xSafe} IS NOT NULL${globalWhere} GROUP BY ${xSafe} LIMIT 2000`
-      chartData.value = markRaw(await sqlClient.query(q))
+      chartData.value = markRaw(await runQuery(q))
       isLoading.value = false
       return
     }
     
     const q = `SELECT ${xSelect} as "name", ${ySafeExp} as "value" FROM ${fromClause} WHERE ${xSafe} IS NOT NULL${globalWhere} GROUP BY ${xSafe} ${getSortAndLimitClause()}`
-    chartData.value = markRaw(await sqlClient.query(q))
+    chartData.value = markRaw(await runQuery(q))
   } catch (e) {
     console.error("Error generating chart data:", e)
     sqlError.value = e.message || 'Error de sintaxis SQL. Revisa los filtros y tipos de datos.'
@@ -594,7 +627,18 @@ watch(() => props.config?.customGeoJson, () => {
 const formattedKpi = computed(() => {
   const formatVal = (v) => {
     if (typeof v !== 'number') return v
-    return new Intl.NumberFormat('es-AR', { maximumFractionDigits: 2 }).format(v)
+    const decimals = props.config.styles?.decimals !== undefined ? Number(props.config.styles.decimals) : 0;
+    const useGrouping = props.config.styles?.thousandsSep !== false;
+    
+    let formatted = new Intl.NumberFormat('es-AR', {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals,
+      useGrouping: useGrouping
+    }).format(v);
+    
+    if (props.config.styles?.numberFormat === 'currency') return `$${formatted}`;
+    if (props.config.styles?.numberFormat === 'percent') return `${formatted}%`;
+    return formatted;
   }
   
   if (props.config.type === 'scorecard') {
@@ -606,26 +650,112 @@ const formattedKpi = computed(() => {
       value: formatVal(val),
       target: formatVal(target),
       diff: formatVal(diff),
-      pct: formatVal(pct),
+      pct: new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 }).format(pct) + '%',
       isPositive: diff >= 0
     }
   }
   
   return formatVal(kpiValue.value)
 })
+const formatNumber = (value, styles) => {
+  if (typeof value !== 'number') return value;
+  const decimals = styles?.decimals !== undefined ? Number(styles.decimals) : 0;
+  const useGrouping = styles?.thousandsSep !== false;
+  
+  let formatted = new Intl.NumberFormat('es-AR', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+    useGrouping: useGrouping
+  }).format(value);
+  
+  if (styles?.numberFormat === 'currency') return `$${formatted}`;
+  if (styles?.numberFormat === 'percent') return `${formatted}%`;
+  return formatted;
+}
 
 const echartOptions = computed(() => {
   const ctype = props.config.type || 'bar'
   if (ctype === 'kpi' || ctype === 'scorecard' || ctype === 'image' || ctype === 'python' || ctype === 'grid') return null
   
+
+  const getPaletteColors = (paletteName) => {
+    switch (paletteName) {
+      case 'slate_indigo': return ['#6366f1', '#4f46e5', '#4338ca', '#3730a3', '#312e81', '#1e1b4b'] // Indigos
+      case 'emerald': return ['#10b981', '#059669', '#047857', '#065f46', '#064e3b', '#022c22']
+      case 'rose': return ['#f43f5e', '#e11d48', '#be123c', '#9f1239', '#881337', '#4c0519']
+      default: return null
+    }
+  }
+
   const baseOption = {
-    color: props.config.styles?.customColors?.length ? props.config.styles.customColors : settingsStore.currentChartColors,
+    color: props.config.styles?.customColors?.length 
+      ? props.config.styles.customColors 
+      : (getPaletteColors(props.config.styles?.palette) || settingsStore.currentChartColors),
     title: {
+      show: props.config.styles?.showTitle !== false,
       text: props.config.title || '',
-      left: 'left',
+      left: props.config.styles?.titleAlign || 'left',
       padding: [0, 0, 16, 0]
     },
-    tooltip: { trigger: ctype === 'pie' || ctype === 'map' ? 'item' : 'axis' },
+    tooltip: { 
+      show: true,
+      trigger: ctype === 'pie' || ctype === 'map' ? 'item' : 'axis',
+      backgroundColor: useAdvancedTooltip.value ? 'transparent' : 'rgba(255, 255, 255, 0.9)',
+      borderColor: useAdvancedTooltip.value ? 'transparent' : '#e2e8f0',
+      borderWidth: useAdvancedTooltip.value ? 0 : 1,
+      padding: useAdvancedTooltip.value ? 0 : [8, 12],
+      extraCssText: useAdvancedTooltip.value ? 'box-shadow: none;' : 'box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); border-radius: 6px;',
+      formatter: function(params) {
+        if (useAdvancedTooltip.value) {
+          advTooltipParams.value = params;
+          advTooltipVisible.value = true;
+          return ''; // Hide native tooltip content
+        }
+        
+        // Build custom native tooltip to include extra tooltip fields
+        let dataIndex = 0;
+        let axisValue = '';
+        let seriesHtml = '';
+        const paramsArr = Array.isArray(params) ? params : [params];
+        
+        paramsArr.forEach(p => {
+          dataIndex = p.dataIndex;
+          axisValue = p.axisValue || p.name;
+          // When dimensionNames/encode is available we read properly, else value
+          let val = p.value;
+          if (Array.isArray(val) && p.encode && p.encode.y) {
+            val = val[p.encode.y[0]];
+          } else if (Array.isArray(val)) {
+            val = val[1] !== undefined ? val[1] : val[0];
+          } else if (typeof val === 'object' && val !== null) {
+            val = val.value || val[p.seriesName];
+          }
+          const valStr = formatNumber(val, props.config.styles);
+          seriesHtml += `<div>${p.marker} ${p.seriesName || p.name}: <span style="font-weight:bold">${valStr}</span></div>`;
+        });
+        
+        let html = `<div style="font-weight:bold;margin-bottom:4px;">${axisValue}</div>${seriesHtml}`;
+        
+        // Add extra tooltips if any
+        if (extraTooltips.length > 0 && chartData.value[dataIndex]) {
+          html += `<hr style="margin:8px 0; border-top:1px solid #ccc;"/>`;
+          extraTooltips.forEach((tCol, idx) => {
+            const rawVal = chartData.value[dataIndex][`tooltip_${idx}`];
+            const fmtVal = formatNumber(rawVal, props.config.styles);
+            html += `<div><span style="display:inline-block;margin-right:4px;border-radius:10px;width:10px;height:10px;background-color:#999;"></span> ${tCol}: <span style="font-weight:bold">${fmtVal}</span></div>`;
+          });
+        }
+        return html;
+      },
+      position: function (point, params, dom, rect, size) {
+        if (useAdvancedTooltip.value) {
+          advTooltipX.value = point[0];
+          advTooltipY.value = point[1];
+          return point;
+        }
+        return undefined; // Let ECharts decide natively
+      }
+    },
     grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true }
   }
   
@@ -647,11 +777,21 @@ const echartOptions = computed(() => {
   }
 
   const data = chartData.value
-  const xAxisData = data.map(d => d.name)
   const seriesData = data.map(d => d.value)
+  const xAxisData = [...new Set(data.map(d => d.name))]
 
   const resolveMetricName = (yConfig) => {
-    const rawVal = Array.isArray(yConfig) ? yConfig[0] : yConfig;
+    if (Array.isArray(yConfig)) {
+      return yConfig.map(y => {
+        if (y?.startsWith('__METRIC__')) {
+          const metricId = y.split('__METRIC__')[1]
+          const metric = formulaStore.getCorporateMetricsForDataset(props.config.dataset).find(m => m.id === metricId)
+          if (metric) return metric.name
+        }
+        return y
+      })
+    }
+    const rawVal = yConfig;
     if (rawVal?.startsWith('__METRIC__')) {
       const metricId = rawVal.split('__METRIC__')[1]
       const metrics = formulaStore.getCorporateMetricsForDataset(props.config.dataset)
@@ -734,6 +874,13 @@ const handleChartClick = (params) => {
     const dsName = props.config.dataset
     const rawX = currentXAxis.value
     
+    // Check for advanced drill-through (Tab Navigation)
+    if (props.config.interactions?.drillThrough?.enabled && props.config.interactions?.drillThrough?.targetPage) {
+      dashboardStore.addFilter(dsName, rawX, params.name, `${rawX}: ${params.name}`)
+      dashboardStore.activeTabId = props.config.interactions.drillThrough.targetPage
+      return
+    }
+
     if (isDrillable.value) {
       // Drill Down
       drillPath.value.push({ colName: rawX, value: params.name })
@@ -741,19 +888,24 @@ const handleChartClick = (params) => {
       loadData()
     } else {
       // Cross Filter
-      dashboardStore.addFilter(dsName, rawX, params.name, `${rawX}: ${params.name}`)
+      if (props.config.interactions?.crossFilter !== false) {
+        dashboardStore.addFilter(dsName, rawX, params.name, `${rawX}: ${params.name}`)
+      }
     }
   }
 }
 
 const gridData = computed(() => {
   return chartData.value.map(row => {
-    const rawY = Array.isArray(props.config.yAxis) ? props.config.yAxis[0] : props.config.yAxis
+    const yAxes = Array.isArray(props.config.yAxis) ? props.config.yAxis.filter(Boolean) : (props.config.yAxis ? [props.config.yAxis] : [])
     const rawY2 = Array.isArray(props.config.secondaryYAxis) ? props.config.secondaryYAxis[0] : props.config.secondaryYAxis
     const obj = {
       [currentXAxis.value || 'X']: row.name,
-      [rawY || 'Y']: typeof row.value === 'number' ? Number(row.value.toFixed(2)) : row.value
     }
+    yAxes.forEach((yCol, idx) => {
+      const valKey = idx === 0 ? 'value' : `value_${idx}`
+      obj[yCol] = typeof row[valKey] === 'number' ? Number(row[valKey].toFixed(2)) : row[valKey]
+    })
     if (rawY2) {
       obj[rawY2] = typeof row.value2 === 'number' ? Number(row.value2.toFixed(2)) : row.value2
     }
@@ -762,12 +914,12 @@ const gridData = computed(() => {
 })
 
 const gridSchema = computed(() => {
-  const rawY = Array.isArray(props.config.yAxis) ? props.config.yAxis[0] : props.config.yAxis
+  const yAxes = Array.isArray(props.config.yAxis) ? props.config.yAxis.filter(Boolean) : (props.config.yAxis ? [props.config.yAxis] : [])
   const rawY2 = Array.isArray(props.config.secondaryYAxis) ? props.config.secondaryYAxis[0] : props.config.secondaryYAxis
   const schema = [
     { name: currentXAxis.value || 'X', type: 'string' },
-    { name: rawY || 'Y', type: 'number' }
   ]
+  yAxes.forEach(yCol => schema.push({ name: yCol, type: 'number' }))
   if (rawY2) {
     schema.push({ name: rawY2, type: 'number' })
   }
@@ -775,6 +927,10 @@ const gridSchema = computed(() => {
 })
 
 const exportToCSV = () => {
+  if (props.config.advanced?.permissions?.exportCsv === false) {
+    uiStore.addToast({ message: 'La exportación a CSV está deshabilitada para este widget', type: 'error' })
+    return
+  }
   if (!chartData.value || chartData.value.length === 0) {
     uiStore.addToast({ message: 'No hay datos para exportar', type: 'info' })
     return
@@ -802,7 +958,7 @@ defineExpose({
 </script>
 
 <template>
-  <div class="chart-wrapper">
+  <div class="chart-wrapper" @mouseleave="advTooltipVisible = false">
     <div v-if="isLoading" class="chart-loading">
       <Loader class="spin-icon" size="32" />
       <span>Cargando...</span>
@@ -862,7 +1018,7 @@ defineExpose({
     </div>
 
     <div v-else-if="config.type === 'grid'" class="data-grid-container">
-      <DataGrid :data="gridData" :schema="gridSchema" />
+      <DataGrid :data="gridData" :schema="gridSchema" :config="config" />
     </div>
 
     <MapRenderer 
@@ -879,6 +1035,15 @@ defineExpose({
       :theme="settingsStore.theme === 'dark' ? 'business-dark' : 'business-light'" 
       autoresize 
       @click="handleChartClick"
+    />
+
+    <AdvancedTooltip 
+      :visible="advTooltipVisible"
+      :x="advTooltipX"
+      :y="advTooltipY"
+      :params="advTooltipParams"
+      :mode="advTooltipMode"
+      :formatters="{ format: (val, seriesName) => formatNumber(val, config.styles) }"
     />
   </div>
 </template>

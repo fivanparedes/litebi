@@ -171,6 +171,46 @@
 - **Descripción**: Poder guardar un dashboard como "Template" para futuros proyectos y establecer un "Brand Kit" (subir Logo de la empresa, paleta de colores corporativa obligatoria) que todos los gráficos heredarán por defecto.
 - **Criterio de completitud**: Editor de temas globales y capacidad de guardar un `.litebi-template`.
 
+### Etapa 22: Corrección de Errores Críticos y Robustez (Phase 1)
+- **Estado**: ✅ Completada
+- **Descripción**: Solucionar errores que causan bloqueos (ReferenceErrors en dataStore y Serializer), agregar dependencias faltantes en el backend (uuid), y arreglar condiciones de carrera en el autoguardado.
+- **Criterio de completitud**: La aplicación ya no presenta errores ReferenceError en la consola y el backend arranca sin problemas.
+
+### Etapa 23: Activación de Controles UI (Phase 2)
+- **Estado**: ⚠️ Parcialmente Completada
+- **Descripción**: Dar funcionalidad a los botones y controles que actualmente son "stubs" (ej. Refresh All, Command Palette en el buscador, validación de limpieza, etc.).
+- **Criterio de completitud**: Todos los botones de la UI realizan la acción prometida. (Falta implementar Command Palette con Ctrl+K).
+
+### Etapa 24: Integración Completa de Fuentes de Datos (Phase 3)
+- **Estado**: ⚠️ Parcialmente Completada
+- **Descripción**: Implementar conectores reales (no mockeados) para SQL Server, Salesforce y Google Analytics, así como renderizado real de mapas de coropletas.
+- **Criterio de completitud**: La conexión devuelve datos reales desde las APIs/BDD correspondientes. (Falta soporte backend para Salesforce y Google Analytics).
+
+### Etapa 25: Expansión de Cobertura de Pruebas (Phase 4)
+- **Estado**: ✅ Completada
+- **Descripción**: Aumentar la cobertura de pruebas escribiendo tests para los módulos críticos que actualmente carecen de ellos (SqlWorkerClient, Serializer, TransformPipeline, etc.).
+- **Criterio de completitud**: Cobertura general >= 60% y tests clave integrados.
+
+### Etapa 26: Limpieza de Código Muerto (Phase 5)
+- **Estado**: ⚠️ Parcialmente Completada
+- **Descripción**: Eliminar componentes no utilizados (ColumnList.vue), imports sin uso y estandarizar la generación de IDs y uso del Logger.
+- **Criterio de completitud**: Sin código huérfano y console.log reemplazado por Logger. (Quedan alert() nativos y console.log/console.error directos que migrar a Logger y Toasts).
+
+### Etapa 27: Optimización y Desacoplamiento (Phase 6)
+- **Estado**: ⚠️ Parcialmente Completada
+- **Descripción**: Carga perezosa de Pyodide, desacoplar stores fuertemente vinculados, dividir archivos grandes (ChartStrategies) y arreglar memory leaks.
+- **Criterio de completitud**: Mejor tiempo de carga inicial y sin fugas de memoria identificadas. (Falta dividir ChartStrategies.js en estrategias separadas y usar Pyodide local en python.worker.js).
+
+### Etapa 28: Seguridad (Phase 7)
+- **Estado**: ✅ Completada
+- **Descripción**: Añadir autenticación al backend, sanitización de consultas y ajuste de CSP en Electron.
+- **Criterio de completitud**: El backend está protegido con validación de entrada y auth básica.
+
+### Etapa 29: Bugfixes Finales (Phase 8)
+- **Estado**: ⏳ Pendiente
+- **Descripción**: Arreglar el scope de `formatNumber` en `ChartRenderer.vue` y el uso de `activeTab` en lugar de `activeTabId` al hacer drill-through.
+- **Criterio de completitud**: Tooltips de `ChartRenderer` no tiran ReferenceError y la navegación por clicks funciona.
+
 ---
 
 ## Stores Pinia — APIs Públicas

@@ -180,6 +180,28 @@ const removeFilter = (idx) => {
   }
 }
 
+const addRule = () => {
+  if (!localConfig.value.advanced.conditionalRules) localConfig.value.advanced.conditionalRules = []
+  localConfig.value.advanced.conditionalRules.push({
+    column: '',
+    operator: '>',
+    value: '',
+    color: '#ef4444' // default red
+  })
+}
+
+const updateRule = (idx, field, val) => {
+  if (localConfig.value.advanced.conditionalRules && localConfig.value.advanced.conditionalRules[idx]) {
+    localConfig.value.advanced.conditionalRules[idx][field] = val
+  }
+}
+
+const removeRule = (idx) => {
+  if (localConfig.value.advanced.conditionalRules) {
+    localConfig.value.advanced.conditionalRules.splice(idx, 1)
+  }
+}
+
 // Interactions list
 const otherWidgets = computed(() => {
   const layout = dashboardStore.layouts[props.tabId]
@@ -190,6 +212,12 @@ const otherWidgets = computed(() => {
     type: w.config?.type
   }))
 })
+
+const paletteColors = {
+  'slate_indigo': ['#0f172a', '#2563eb', '#059669', '#d97706', '#9333ea'],
+  'emerald': ['#064e3b', '#059669', '#10b981', '#34d399', '#6ee7b7'],
+  'rose': ['#881337', '#e11d48', '#fb7185', '#fbcfe8', '#ffe4e6']
+}
 
 // Acciones principales
 const handleApply = () => {
@@ -490,11 +518,7 @@ size="compact" class="w-24 text-xs" :model-value="f.operator" :options="[
             </div>
           </div>
           <div class="flex gap-1.5 mt-2 ml-24">
-            <div class="w-6 h-6 rounded bg-slate-900"></div>
-            <div class="w-6 h-6 rounded bg-blue-600"></div>
-            <div class="w-6 h-6 rounded bg-emerald-600"></div>
-            <div class="w-6 h-6 rounded bg-amber-600"></div>
-            <div class="w-6 h-6 rounded bg-purple-600"></div>
+            <div v-for="color in (paletteColors[localConfig.styles?.palette] || paletteColors['slate_indigo'])" :key="color" class="w-6 h-6 rounded border border-border/50 shadow-inner" :style="{ backgroundColor: color }"></div>
           </div>
           <div class="flex items-center justify-between pt-2">
             <span class="text-xs text-muted-foreground">Data labels</span>
@@ -586,27 +610,18 @@ size="compact" class="w-24 text-xs" :model-value="f.operator" :options="[
           </div>
         </div>
 
-        <!-- DRILL-THROUGH -->
+        <!-- ADVANCED TOOLTIP -->
         <div class="space-y-3 pt-4">
-          <div class="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Drill-through</div>
-          <div class="flex items-center justify-between">
-            <span class="text-xs text-muted-foreground">Enable</span>
-            <BaseSwitch v-model="localConfig.interactions.drillThrough.enabled" square />
-          </div>
-          <div class="flex items-center gap-3">
-            <span class="text-xs text-muted-foreground w-20">Target page</span>
-            <div class="flex-1">
-              <BaseDropdown v-model="localConfig.interactions.drillThrough.targetPage" size="compact" :options="[{value:'customer_detail',label:'Customer detail'}, {value:'product_detail',label:'Product detail'}]" placeholder="Customer detail" />
-            </div>
-          </div>
-        </div>
-
-        <!-- TOOLTIP PAGE -->
-        <div class="space-y-3 pt-4">
-          <div class="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Tooltip Page</div>
-          <div class="flex items-center justify-between">
-            <span class="text-xs text-muted-foreground">Use page tooltip</span>
+          <div class="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Advanced Tooltip</div>
+          <div class="flex items-center justify-between border border-border bg-card p-2">
+            <span class="text-xs text-muted-foreground">Enable Vue Tooltip</span>
             <BaseSwitch v-model="localConfig.interactions.tooltipPage.enabled" square />
+          </div>
+          <div v-if="localConfig.interactions.tooltipPage.enabled" class="flex items-center gap-3 border border-border bg-card p-2 border-t-0 -mt-3">
+            <span class="text-xs text-muted-foreground w-20">Display Mode</span>
+            <div class="flex-1">
+              <BaseDropdown v-model="localConfig.interactions.tooltipPage.mode" size="compact" :options="[{value:'list',label:'Default List'}, {value:'table',label:'Mini-Table'}, {value:'sparkline',label:'Sparkline'}]" placeholder="Default List" />
+            </div>
           </div>
         </div>
 
@@ -622,33 +637,20 @@ size="compact" class="w-24 text-xs" :model-value="f.operator" :options="[
             <span class="text-xs text-muted-foreground">Widget ID</span>
             <span class="font-mono text-xs text-foreground bg-muted/30 px-2 py-1 rounded">{{ localConfig.id }}</span>
           </div>
-          <div class="flex items-center gap-3">
-            <span class="text-xs text-muted-foreground w-28">Bookmark group</span>
-            <div class="flex-1">
-              <BaseDropdown v-model="localConfig.advanced.bookmarkGroup" size="compact" :options="[{value:'default',label:'Default'}, {value:'group_1',label:'Group 1'}]" placeholder="Default" />
-            </div>
-          </div>
         </div>
 
-        <!-- QUERY -->
-        <div class="space-y-3 pt-2">
-          <div class="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Query</div>
+        <!-- LINE AREA SETTINGS -->
+        <div v-if="localConfig.type === 'line'" class="space-y-3 pt-2">
+          <div class="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Line Area Settings</div>
           <div class="flex items-center gap-3">
-            <span class="text-xs text-muted-foreground w-28">Aggregation mode</span>
+            <span class="text-xs text-muted-foreground w-28">Area under curve</span>
             <div class="flex-1">
-              <BaseDropdown v-model="localConfig.advanced.query.aggMode" size="compact" :options="[{value:'import',label:'Import'}, {value:'direct_query',label:'Direct Query'}]" placeholder="Import" />
-            </div>
-          </div>
-          <div class="flex items-center gap-3">
-            <span class="text-xs text-muted-foreground w-28">Cache TTL</span>
-            <div class="flex-1">
-              <BaseDropdown v-model="localConfig.advanced.query.cacheTtl" size="compact" :options="[{value:'5m',label:'5 minutes'}, {value:'1h',label:'1 hour'}, {value:'none',label:'None'}]" placeholder="5 minutes" />
-            </div>
-          </div>
-          <div class="flex items-center gap-3">
-            <span class="text-xs text-muted-foreground w-28">Row limit</span>
-            <div class="flex-1 flex justify-end">
-              <BaseInput v-model="localConfig.advanced.query.rowLimit" size="compact" type="number" class="w-32 text-right" placeholder="10000" />
+              <BaseDropdown 
+                v-model="localConfig.styles.areaType" 
+                size="compact" 
+                :options="[{value:'none',label:'None'}, {value:'axis',label:'To Axis'}, {value:'between',label:'Between (Stacked)'}]" 
+                placeholder="None" 
+              />
             </div>
           </div>
         </div>
@@ -656,24 +658,33 @@ size="compact" class="w-24 text-xs" :model-value="f.operator" :options="[
         <!-- CONDITIONAL FORMATTING -->
         <div class="space-y-3 pt-2">
           <div class="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Conditional Formatting</div>
-          <button class="w-full h-8 border border-dashed border-border text-xs text-muted-foreground hover:text-foreground hover:border-primary/60 flex items-center justify-center gap-1.5 rounded-none transition-colors bg-muted/5">
-            <Plus class="w-3.5 h-3.5" /> Add rule
-          </button>
-        </div>
-
-        <!-- PERMISSIONS -->
-        <div class="space-y-3 pt-2">
-          <div class="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Permissions</div>
-          <div class="flex items-center gap-3">
-            <span class="text-xs text-muted-foreground w-28">Visibility</span>
-            <div class="flex-1">
-              <BaseDropdown v-model="localConfig.advanced.permissions.visibility" size="compact" :options="[{value:'all',label:'All viewers'}, {value:'admins',label:'Admins only'}]" placeholder="All viewers" />
+          
+          <!-- Lista de reglas -->
+          <div v-if="localConfig.advanced.conditionalRules && localConfig.advanced.conditionalRules.length > 0" class="space-y-2">
+            <div v-for="(rule, idx) in localConfig.advanced.conditionalRules" :key="idx" class="flex flex-col gap-1.5 border border-border bg-card p-2 rounded-none relative">
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Regla {{ idx + 1 }}</span>
+                <button class="text-muted-foreground hover:text-destructive shrink-0" @click="removeRule(idx)"><X class="w-3.5 h-3.5" /></button>
+              </div>
+              <div class="flex flex-col gap-1">
+                <BaseDropdown size="compact" class="text-xs" :model-value="rule.column" :options="columnOptions" placeholder="Columna..." @update:model-value="val => updateRule(idx, 'column', val)" />
+                <div class="flex gap-1 items-center">
+                  <BaseDropdown
+                    size="compact" class="w-16 text-xs" :model-value="rule.operator" :options="[
+                      {value: '=', label: '='}, {value: '!=', label: '!='},
+                      {value: '<', label: '<'}, {value: '<=', label: '<='},
+                      {value: '>', label: '>'}, {value: '>=', label: '>='}
+                    ]" @update:model-value="val => updateRule(idx, 'operator', val)" />
+                  <BaseInput size="compact" class="flex-1 text-xs" :model-value="rule.value" placeholder="Valor" @update:model-value="val => updateRule(idx, 'value', val)" />
+                  <input type="color" :value="rule.color" class="w-6 h-6 p-0 border-0 rounded cursor-pointer shrink-0" @input="e => updateRule(idx, 'color', e.target.value)" />
+                </div>
+              </div>
             </div>
           </div>
-          <div class="flex items-center justify-between">
-            <span class="text-xs text-muted-foreground">Export to CSV</span>
-            <BaseSwitch v-model="localConfig.advanced.permissions.exportCsv" square />
-          </div>
+
+          <button class="w-full h-8 border border-dashed border-border text-xs text-muted-foreground hover:text-foreground hover:border-primary/60 flex items-center justify-center gap-1.5 rounded-none transition-colors bg-muted/5" @click="addRule">
+            <Plus class="w-3.5 h-3.5" /> Add rule
+          </button>
         </div>
 
         <!-- GEOJSON MAP SETTINGS -->

@@ -88,7 +88,12 @@ class ErrorLogger {
    */
   downloadLogs() {
     if (this.logs.length === 0) {
-      alert("No hay registros (logs) almacenados actualmente.")
+      import('@/stores/uiStore').then(({ useUiStore }) => {
+        const uiStore = useUiStore()
+        uiStore.addToast({ message: "No hay registros (logs) almacenados actualmente.", type: 'warning' })
+      }).catch(() => {
+        window.alert("No hay registros (logs) almacenados actualmente.")
+      })
       return
     }
 
@@ -110,7 +115,11 @@ class ErrorLogger {
    */
   clear() {
     this.logs = []
-    alert("Registro de errores limpiado.")
+    import('@/stores/uiStore').then(({ useUiStore }) => {
+      useUiStore().addToast({ message: "Registro de errores limpiado.", type: 'success' })
+    }).catch(() => {
+      if (typeof window !== 'undefined' && window.alert) window.alert("Registro de errores limpiado.")
+    })
   }
 }
 

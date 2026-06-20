@@ -1,9 +1,11 @@
 <script setup>
 import { computed } from 'vue'
+import { X, Image as ImageIcon, Layout, PaintBucket, Maximize } from '@lucide/vue'
+import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseInput from '@/components/ui/BaseInput.vue'
 import BaseDropdown from '@/components/ui/BaseDropdown.vue'
-import BaseButton from '@/components/ui/BaseButton.vue'
 import { useDashboardStore } from '@/stores/dashboardStore'
+import { useUiStore } from '@/stores/uiStore'
 
 const props = defineProps({
   tabId: {
@@ -23,11 +25,13 @@ const updateSetting = (key, value) => {
   dashboardStore.updateTabSettings(props.tabId, { [key]: value })
 }
 
+const uiStore = useUiStore()
+
 const handleImageUpload = (e) => {
   const file = e.target.files[0]
   if (!file) return
   if (file.size > 5 * 1024 * 1024) {
-    alert("La imagen es demasiado grande. Máximo 5MB.")
+    uiStore.addToast({ message: "La imagen es demasiado grande. Máximo 5MB.", type: 'warning' })
     return
   }
   const reader = new FileReader()

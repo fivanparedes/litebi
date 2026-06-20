@@ -3,7 +3,7 @@ import { ref, computed, watch } from 'vue'
 import BaseModal from '@/components/ui/BaseModal.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import { Filter, Check, X, AlertTriangle } from '@lucide/vue'
-
+import { useUiStore } from '@/stores/uiStore'
 
 const props = defineProps({
   modelValue: {
@@ -82,7 +82,8 @@ const handleImport = () => {
   const selectedColNames = columns.value.filter(c => c.selected).map(c => c.name)
   
   if (selectedColNames.length === 0) {
-    alert("Debe seleccionar al menos una columna para importar.")
+    const uiStore = useUiStore()
+    uiStore.addToast({ message: "Debe seleccionar al menos una columna para importar.", type: 'warning' })
     return
   }
   

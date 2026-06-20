@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useDataStore } from '@/stores/dataStore'
 import { useUiStore } from '@/stores/uiStore'
@@ -22,6 +22,17 @@ const activeConnections = computed(() => {
   return datasets.value.length
 })
 
+const failedSyncs = computed(() => {
+  return datasets.value.reduce((sum, ds) => sum + (ds.failedSyncCount || 0), 0)
+})
+
+const lastRefresh = computed(() => {
+  if (datasets.value.length === 0) return null
+  const times = datasets.value.map(ds => ds.importedAt).filter(Boolean).map(d => new Date(d).getTime())
+  if (times.length === 0) return null
+  return new Date(Math.max(...times)).toLocaleString()
+})
+
 function getIconForSource(sourceType) {
   if (sourceType === 'local') return Database
   if (sourceType === 'api') return Globe
@@ -36,6 +47,19 @@ function handleManage(name) {
 
 function handleNewConnection() {
   router.push({ path: '/data', query: { action: 'new' } })
+}
+
+const isRefreshing = ref(false)
+async function handleRefreshAll() {
+  isRefreshing.value = true
+  try {
+    await dataStore.refreshAll()
+    uiStore.addToast({ message: t('home.refreshSuccess', 'Todas las conexiones han sido actualizadas'), type: 'success' })
+  } catch (error) {
+    uiStore.addToast({ message: t('home.refreshError', 'Hubo un error al actualizar'), type: 'error' })
+  } finally {
+    isRefreshing.value = false
+  }
 }
 </script>
 
@@ -68,13 +92,16 @@ function handleNewConnection() {
       </div>
       <div class="border border-border bg-card p-4 rounded shadow-sm">
         <div class="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">{{ $t('home.lastRefresh') }}</div>
-        <div class="text-3xl font-bold tracking-tight">--</div>
+        <div class="text-3xl font-bold tracking-tight">{{ lastRefresh || '--' }}</div>
       </div>
       <div class="border border-border bg-card p-4 rounded shadow-sm">
         <div class="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">{{ $t('home.failedSyncs') }}</div>
-        <div class="text-3xl font-bold tracking-tight">0</div>
-        <div class="mt-2 flex items-center text-xs text-success font-medium">
+        <div class="text-3xl font-bold tracking-tight">{{ failedSyncs }}</div>
+        <div v-if="failedSyncs === 0" class="mt-2 flex items-center text-xs text-success font-medium">
           ALL OK
+        </div>
+        <div v-else class="mt-2 flex items-center text-xs text-destructive font-medium">
+          NEEDS ATTENTION
         </div>
       </div>
     </div>
@@ -87,8 +114,8 @@ function handleNewConnection() {
           <p class="text-xs text-muted-foreground">{{ $t('home.registeredDesc') }}</p>
         </div>
         <div class="flex gap-2">
-          <BaseButton variant="outline" size="sm">
-            <RefreshCw class="w-3.5 h-3.5 mr-2" /> {{ $t('home.refreshAll') }}
+          <BaseButton variant="outline" size="sm" :disabled="isRefreshing" @click="handleRefreshAll">
+            <RefreshCw class="w-3.5 h-3.5 mr-2" :class="{ 'animate-spin': isRefreshing }" /> {{ $t('home.refreshAll') }}
           </BaseButton>
         </div>
       </div>

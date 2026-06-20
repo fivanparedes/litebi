@@ -15,6 +15,10 @@ export default defineConfig({
     port: 5173,
     open: true
   },
+  optimizeDeps: {
+    exclude: ['pyodide']
+  },
+  assetsInclude: ['**/*.whl'],
   build: {
     target: 'esnext',
     rollupOptions: {

@@ -1,9 +1,19 @@
 import { defineStore } from 'pinia'
-import { ref, computed, watch } from 'vue'
+import { ref, watch } from 'vue'
 
 export const useUiStore = defineStore('ui', () => {
   // Sidebar
   const sidebarCollapsed = ref(false)
+  
+  // Command Palette
+  const isCommandPaletteOpen = ref(false)
+  function toggleCommandPalette(val) {
+    if (val !== undefined) {
+      isCommandPaletteOpen.value = val
+    } else {
+      isCommandPaletteOpen.value = !isCommandPaletteOpen.value
+    }
+  }
 
   function toggleSidebar() {
     sidebarCollapsed.value = !sidebarCollapsed.value
@@ -76,6 +86,9 @@ export const useUiStore = defineStore('ui', () => {
     // Sidebar
     sidebarCollapsed,
     toggleSidebar,
+    // Command Palette
+    isCommandPaletteOpen,
+    toggleCommandPalette,
     // Locale
     locale,
     setLocale,

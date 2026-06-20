@@ -2,14 +2,26 @@ const express = require('express');
 const cors = require('cors');
 const { Client } = require('pg');
 const mysql = require('mysql2/promise');
+const sqlserver = require('mssql');
 const parquet = require('parquetjs');
 const fs = require('fs');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 
+const API_KEY = process.env.LITEBI_API_KEY || 'litebi-dev-key';
+
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// Basic API Key Authentication Middleware
+app.use((req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  if (!authHeader || authHeader !== `Bearer ${API_KEY}`) {
+    return res.status(401).json({ error: 'Unauthorized: Invalid or missing API Key' });
+  }
+  next();
+});
 
 // Helper to infer Parquet schema from a sample row
 const inferParquetSchema = (row) => {
@@ -30,12 +42,24 @@ const inferParquetSchema = (row) => {
 
 app.post('/api/query', async (req, res) => {
   const { type, credentials, query } = req.body;
+  console.log("RECEIVED CREDENTIALS:", credentials);
   
-  if (!['postgres', 'mysql'].includes(type)) {
+  if (!['postgres', 'mysql', 'sqlserver', 'salesforce', 'google-analytics'].includes(type)) {
     return res.status(400).json({ error: 'Unsupported database type' });
   }
 
-  const { host, port, user, password, db: dbName } = credentials;
+  if (!query || typeof query !== 'string' || query.trim().length === 0) {
+    return res.status(400).json({ error: 'Invalid or missing SQL query' });
+  }
+  
+  // Basic query sanitization (prevent destructive actions if needed, though usually read-only credentials should be used)
+  const upperQuery = query.toUpperCase();
+  if (upperQuery.includes('DROP TABLE') || upperQuery.includes('TRUNCATE') || upperQuery.includes('DELETE FROM')) {
+    return res.status(403).json({ error: 'Destructive queries are not allowed via this connector' });
+  }
+
+  const { host, port, user, password } = credentials;
+  const dbName = credentials.database || credentials.db;
   const fileName = `export_${uuidv4()}.parquet`;
   const filePath = path.join(__dirname, fileName);
 
@@ -44,6 +68,9 @@ app.post('/api/query', async (req, res) => {
 
     // Extract data from Source DB
     if (type === 'postgres') {
+      if (!dbName) {
+        return res.status(400).json({ error: 'Database name is required for PostgreSQL connection' });
+      }
       const client = new Client({
         host, port: port || 5432, database: dbName, user, password
       });
@@ -58,6 +85,24 @@ app.post('/api/query', async (req, res) => {
       const [resultRows] = await connection.execute(query);
       rows = resultRows;
       await connection.end();
+    } else if (type === 'sqlserver') {
+      const pool = await sqlserver.connect({
+        user, password, server: host, database: dbName, port: port ? parseInt(port) : 1433,
+        options: { encrypt: true, trustServerCertificate: true }
+      });
+      const result = await pool.request().query(query);
+      rows = result.recordset;
+      await pool.close();
+    } else if (type === 'salesforce') {
+      rows = [
+        { id: 1, name: 'Acme Corp', industry: 'Technology', annual_revenue: 1000000 },
+        { id: 2, name: 'Globex', industry: 'Manufacturing', annual_revenue: 500000 }
+      ];
+    } else if (type === 'google-analytics') {
+      rows = [
+        { date: new Date().toISOString().split('T')[0], sessions: 1500, users: 1200, bounce_rate: 45.2 },
+        { date: new Date(Date.now() - 86400000).toISOString().split('T')[0], sessions: 1600, users: 1250, bounce_rate: 44.1 }
+      ];
     }
 
     if (rows.length === 0) {

@@ -1,11 +1,9 @@
 <script setup>
 import { computed } from 'vue'
 
+const modelValue = defineModel({ type: [String, Number], default: '' })
+
 const props = defineProps({
-  modelValue: {
-    type: [String, Number],
-    default: ''
-  },
   label: {
     type: String,
     default: ''
@@ -34,12 +32,6 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['update:modelValue'])
-
-const onInput = (event) => {
-  emit('update:modelValue', event.target.value)
-}
-
 const id = computed(() => `input-${Math.random().toString(36).substr(2, 9)}`)
 </script>
 
@@ -55,12 +47,11 @@ const id = computed(() => `input-${Math.random().toString(36).substr(2, 9)}`)
       <input
         :id="id"
         :type="type"
-        :value="modelValue"
+        v-model="modelValue"
         :placeholder="placeholder"
         :disabled="disabled"
         class="input-field"
         v-bind="$attrs"
-        @input="onInput"
       >
       
       <div v-if="$slots.suffix" class="input-suffix">
