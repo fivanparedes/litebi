@@ -185,7 +185,7 @@ const updateData = () => {
     map.value.on('mouseenter', 'unclustered-point', () => { map.value.getCanvas().style.cursor = 'pointer' })
     map.value.on('mouseleave', 'unclustered-point', () => { map.value.getCanvas().style.cursor = '' })
 
-  } else if (mode === 'choropleth' || mode === 'custom') {
+  } else if (mode === 'choropleth' || mode === 'custom' || mode === 'world') {
     // Si es choropleth, cargamos un GeoJSON mundial por defecto y coloreamos los polígonos
     if (!map.value.getSource('world-geojson')) {
       map.value.addSource('world-geojson', {

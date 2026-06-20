@@ -688,7 +688,7 @@ size="compact" class="w-24 text-xs" :model-value="f.operator" :options="[
         </div>
 
         <!-- GEOJSON MAP SETTINGS -->
-        <div v-if="localConfig.type === 'map'" class="space-y-3 pt-2">
+        <div v-if="localConfig.type === 'map' || localConfig.type === 'maplibre'" class="space-y-3 pt-2">
           <div class="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Map Settings</div>
           
           <div class="space-y-1">
@@ -721,6 +721,25 @@ size="compact" class="w-24 text-xs" :model-value="f.operator" :options="[
               <BaseInput v-model="localConfig.customGeoJson.featureKey" size="compact" placeholder="e.g. name, departamento, ID" class="w-full" />
               <p class="text-[10px] text-muted-foreground/70 mt-1">The property in the GeoJSON that matches your dataset's column (default: "name")</p>
             </div>
+          </div>
+        </div>
+
+        <!-- MACHINE LEARNING SETTINGS -->
+        <div v-if="['scatter', 'bar', 'line'].includes(localConfig.type)" class="space-y-3 pt-2">
+          <div class="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Machine Learning</div>
+          
+          <div v-if="localConfig.type === 'scatter'" class="space-y-1">
+            <div class="flex items-center justify-between">
+              <span class="text-xs text-muted-foreground">K-Means Clustering</span>
+            </div>
+            <BaseDropdown :model-value="localConfig.ml?.clusterCount || 'none'" @update:model-value="val => { localConfig.ml = localConfig.ml || {}; localConfig.ml.clusterCount = val; }" size="compact" :options="[{value:'none',label:'None'}, {value:'2',label:'2 Clusters'}, {value:'3',label:'3 Clusters'}, {value:'4',label:'4 Clusters'}, {value:'5',label:'5 Clusters'}]" placeholder="None" />
+          </div>
+
+          <div class="space-y-1">
+            <div class="flex items-center justify-between">
+              <span class="text-xs text-muted-foreground">Regression Line</span>
+            </div>
+            <BaseDropdown :model-value="localConfig.ml?.regressionType || 'none'" @update:model-value="val => { localConfig.ml = localConfig.ml || {}; localConfig.ml.regressionType = val; }" size="compact" :options="[{value:'none',label:'None'}, {value:'linear',label:'Linear'}, {value:'exponential',label:'Exponential'}, {value:'polynomial',label:'Polynomial'}]" placeholder="None" />
           </div>
         </div>
 

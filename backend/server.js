@@ -7,7 +7,8 @@ const parquet = require('parquetjs');
 const fs = require('fs');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
-
+const { kmeans } = require('ml-kmeans');
+const { SimpleLinearRegression, ExponentialRegression, PolynomialRegression } = require('ml-regression');
 const API_KEY = process.env.LITEBI_API_KEY || 'litebi-dev-key';
 
 const app = express();
@@ -137,6 +138,63 @@ app.post('/api/query', async (req, res) => {
 
   } catch (err) {
     console.error("Backend Error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/ml/cluster', (req, res) => {
+  try {
+    const { data, clusterCount } = req.body;
+    if (!data || !Array.isArray(data) || !clusterCount) {
+      return res.status(400).json({ error: 'Missing data or clusterCount' });
+    }
+    const k = parseInt(clusterCount, 10);
+    const result = kmeans(data, k, { initialization: 'kmeans++' });
+    res.json({ clusters: result.clusters });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/ml/regression', (req, res) => {
+  try {
+    const { data, type } = req.body;
+    if (!data || !Array.isArray(data) || !type) {
+      return res.status(400).json({ error: 'Missing data or type' });
+    }
+    const x = data.map(d => Number(d[0]));
+    const y = data.map(d => Number(d[1]));
+    
+    let reg;
+    let formula = '';
+    if (type === 'linear') {
+      reg = new SimpleLinearRegression(x, y);
+      formula = reg.toString();
+    } else if (type === 'exponential') {
+      reg = new ExponentialRegression(x, y);
+      formula = reg.toString();
+    } else if (type === 'polynomial') {
+      reg = new PolynomialRegression(x, y, 2);
+      formula = reg.toString();
+    } else {
+      return res.status(400).json({ error: 'Unsupported regression type' });
+    }
+    
+    const minX = Math.min(...x);
+    const maxX = Math.max(...x);
+    const step = (maxX - minX) / 100;
+    const points = [];
+    if (step > 0) {
+      for (let i = minX; i <= maxX; i += step) {
+        points.push([i, reg.predict(i)]);
+      }
+      points.push([maxX, reg.predict(maxX)]);
+    } else {
+      points.push([minX, reg.predict(minX)]);
+    }
+    
+    res.json({ points, formula });
+  } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });

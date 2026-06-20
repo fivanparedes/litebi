@@ -2,10 +2,9 @@
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { Search, Database, LayoutDashboard, Calculator, Zap, Home, Settings, Table } from '@lucide/vue'
+import { Search, Database, LayoutDashboard, Calculator, Zap, Home, Table } from '@lucide/vue'
 import { useDataStore } from '@/stores/dataStore'
 import { useDashboardStore } from '@/stores/dashboardStore'
-import { useFormulaStore } from '@/stores/formulaStore'
 
 const props = defineProps({
   modelValue: {
@@ -20,7 +19,6 @@ const { t } = useI18n()
 const router = useRouter()
 const dataStore = useDataStore()
 const dashboardStore = useDashboardStore()
-const formulaStore = useFormulaStore()
 
 const searchQuery = ref('')
 const selectedIndex = ref(0)
@@ -235,7 +233,7 @@ onUnmounted(() => {
           No se encontraron resultados para "{{ searchQuery }}"
         </div>
 
-        <template v-for="(item, index) in filteredItems" :key="item.id || item.header">
+        <template v-for="item in filteredItems" :key="item.id || item.header">
           
           <div v-if="item.header" class="result-header">
             {{ item.header }}

@@ -1,5 +1,5 @@
 export default () => (baseOption, data, props) => {
-  const rawData = data.map(d => [d.name, d.value])
+  const rawData = data.map(d => [d.name, d.value, d.cluster !== undefined ? d.cluster : 0])
   const result = {
     ...baseOption,
     tooltip: { trigger: 'item' },
@@ -16,9 +16,9 @@ export default () => (baseOption, data, props) => {
   }
 
   if (props.config.ml) {
-    if (props.config.ml.regressionType === 'linear' && data.regressionLine) {
+    if (props.config.ml.regressionType && props.config.ml.regressionType !== 'none' && data.regressionLine) {
       result.series.push({
-        name: 'Regresión Lineal',
+        name: `Regresión ${props.config.ml.regressionType}`,
         type: 'line',
         data: data.regressionLine,
         symbolSize: 0.1,
@@ -33,39 +33,14 @@ export default () => (baseOption, data, props) => {
           width: 2
         }
       })
-    } else if (props.config.ml.regressionType && props.config.ml.regressionType !== 'none') {
-      result.dataset.push({
-        transform: {
-          type: 'ecStat:regression',
-          config: { method: props.config.ml.regressionType }
-        }
-      })
-      result.series.push({
-        name: 'Regresión',
-        type: 'line',
-        datasetIndex: result.dataset.length - 1,
-        symbolSize: 0.1,
-        symbol: 'circle',
-        label: { show: true, fontSize: 16 },
-        labelLayout: { dx: -20 },
-        encode: { label: 2, tooltip: 1 }
-      })
     }
 
-    if (props.config.ml.clusterCount && props.config.ml.clusterCount !== 'none') {
+    if (props.config.ml.clusterCount && props.config.ml.clusterCount !== 'none' && data.some(d => d.cluster !== undefined)) {
       const k = Number(props.config.ml.clusterCount)
-      result.dataset.push({
-        transform: {
-          type: 'ecStat:clustering',
-          config: { clusterCount: k, outputType: 'single', outputClusterIndexDimension: 2 }
-        }
-      })
-      const clusteringResultIndex = result.dataset.length - 1
       
       result.series = [] // Override series to color by cluster
       for (let i = 0; i < k; i++) {
         result.dataset.push({
-          fromDatasetIndex: clusteringResultIndex,
           transform: {
             type: 'filter',
             config: { dimension: 2, '=': i }

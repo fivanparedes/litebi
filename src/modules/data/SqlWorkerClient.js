@@ -118,14 +118,7 @@ class SqlClient {
     let result;
     try {
       const sanitizeRow = (row) => {
-        const json = row.toJSON()
-        for (const key in json) {
-          const val = json[key]
-          if (typeof val === 'bigint') {
-            json[key] = Number(val)
-          }
-        }
-        return json
+        return JSON.parse(safeStringify(row.toJSON()));
       }
 
       if (params && params.length > 0) {

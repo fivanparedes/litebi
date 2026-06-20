@@ -213,10 +213,12 @@ const loadData = async () => {
         const metric = metrics.find(m => m.id === metricId)
         if (metric) {
           const compiledExpr = metric.expression.replace(/\[([^\]]+)\]\.\[([^\]]+)\]/g, '"$1"."$2"').replace(/\[([^\]]+)\]/g, '"$1"');
-          return `(${compiledExpr})`
+          return `TRY_CAST((${compiledExpr}) AS DOUBLE)`
         }
       }
-      return `${defaultAgg}(${parseCol(yConfig)})`
+      const safe = parseCol(yConfig)
+      if (!defaultAgg || defaultAgg === 'none' || defaultAgg === 'Seleccionar...') return `TRY_CAST(${safe} AS DOUBLE)`
+      return `TRY_CAST(${defaultAgg}(${safe}) AS DOUBLE)`
     }
     
     let globalWhere = ''
@@ -340,10 +342,12 @@ const loadData = async () => {
       const metric = metrics.find(m => m.id === metricId)
       if (metric) {
         const compiledExpr = metric.expression.replace(/\[([^\]]+)\]\.\[([^\]]+)\]/g, '"$1"."$2"').replace(/\[([^\]]+)\]/g, '"$1"');
-        return `(${compiledExpr})`
+        return `TRY_CAST((${compiledExpr}) AS DOUBLE)`
       }
     }
-    return `${defaultAgg}(${parseCol(yConfig)})`
+    const safe = parseCol(yConfig)
+    if (!defaultAgg || defaultAgg === 'none' || defaultAgg === 'Seleccionar...') return `TRY_CAST(${safe} AS DOUBLE)`
+    return `TRY_CAST(${defaultAgg}(${safe}) AS DOUBLE)`
   }
 
   let globalWhere = ''
@@ -460,15 +464,42 @@ const loadData = async () => {
         
       const rawData = await runQuery(q)
       
-      if (props.config.type === 'scatter' && props.config.ml?.regressionType === 'linear') {
-        const regQ = `SELECT regr_slope(${ySafeExp}, ${xSafe}) as slope, regr_intercept(${ySafeExp}, ${xSafe}) as intercept, min(${xSafe}) as min_x, max(${xSafe}) as max_x FROM ${fromClause} WHERE ${xSafe} IS NOT NULL${yNullCheck}${globalWhere}`
-        const regRes = await runQuery(regQ)
-        if (regRes && regRes.length > 0 && regRes[0].slope !== null) {
-          rawData.regressionLine = [
-            [regRes[0].min_x, regRes[0].slope * regRes[0].min_x + regRes[0].intercept],
-            [regRes[0].max_x, regRes[0].slope * regRes[0].max_x + regRes[0].intercept]
-          ]
-          rawData.regressionFormula = `Y = ${regRes[0].slope.toFixed(2)} X + ${regRes[0].intercept.toFixed(2)}`
+      if (props.config.type === 'scatter' && props.config.ml) {
+        const payloadData = rawData.map(d => [d.name, d.value]);
+        
+        // Regression
+        if (props.config.ml.regressionType && props.config.ml.regressionType !== 'none') {
+          try {
+            const regRes = await fetch('http://localhost:3001/api/ml/regression', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ data: payloadData, type: props.config.ml.regressionType })
+            }).then(r => r.json());
+            if (regRes.points) {
+              rawData.regressionLine = regRes.points;
+              rawData.regressionFormula = regRes.formula;
+            }
+          } catch(e) {
+            console.error('Backend regression failed:', e);
+          }
+        }
+        
+        // Clustering
+        if (props.config.ml.clusterCount && props.config.ml.clusterCount !== 'none') {
+          try {
+            const clustRes = await fetch('http://localhost:3001/api/ml/cluster', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ data: payloadData, clusterCount: props.config.ml.clusterCount })
+            }).then(r => r.json());
+            if (clustRes.clusters) {
+              rawData.forEach((d, i) => {
+                d.cluster = clustRes.clusters[i];
+              });
+            }
+          } catch(e) {
+            console.error('Backend clustering failed:', e);
+          }
         }
       }
       
@@ -700,10 +731,11 @@ const echartOptions = computed(() => {
     tooltip: { 
       show: true,
       trigger: ctype === 'pie' || ctype === 'map' ? 'item' : 'axis',
-      backgroundColor: useAdvancedTooltip.value ? 'transparent' : 'rgba(255, 255, 255, 0.9)',
-      borderColor: useAdvancedTooltip.value ? 'transparent' : '#e2e8f0',
+      backgroundColor: useAdvancedTooltip.value ? 'transparent' : (settingsStore.theme === 'dark' ? 'rgba(30, 41, 59, 0.95)' : 'rgba(255, 255, 255, 0.95)'),
+      borderColor: useAdvancedTooltip.value ? 'transparent' : (settingsStore.theme === 'dark' ? '#334155' : '#e2e8f0'),
       borderWidth: useAdvancedTooltip.value ? 0 : 1,
       padding: useAdvancedTooltip.value ? 0 : [8, 12],
+      textStyle: { color: settingsStore.theme === 'dark' ? '#f8fafc' : '#0f172a', fontSize: 13 },
       extraCssText: useAdvancedTooltip.value ? 'box-shadow: none;' : 'box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); border-radius: 6px;',
       formatter: function(params) {
         if (useAdvancedTooltip.value) {
@@ -737,6 +769,7 @@ const echartOptions = computed(() => {
         let html = `<div style="font-weight:bold;margin-bottom:4px;">${axisValue}</div>${seriesHtml}`;
         
         // Add extra tooltips if any
+        const extraTooltips = Array.isArray(props.config.tooltips) ? props.config.tooltips.filter(Boolean) : (props.config.tooltips ? [props.config.tooltips] : [])
         if (extraTooltips.length > 0 && chartData.value[dataIndex]) {
           html += `<hr style="margin:8px 0; border-top:1px solid #ccc;"/>`;
           extraTooltips.forEach((tCol, idx) => {
@@ -760,7 +793,11 @@ const echartOptions = computed(() => {
   }
   
   if (props.config.styles?.showLegend !== false) {
-    baseOption.legend = { type: 'scroll', bottom: 0 }
+    baseOption.legend = { 
+      type: 'scroll', 
+      bottom: 0,
+      textStyle: { color: settingsStore.theme === 'dark' ? '#f8fafc' : '#0f172a' }
+    }
   }
 
   if (chartData.value.length === 0) {

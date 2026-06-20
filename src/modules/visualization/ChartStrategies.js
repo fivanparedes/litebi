@@ -86,7 +86,8 @@ export const getDefaultStrategy = (baseOption, data, props, xAxisData, seriesDat
         const dataForSeries = xAxisData.map(xVal => {
           const row = data.find(d => String(d.name) === String(xVal) && String(d.category) === String(cat))
           if (!row) return null
-          const val = row[valKey]
+          const rawVal = row[valKey]
+          const val = rawVal !== null && rawVal !== undefined ? Number(rawVal) : null
           const color = evaluateRules(val)
           return color ? { value: val, itemStyle: { color } } : val
         })
@@ -109,7 +110,8 @@ export const getDefaultStrategy = (baseOption, data, props, xAxisData, seriesDat
       const valKey = idx === 0 ? 'value' : `value_${idx}`
       const seriesName = (Array.isArray(props.config.yAxisLabel) ? props.config.yAxisLabel[idx] : props.config.yAxisLabel) || yCol
       const dataForSeries = data.map(d => {
-        const val = d[valKey]
+        const rawVal = d[valKey]
+        const val = rawVal !== null && rawVal !== undefined ? Number(rawVal) : null
         const color = evaluateRules(val)
         return color ? { value: val, itemStyle: { color } } : val
       })
