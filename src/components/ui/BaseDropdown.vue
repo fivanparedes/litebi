@@ -35,22 +35,67 @@ const selectedOption = computed(() => {
   return props.options.find(opt => opt.value === props.modelValue)
 })
 
-const toggleDropdown = () => {
+const menuStyle = ref({})
+
+const updatePosition = () => {
+  if (dropdownRef.value && isOpen.value) {
+    const rect = dropdownRef.value.getBoundingClientRect()
+    const spaceBelow = window.innerHeight - rect.bottom
+    const spaceAbove = rect.top
+    const menuHeight = 250 // max-height in css
+    
+    let top, bottom
+    if (spaceBelow < menuHeight && spaceAbove > spaceBelow) {
+      // Render above
+      bottom = `${window.innerHeight - rect.top + 4}px`
+      top = 'auto'
+    } else {
+      // Render below
+      top = `${rect.bottom + 4}px`
+      bottom = 'auto'
+    }
+    
+    menuStyle.value = {
+      position: 'fixed',
+      top,
+      bottom,
+      left: `${rect.left}px`,
+      width: `${rect.width}px`
+    }
+  }
+}
+
+const toggleDropdown = async () => {
   if (!props.disabled) {
     isOpen.value = !isOpen.value
+    if (isOpen.value) {
+      await nextTick()
+      updatePosition()
+      window.addEventListener('scroll', updatePosition, true)
+      window.addEventListener('resize', updatePosition)
+    } else {
+      window.removeEventListener('scroll', updatePosition, true)
+      window.removeEventListener('resize', updatePosition)
+    }
   }
 }
 
 const selectOption = (option) => {
   emit('update:modelValue', option.value)
   isOpen.value = false
+  window.removeEventListener('scroll', updatePosition, true)
+  window.removeEventListener('resize', updatePosition)
 }
 
 // Click outside handler
-import { onMounted, onUnmounted } from 'vue'
+import { onMounted, onUnmounted, nextTick } from 'vue'
 const handleClickOutside = (event) => {
   if (dropdownRef.value && !dropdownRef.value.contains(event.target)) {
+    // If the click is inside the teleported menu, don't close (handled by item clicks)
+    if (event.target.closest('.dropdown__menu')) return
     isOpen.value = false
+    window.removeEventListener('scroll', updatePosition, true)
+    window.removeEventListener('resize', updatePosition)
   }
 }
 
@@ -82,26 +127,28 @@ onUnmounted(() => {
       <ChevronDown class="dropdown__chevron" :class="{ 'dropdown__chevron--open': isOpen }" />
     </div>
 
-    <Transition name="scale">
-      <div v-if="isOpen" class="dropdown__menu" role="listbox">
-        <div 
-          v-for="option in options" 
-          :key="option.value"
-          class="dropdown__item"
-          role="option"
-          :aria-selected="option.value === modelValue"
-          :class="{ 'dropdown__item--selected': option.value === modelValue }"
-          @click="selectOption(option)"
-        >
-          <component :is="option.icon" v-if="option.icon" class="dropdown__item-icon" />
-          <span class="dropdown__item-label">{{ option.label }}</span>
-          <Check v-if="option.value === modelValue" class="dropdown__item-check" />
+    <Teleport to="body">
+      <Transition name="scale">
+        <div v-if="isOpen" class="dropdown__menu" role="listbox" :style="menuStyle">
+          <div 
+            v-for="option in options" 
+            :key="option.value"
+            class="dropdown__item"
+            role="option"
+            :aria-selected="option.value === modelValue"
+            :class="{ 'dropdown__item--selected': option.value === modelValue }"
+            @click="selectOption(option)"
+          >
+            <component :is="option.icon" v-if="option.icon" class="dropdown__item-icon" />
+            <span class="dropdown__item-label">{{ option.label }}</span>
+            <Check v-if="option.value === modelValue" class="dropdown__item-check" />
+          </div>
+          <div v-if="options.length === 0" class="dropdown__empty">
+            Sin opciones
+          </div>
         </div>
-        <div v-if="options.length === 0" class="dropdown__empty">
-          Sin opciones
-        </div>
-      </div>
-    </Transition>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
@@ -162,15 +209,12 @@ onUnmounted(() => {
 }
 
 .dropdown__menu {
-  position: absolute;
-  top: calc(100% + var(--space-1));
-  left: 0;
-  width: 100%;
+  /* Position is now handled by inline styles via JS */
   background-color: var(--background);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);
-  z-index: var(--z-dropdown);
+  z-index: 99999;
   max-height: 250px;
   overflow-y: auto;
   padding: var(--space-1) 0;

@@ -229,7 +229,7 @@ class SqlClient {
       if (fileName.toLowerCase().endsWith('.parquet')) {
         await this.conn.query(`CREATE TABLE "${name}" AS SELECT * FROM read_parquet('${fileName}')`)
       } else {
-        await this.conn.query(`CREATE TABLE "${name}" AS SELECT * FROM read_csv_auto('${fileName}')`)
+        await this.conn.query(`CREATE TABLE "${name}" AS SELECT * FROM read_csv_auto('${fileName}', sample_size=-1)`)
       }
       return true
     } catch (err) {
@@ -251,20 +251,20 @@ class SqlClient {
       const isParquet = tempFileName.toLowerCase().endsWith('.parquet')
       const queryStr = isParquet
         ? `SELECT * FROM read_parquet('${tempFileName}') LIMIT ${limit}`
-        : `SELECT * FROM read_csv_auto('${tempFileName}') LIMIT ${limit}`
+        : `SELECT * FROM read_csv_auto('${tempFileName}', sample_size=-1) LIMIT ${limit}`
         
       const previewRows = await this.query(queryStr)
       
       const countQueryStr = isParquet
         ? `SELECT COUNT(*) as "count" FROM read_parquet('${tempFileName}')`
-        : `SELECT COUNT(*) as "count" FROM read_csv_auto('${tempFileName}')`
+        : `SELECT COUNT(*) as "count" FROM read_csv_auto('${tempFileName}', sample_size=-1)`
         
       const countRes = await this.query(countQueryStr)
       const totalRows = countRes[0]?.count || 0
       
       const schemaQueryStr = isParquet
         ? `DESCRIBE SELECT * FROM read_parquet('${tempFileName}')`
-        : `DESCRIBE SELECT * FROM read_csv_auto('${tempFileName}')`
+        : `DESCRIBE SELECT * FROM read_csv_auto('${tempFileName}', sample_size=-1)`
       const rawSchema = await this.query(schemaQueryStr)
       const schema = rawSchema.map(col => ({
         name: col.column_name,
@@ -312,7 +312,7 @@ class SqlClient {
       const isParquet = tempFileName.toLowerCase().endsWith('.parquet')
       const queryStr = isParquet
         ? `CREATE TABLE "${tableName}" AS SELECT ${colsPart} FROM read_parquet('${tempFileName}')`
-        : `CREATE TABLE "${tableName}" AS SELECT ${colsPart} FROM read_csv_auto('${tempFileName}')`
+        : `CREATE TABLE "${tableName}" AS SELECT ${colsPart} FROM read_csv_auto('${tempFileName}', sample_size=-1)`
         
       await this.conn.query(queryStr)
       return true

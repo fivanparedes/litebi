@@ -285,7 +285,9 @@
     "sourceColumn": "Source Column",
     "selectColumn": "Select column",
     "targetTable": "Target Table",
-    "targetColumn": "Target Column"
+    "targetColumn": "Target Column",
+    "relationType": "Relationship Type",
+    "crossFilter": "Cross Filter Direction"
   },
   "sidebar": {
     "workspace": "Workspace",

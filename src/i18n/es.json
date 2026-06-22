@@ -281,7 +281,9 @@
     "sourceColumn": "Columna origen",
     "selectColumn": "Selecciona una columna",
     "targetTable": "Tabla destino",
-    "targetColumn": "Columna destino"
+    "targetColumn": "Columna destino",
+    "relationType": "Tipo de Relación",
+    "crossFilter": "Filtro Cruzado"
   },
   "sidebar": {
     "workspace": "Espacio de trabajo",

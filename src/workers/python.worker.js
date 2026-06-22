@@ -3,13 +3,23 @@
 
 import { loadPyodide } from 'pyodide'
 
+// Workaround for Vite Dev Server causing SRI integrity failures on local .whl files
+const originalFetch = globalThis.fetch
+globalThis.fetch = async function(resource, options) {
+  if (options && options.integrity && typeof resource === 'string' && resource.endsWith('.whl')) {
+    delete options.integrity
+  }
+  return originalFetch.call(this, resource, options)
+}
+
 let pyodide = null
 
 async function initPyodide() {
   pyodide = await loadPyodide()
   
-  // Cargar paquetes comunes de análisis de datos y visualización
-  await pyodide.loadPackage(['pandas', 'numpy', 'matplotlib', 'pyarrow'])
+  // Cargar micropip y paquetes básicos
+  await pyodide.loadPackage('micropip')
+  await pyodide.loadPackage(['pandas', 'numpy'])
 }
 
 const pyodideReadyPromise = initPyodide()
@@ -33,6 +43,9 @@ self.onmessage = async (event) => {
     } else {
       pyodide.globals.set("input_data", null)
     }
+    
+    // Analizar el código e instalar dinámicamente cualquier paquete que se esté importando
+    await pyodide.loadPackagesFromImports(pythonCode)
     
     // Ejecutar el código Python
     let result = await pyodide.runPythonAsync(pythonCode)

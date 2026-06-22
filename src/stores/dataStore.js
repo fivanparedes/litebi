@@ -324,7 +324,7 @@ export const useDataStore = defineStore('data', () => {
   }
 
   // --- Relationships API ---
-  const addRelationship = (fromTable, fromCol, toTable, toCol, type = '1:N') => {
+  const addRelationship = (fromTable, fromCol, toTable, toCol, type = '1:N', crossFilter = 'single') => {
     try {
       // Validar que ambas tablas existan antes de crear la relación
       if (!datasets.value.has(fromTable)) {
@@ -340,7 +340,8 @@ export const useDataStore = defineStore('data', () => {
         fromColumn: fromCol,
         toTable,
         toColumn: toCol,
-        type
+        type,
+        crossFilter
       })
       uiStore.addToast({ message: 'Relación añadida exitosamente', type: 'success' })
     } catch (error) {

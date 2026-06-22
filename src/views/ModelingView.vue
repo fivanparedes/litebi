@@ -4,7 +4,7 @@ import { useDataStore } from '@/stores/dataStore'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseDropdown from '@/components/ui/BaseDropdown.vue'
 import BaseModal from '@/components/ui/BaseModal.vue'
-import { Plus, Trash2, Key, LayoutGrid, Star } from '@lucide/vue'
+import { Plus, Trash2, Key, LayoutGrid, Star, AlertTriangle } from '@lucide/vue'
 import { useI18n } from 'vue-i18n'
 
 const dataStore = useDataStore()
@@ -19,7 +19,9 @@ const newRel = ref({
   fromTable: '',
   fromColumn: '',
   toTable: '',
-  toColumn: ''
+  toColumn: '',
+  type: '1:N',
+  crossFilter: 'single'
 })
 
 const canvasRef = ref(null)
@@ -44,10 +46,12 @@ const handleAddRel = () => {
       newRel.value.fromTable, 
       newRel.value.fromColumn, 
       newRel.value.toTable, 
-      newRel.value.toColumn
+      newRel.value.toColumn,
+      newRel.value.type,
+      newRel.value.crossFilter
     )
     isModalOpen.value = false
-    newRel.value = { fromTable: '', fromColumn: '', toTable: '', toColumn: '' }
+    newRel.value = { fromTable: '', fromColumn: '', toTable: '', toColumn: '', type: '1:N', crossFilter: 'single' }
     setTimeout(updateLines, 100)
   }
 }
@@ -298,10 +302,16 @@ watch(() => datasets.value.length, (newLen, oldLen) => {
     <div v-if="relationships.length > 0" class="relations-sidebar">
       <h3>{{ $t('modeling.activeRelations') }}</h3>
       <div v-for="rel in relationships" :key="rel.id" class="rel-item">
-        <div class="rel-desc">
-          <strong>{{ rel.fromTable }}.{{ rel.fromColumn }}</strong>
-          <span class="rel-arrow">&rarr;</span>
-          <strong>{{ rel.toTable }}.{{ rel.toColumn }}</strong>
+        <div class="rel-info">
+          <div class="rel-desc">
+            <strong>{{ rel.fromTable }}.{{ rel.fromColumn }}</strong>
+            <span class="rel-arrow">&rarr;</span>
+            <strong>{{ rel.toTable }}.{{ rel.toColumn }}</strong>
+          </div>
+          <div class="rel-meta">
+            <span class="rel-badge">{{ rel.type }}</span>
+            <span class="rel-badge rel-badge-filter">Filtro: {{ rel.crossFilter }}</span>
+          </div>
         </div>
         <button class="icon-btn" @click="handleDeleteRel(rel.id)">
           <Trash2 size="16" />
@@ -333,6 +343,30 @@ watch(() => datasets.value.length, (newLen, oldLen) => {
             <label>{{ $t('modeling.targetColumn') }}</label>
             <BaseDropdown v-model="newRel.toColumn" :options="toColumnOptions" :placeholder="$t('modeling.selectColumn')" :disabled="!newRel.toTable" />
           </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-col">
+            <label>{{ $t('modeling.relationType', 'Tipo de Relación') }}</label>
+            <BaseDropdown v-model="newRel.type" :options="[
+              { value: '1:1', label: '1:1 (Uno a Uno)' },
+              { value: '1:N', label: '1:N (Uno a Muchos)' },
+              { value: 'N:M', label: 'N:M (Muchos a Muchos)' }
+            ]" />
+          </div>
+          <div class="form-col">
+            <label>{{ $t('modeling.crossFilter', 'Filtro Cruzado') }}</label>
+            <BaseDropdown v-model="newRel.crossFilter" :options="[
+              { value: 'single', label: 'Única (Single)' },
+              { value: 'both', label: 'Ambas (Both)' },
+              { value: 'none', label: 'Ninguna (None)' }
+            ]" />
+          </div>
+        </div>
+        
+        <div v-if="newRel.type === 'N:M'" class="alert-warning">
+          <AlertTriangle class="alert-icon" />
+          <span>Atención: Las relaciones Muchos-a-Muchos pueden generar productos cartesianos y afectar el rendimiento si no se manejan con cuidado.</span>
         </div>
       </div>
       <template #footer>
@@ -590,5 +624,44 @@ watch(() => datasets.value.length, (newLen, oldLen) => {
   font-size: 12px;
   font-weight: 500;
   color: var(--color-foreground);
+}
+
+.rel-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.rel-meta {
+  display: flex;
+  gap: 6px;
+}
+.rel-badge {
+  background-color: var(--color-muted);
+  color: var(--color-muted-foreground);
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+.rel-badge-filter {
+  background-color: var(--color-primary-light, rgba(0, 120, 212, 0.1));
+  color: var(--color-primary);
+}
+.alert-warning {
+  display: flex;
+  gap: 8px;
+  padding: 12px;
+  background-color: var(--color-warning-light, rgba(255, 170, 0, 0.1));
+  color: var(--color-warning, #d97706);
+  border-radius: 4px;
+  font-size: 12px;
+  align-items: flex-start;
+  margin-top: 8px;
+}
+.alert-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  margin-top: 2px;
 }
 </style>

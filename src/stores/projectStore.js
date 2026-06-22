@@ -124,6 +124,10 @@ export const useProjectStore = defineStore('project', () => {
 
   const saveProject = async (saveAs = false) => {
     try {
+      isSaving.value = true
+      // Yield the event loop to allow UI to render the loading spinner before heavy serialization
+      await new Promise(resolve => setTimeout(resolve, 10))
+      
       const json = await serializeProject(dataStore, formulaStore, dashboardStore, reportStore)
       
       // If we don't have a handle yet, or user requested Save As, prompt for location
@@ -165,6 +169,8 @@ export const useProjectStore = defineStore('project', () => {
         uiStore.addToast({ message: 'Error al guardar el proyecto', type: 'error' })
       }
       return false
+    } finally {
+      isSaving.value = false
     }
   }
 
