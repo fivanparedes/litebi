@@ -13,6 +13,7 @@ vi.mock('../../src/modules/data/SqlWorkerClient', () => ({
     createTableFromFile: vi.fn().mockResolvedValue(),
     createTableFromRegisteredFile: vi.fn(),
     cleanupFile: vi.fn(),
+    autoStandardizeDates: vi.fn(),
   }
 }))
 
@@ -109,9 +110,10 @@ describe('dataStore', () => {
     const query = store.buildJoinQuery('A', ['A', 'B'])
     
     expect(query).toContain('"A" AS "A"')
-    expect(query).toContain('LEFT JOIN "B" AS "B" ON "A"."id" = "B"."a_id"')
+    expect(query).toContain('"A"."id" = "B"."a_id" OR')
+    expect(query).toContain('CAST("A"."id" AS VARCHAR) = CAST("B"."a_id" AS VARCHAR)')
   })
-
+  
   it('applies transformations', async () => {
     const store = useDataStore()
     store.datasets.set('test', { originalName: 'Test', schema: [] })

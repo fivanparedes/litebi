@@ -161,6 +161,7 @@ const loadData = async () => {
   pythonError.value = null
 
   const runQuery = async (queryStr) => {
+    console.log('Chart SQL Query:', queryStr)
     return await sqlClient.query(queryStr, [], { ttl: props.config.advanced?.query?.cacheTtl })
   }
   
@@ -175,6 +176,47 @@ const loadData = async () => {
     return
   }
 
+  const getExplicitTable = (colStr) => {
+    if (!colStr || typeof colStr !== 'string') return null;
+    if (colStr.includes('"."')) return colStr.split('"."')[0].replace('"', '');
+    if (colStr.startsWith('[') && colStr.includes('].[')) return colStr.split('].[')[0].replace('[', '');
+    return null;
+  }
+
+  const determinePrimaryDataset = () => {
+    const fallback = props.config.dataset;
+    const tables = [];
+    const addIfExplicit = (c) => {
+      const t = getExplicitTable(c);
+      if (t) tables.push(t);
+    };
+
+    if (props.config.type === 'kpi' || props.config.type === 'scorecard') {
+      const y1 = Array.isArray(props.config.yAxis) ? props.config.yAxis[0] : props.config.yAxis;
+      const y2 = Array.isArray(props.config.secondaryYAxis) ? props.config.secondaryYAxis[0] : props.config.secondaryYAxis;
+      addIfExplicit(y1);
+      addIfExplicit(y2);
+    } else {
+      addIfExplicit(currentXAxis.value);
+      const yAxesList = Array.isArray(props.config.yAxis) ? props.config.yAxis.filter(Boolean) : (props.config.yAxis ? [props.config.yAxis] : []);
+      yAxesList.forEach(addIfExplicit);
+      addIfExplicit(Array.isArray(props.config.secondaryYAxis) ? props.config.secondaryYAxis[0] : props.config.secondaryYAxis);
+    }
+    
+    if (Array.isArray(props.config.filters)) {
+      props.config.filters.forEach(f => addIfExplicit(f.column));
+    }
+
+    const uniqueTables = [...new Set(tables)];
+    if (uniqueTables.length > 0) {
+      if (fallback && uniqueTables.includes(fallback)) return fallback;
+      return uniqueTables[0];
+    }
+    return fallback;
+  }
+
+  const dynamicDsName = determinePrimaryDataset()
+
   if (props.config.type === 'kpi' || props.config.type === 'scorecard') {
     if (!props.config.yAxis || !props.config.dataset) {
       kpiValue.value = props.config.type === 'scorecard' ? { total: 0, target: 0 } : 0
@@ -182,7 +224,7 @@ const loadData = async () => {
       return
     }
     
-    const dsName = props.config.dataset
+    const dsName = dynamicDsName || props.config.dataset
     const rawY = Array.isArray(props.config.yAxis) ? props.config.yAxis[0] : props.config.yAxis
     const rawY2 = Array.isArray(props.config.secondaryYAxis) ? props.config.secondaryYAxis[0] : props.config.secondaryYAxis
     const agg = props.config.aggregation || 'SUM'
@@ -206,12 +248,23 @@ const loadData = async () => {
       return dsName;
     }
     
-    const resolveY = (yConfig, defaultAgg) => {
+    const resolveY = (yConfig, defaultAgg, requiredTablesArr) => {
       if (yConfig?.startsWith('__METRIC__')) {
         const metricId = yConfig.split('__METRIC__')[1]
-        const metrics = formulaStore.getCorporateMetricsForDataset(dsName)
-        const metric = metrics.find(m => m.id === metricId)
+        let metric = null
+        let metricDataset = null
+        for (const [dName, metrics] of Object.entries(formulaStore.corporateMetrics)) {
+          const found = metrics.find(m => m.id === metricId)
+          if (found) {
+            metric = found
+            metricDataset = dName
+            break
+          }
+        }
         if (metric) {
+          if (metricDataset && requiredTablesArr && !requiredTablesArr.includes(metricDataset)) {
+            requiredTablesArr.push(metricDataset)
+          }
           const compiledExpr = metric.expression.replace(/\[([^\]]+)\]\.\[([^\]]+)\]/g, '"$1"."$2"').replace(/\[([^\]]+)\]/g, '"$1"');
           return `TRY_CAST((${compiledExpr}) AS DOUBLE)`
         }
@@ -264,12 +317,12 @@ const loadData = async () => {
     }
 
     try {
-      const ySafeExp = resolveY(rawY, agg)
+      const ySafeExp = resolveY(rawY, agg, requiredTables)
       const uniqueRequiredTables = [...new Set(requiredTables)]
       const fromClause = dataStore.buildJoinQuery(dsName, uniqueRequiredTables)
 
       if (props.config.type === 'scorecard' && rawY2) {
-        const y2SafeExp = resolveY(rawY2, agg)
+        const y2SafeExp = resolveY(rawY2, agg, requiredTables)
         const q = `SELECT ${ySafeExp} as "total", ${y2SafeExp} as "target" FROM ${fromClause} WHERE 1=1 ${globalWhere}`
         const res = markRaw(await runQuery(q))
         kpiValue.value = {
@@ -299,7 +352,7 @@ const loadData = async () => {
     return
   }
   
-  const dsName = props.config.dataset
+  const dsName = dynamicDsName || props.config.dataset
   const rawX = currentXAxis.value
   const yAxes = Array.isArray(props.config.yAxis) ? props.config.yAxis.filter(Boolean) : (props.config.yAxis ? [props.config.yAxis] : [])
   const rawY = yAxes[0]
@@ -335,12 +388,23 @@ const loadData = async () => {
     return colStr;
   }
   
-  const resolveY = (yConfig, defaultAgg) => {
+  const resolveY = (yConfig, defaultAgg, requiredTablesArr) => {
     if (yConfig?.startsWith('__METRIC__')) {
       const metricId = yConfig.split('__METRIC__')[1]
-      const metrics = formulaStore.getCorporateMetricsForDataset(dsName)
-      const metric = metrics.find(m => m.id === metricId)
+      let metric = null
+      let metricDataset = null
+      for (const [dName, metrics] of Object.entries(formulaStore.corporateMetrics)) {
+        const found = metrics.find(m => m.id === metricId)
+        if (found) {
+          metric = found
+          metricDataset = dName
+          break
+        }
+      }
       if (metric) {
+        if (metricDataset && requiredTablesArr && !requiredTablesArr.includes(metricDataset)) {
+          requiredTablesArr.push(metricDataset)
+        }
         const compiledExpr = metric.expression.replace(/\[([^\]]+)\]\.\[([^\]]+)\]/g, '"$1"."$2"').replace(/\[([^\]]+)\]/g, '"$1"');
         return `TRY_CAST((${compiledExpr}) AS DOUBLE)`
       }
@@ -431,7 +495,7 @@ const loadData = async () => {
     }
 
     const xSafe = parseCol(rawX)
-    const ySafeExp = resolveY(rawY, agg)
+    const ySafeExp = resolveY(rawY, agg, requiredTables)
     const baseColExp = rawY.startsWith('__METRIC__') ? '1' : parseCol(rawY)
     const yNullCheck = baseColExp === '1' ? '' : ` AND ${baseColExp} IS NOT NULL`
     
@@ -444,7 +508,7 @@ const loadData = async () => {
     const y2ColName = rawY2 ? extractColStr(rawY2) : ''
     const y2ColMeta = dsMeta?.schema?.find(c => c.name === y2ColName)
     const isY2Date = y2ColMeta?.type?.toLowerCase() === 'date' || y2ColMeta?.type?.toLowerCase() === 'timestamp'
-    const y2Select = rawY2 ? (isY2Date ? `CAST(${resolveY(rawY2, agg)} AS VARCHAR)` : resolveY(rawY2, agg)) : ''
+    const y2Select = rawY2 ? (isY2Date ? `CAST(${resolveY(rawY2, agg, requiredTables)} AS VARCHAR)` : resolveY(rawY2, agg, requiredTables)) : ''
     
     if (props.config.type === 'boxplot') {
       const q = `SELECT ${xSelect} as "name", min(${ySafeExp}) as min_val, quantile_cont(${ySafeExp}, 0.25) as q1, quantile_cont(${ySafeExp}, 0.5) as median, quantile_cont(${ySafeExp}, 0.75) as q3, max(${ySafeExp}) as max_val FROM ${fromClause} WHERE ${xSafe} IS NOT NULL${yNullCheck}${globalWhere} GROUP BY ${xSafe} LIMIT 100`
@@ -509,7 +573,7 @@ const loadData = async () => {
     }
 
     if (props.config.type === 'heatmap' && rawY2) {
-      const ySafe2Exp = resolveY(rawY2, agg)
+      const ySafe2Exp = resolveY(rawY2, agg, requiredTables)
       const q = `SELECT ${xSelect} as "name", ${y2Select} as "name2", ${ySafeExp} as "value" FROM ${fromClause} WHERE ${xSafe} IS NOT NULL${yNullCheck}${globalWhere} GROUP BY ${xSafe}, ${ySafe2Exp} LIMIT 1000`
       chartData.value = markRaw(await runQuery(q))
       isLoading.value = false
@@ -534,8 +598,16 @@ const loadData = async () => {
         orderClause = `ORDER BY ${sortCol} ${dir}`
       }
       
-      const limitVal = props.config.topN ? parseInt(props.config.topN, 10) : (props.config.advanced?.query?.rowLimit ? parseInt(props.config.advanced.query.rowLimit, 10) : 100)
-      const safeLimit = !isNaN(limitVal) && limitVal > 0 ? limitVal : 100
+      const limitVal = props.config.topN ? parseInt(props.config.topN, 10) : (props.config.advanced?.query?.rowLimit ? parseInt(props.config.advanced.query.rowLimit, 10) : null)
+      
+      let defaultLimit = 100
+      if (['line', 'area', 'scatter', 'heatmap'].includes(props.config.type)) {
+        defaultLimit = 10000
+      } else if (['combo', 'bar'].includes(props.config.type)) {
+        defaultLimit = 1000
+      }
+      
+      const safeLimit = limitVal !== null && !isNaN(limitVal) && limitVal > 0 ? limitVal : defaultLimit
       
       return `${orderClause} LIMIT ${safeLimit}`
     }
@@ -547,12 +619,12 @@ const loadData = async () => {
       }
 
       yAxes.forEach((yCol, idx) => {
-        selectCols += `, ${resolveY(yCol, agg)} as "${idx === 0 ? 'value' : 'value_' + idx}"`
+        selectCols += `, ${resolveY(yCol, agg, requiredTables)} as "${idx === 0 ? 'value' : 'value_' + idx}"`
       })
       if (rawY2) selectCols += `, ${y2Select} as "value2"`
       
       extraTooltips.forEach((tCol, idx) => {
-        selectCols += `, ${resolveY(tCol, agg)} as "tooltip_${idx}"`
+        selectCols += `, ${resolveY(tCol, agg, requiredTables)} as "tooltip_${idx}"`
       })
 
       const groupByCols = rawLegend ? `${xSafe}, ${parseCol(rawLegend, dsName)}` : `${xSafe}`
@@ -753,7 +825,6 @@ const echartOptions = computed(() => {
         paramsArr.forEach(p => {
           dataIndex = p.dataIndex;
           axisValue = p.axisValue || p.name;
-          // When dimensionNames/encode is available we read properly, else value
           let val = p.value;
           if (Array.isArray(val) && p.encode && p.encode.y) {
             val = val[p.encode.y[0]];
@@ -762,8 +833,13 @@ const echartOptions = computed(() => {
           } else if (typeof val === 'object' && val !== null) {
             val = val.value || val[p.seriesName];
           }
-          const valStr = formatNumber(val, props.config.styles);
-          seriesHtml += `<div>${p.marker} ${p.seriesName || p.name}: <span style="font-weight:bold">${valStr}</span></div>`;
+          
+          if (val === undefined || val === null) {
+            seriesHtml += `<div>${p.marker} ${p.seriesName || p.name}: <span style="font-weight:bold">-</span></div>`;
+          } else {
+            const valStr = formatNumber(val, props.config.styles);
+            seriesHtml += `<div>${p.marker} ${p.seriesName || p.name}: <span style="font-weight:bold">${valStr}</span></div>`;
+          }
         });
         
         let html = `<div style="font-weight:bold;margin-bottom:4px;">${axisValue}</div>${seriesHtml}`;
@@ -813,9 +889,27 @@ const echartOptions = computed(() => {
     }
   }
 
-  const data = chartData.value
+  const data = chartData.value.map(d => {
+    let name = d.name;
+    if (!isNaN(name) && Number(name) > 1000000000000 && String(name).length >= 13) {
+      const date = new Date(Number(name));
+      if (!isNaN(date.getTime())) {
+        name = date.toLocaleDateString();
+      }
+    }
+    return { ...d, name };
+  });
+
   const seriesData = data.map(d => d.value)
   const xAxisData = [...new Set(data.map(d => d.name))]
+
+  const cleanName = (colStr) => {
+    if (typeof colStr !== 'string') return colStr;
+    if (colStr.includes('].[')) return colStr.split('].[')[1].replace(']', '');
+    if (colStr.includes('"."')) return colStr.split('"."')[1].replace('"', '');
+    if (colStr.startsWith('[') && colStr.endsWith(']')) return colStr.slice(1, -1);
+    return colStr;
+  }
 
   const resolveMetricName = (yConfig) => {
     if (Array.isArray(yConfig)) {
@@ -825,7 +919,7 @@ const echartOptions = computed(() => {
           const metric = formulaStore.getCorporateMetricsForDataset(props.config.dataset).find(m => m.id === metricId)
           if (metric) return metric.name
         }
-        return y
+        return cleanName(y)
       })
     }
     const rawVal = yConfig;
@@ -835,7 +929,7 @@ const echartOptions = computed(() => {
       const metric = metrics.find(m => m.id === metricId)
       if (metric) return metric.name
     }
-    return rawVal
+    return cleanName(rawVal)
   }
 
   const resolvedProps = {
@@ -910,23 +1004,27 @@ const handleChartClick = (params) => {
   if (params.name && currentXAxis.value && props.config.dataset) {
     const dsName = props.config.dataset
     const rawX = currentXAxis.value
+    let actualName = params.name
+    if (params.dataIndex !== undefined && chartData.value[params.dataIndex]) {
+      actualName = chartData.value[params.dataIndex].name
+    }
     
     // Check for advanced drill-through (Tab Navigation)
     if (props.config.interactions?.drillThrough?.enabled && props.config.interactions?.drillThrough?.targetPage) {
-      dashboardStore.addFilter(dsName, rawX, params.name, `${rawX}: ${params.name}`)
+      dashboardStore.addFilter(dsName, rawX, actualName, `${rawX}: ${actualName}`)
       dashboardStore.activeTabId = props.config.interactions.drillThrough.targetPage
       return
     }
 
     if (isDrillable.value) {
       // Drill Down
-      drillPath.value.push({ colName: rawX, value: params.name })
+      drillPath.value.push({ colName: rawX, value: actualName })
       drillLevel.value++
       loadData()
     } else {
       // Cross Filter
       if (props.config.interactions?.crossFilter !== false) {
-        dashboardStore.addFilter(dsName, rawX, params.name, `${rawX}: ${params.name}`)
+        dashboardStore.addFilter(dsName, rawX, actualName, `${rawX}: ${actualName}`)
       }
     }
   }

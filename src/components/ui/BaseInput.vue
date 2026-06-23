@@ -46,8 +46,8 @@ const id = computed(() => `input-${Math.random().toString(36).substr(2, 9)}`)
       
       <input
         :id="id"
-        :type="type"
         v-model="modelValue"
+        :type="type"
         :placeholder="placeholder"
         :disabled="disabled"
         class="input-field"

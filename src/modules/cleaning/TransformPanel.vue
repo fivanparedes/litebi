@@ -1,6 +1,6 @@
 <script setup>
 import { computed } from 'vue'
-import { Filter, ArrowUpDown, Trash2, Check, X, Plus, ChevronRight } from '@lucide/vue'
+import { Filter, ArrowUpDown, Trash2, Check, X, Plus, ChevronRight, Calendar } from '@lucide/vue'
 
 const props = defineProps({
   pipelineSteps: {
@@ -34,7 +34,8 @@ const transformOptions = [
   { value: 'groupby', label: 'Agrupar', icon: Check },
   { value: 'split', label: 'Dividir Columna', icon: Check },
   { value: 'cast', label: 'Convertir Tipo', icon: Check },
-  { value: 'add_formula', label: 'Columna Computada', icon: Plus }
+  { value: 'add_formula', label: 'Columna Computada', icon: Plus },
+  { value: 'parse_smart_date', label: 'Estandarizar Fecha', icon: Calendar }
 ]
 
 const getStepIcon = (type) => {
@@ -55,6 +56,8 @@ const formatStepDetails = (step) => {
     case 'remove_column': return `${c.column}`
     case 'replace_value': return `"${c.oldValue || 'null'}" → "${c.newValue}" en ${c.column}`
     case 'add_formula': return `${c.newColumnName} = ${c.expression}`
+    case 'parse_smart_date': return `Estandarizar fecha: ${c.column}`
+    case 'truncate_date': return `Truncar fecha a inicio de ${c.unit}: ${c.column}`
     case 'cast': return `${c.column} → ${c.castType}`
     case 'groupby': return `${c.column}, ${c.groupOperation}(${c.groupMetric})`
     default: return c.column || ''

@@ -5,6 +5,7 @@ import { useDashboardStore } from '@/stores/dashboardStore'
 import { useFormulaStore } from '@/stores/formulaStore'
 import BaseInput from '@/components/ui/BaseInput.vue'
 import BaseDropdown from '@/components/ui/BaseDropdown.vue'
+import ColumnSelectorDropdown from '@/components/ui/ColumnSelectorDropdown.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseSwitch from '@/components/ui/BaseSwitch.vue'
 import DragResizer from '@/components/ui/DragResizer.vue'
@@ -67,37 +68,52 @@ const datasetOptions = computed(() => {
   })
 })
 
-const availableColumns = computed(() => {
-  const baseName = localConfig.value?.dataset || dataStore.activeDatasetName
-  if (!baseName) return []
+const groupedColumnOptions = computed(() => {
+  const groups = []
   
-  const cols = []
-  const meta = dataStore.datasets.get(baseName)
-  const baseSchema = meta?.schema || []
-  baseSchema.forEach(c => {
-    cols.push({
-      type: c.type,
-      value: `[${baseName}].[${c.name}]`,
-      label: c.name
+  // 1. Measures
+  const allMeasures = []
+  dataStore.datasetNames.forEach(dsName => {
+    const metrics = formulaStore.getCorporateMetricsForDataset(dsName)
+    metrics.forEach(m => {
+      allMeasures.push({
+        value: `__METRIC__${m.id}`,
+        label: m.name,
+        type: 'measure'
+      })
     })
   })
   
-  return cols
-})
-
-const corporateMetricOptions = computed(() => {
-  const baseName = localConfig.value?.dataset || dataStore.activeDatasetName
-  if (!baseName) return []
-  const metrics = formulaStore.getCorporateMetricsForDataset(baseName)
-  return metrics.map(m => ({
-    value: `__METRIC__${m.id}`,
-    label: `✨ Métrica: ${m.name}`
-  }))
-})
-
-const columnOptions = computed(() => {
-  const baseCols = availableColumns.value.map(c => ({ value: c.value, label: c.label }))
-  return [...corporateMetricOptions.value, ...baseCols]
+  if (allMeasures.length > 0) {
+    groups.push({
+      category: 'Measure - Number',
+      isMeasure: true,
+      items: allMeasures
+    })
+  }
+  
+  // 2. Datasets
+  dataStore.datasetNames.forEach(dsName => {
+    const meta = dataStore.datasets.get(dsName)
+    const baseSchema = meta?.schema || []
+    
+    const items = baseSchema.map(c => ({
+      value: `[${dsName}].[${c.name}]`,
+      label: c.name,
+      type: c.type
+    }))
+    
+    if (items.length > 0) {
+      groups.push({
+        category: meta?.originalName || dsName,
+        isDataset: true,
+        count: items.length,
+        items: items
+      })
+    }
+  })
+  
+  return groups
 })
 
 const chartTypeOptions = [
@@ -309,7 +325,7 @@ const handleClose = () => {
               <template v-if="localConfig.xAxis && (Array.isArray(localConfig.xAxis) ? localConfig.xAxis.length > 0 : true)">
                 <div v-for="(col, idx) in (Array.isArray(localConfig.xAxis) ? localConfig.xAxis : [localConfig.xAxis])" :key="idx" class="flex items-center gap-2 border border-border bg-card px-2 py-1.5 rounded-none">
                   <GripVertical class="w-3.5 h-3.5 text-muted-foreground/50 cursor-grab shrink-0" />
-                  <BaseDropdown size="compact" class="flex-1 text-xs" :model-value="col" :options="columnOptions" placeholder="Select column..." @update:model-value="val => updateAxis('xAxis', idx, val)" />
+                  <ColumnSelectorDropdown size="compact" class="flex-1 text-xs" :model-value="col" :grouped-options="groupedColumnOptions" placeholder="Select column..." @update:model-value="val => updateAxis('xAxis', idx, val)" />
                   <button class="text-muted-foreground hover:text-destructive shrink-0" @click="removeAxis('xAxis', idx)"><X class="w-3.5 h-3.5" /></button>
                 </div>
               </template>
@@ -327,7 +343,7 @@ const handleClose = () => {
               <template v-if="localConfig.yAxis && (Array.isArray(localConfig.yAxis) ? localConfig.yAxis.length > 0 : true)">
                 <div v-for="(col, idx) in (Array.isArray(localConfig.yAxis) ? localConfig.yAxis : [localConfig.yAxis])" :key="idx" class="flex items-center gap-2 border border-border bg-card px-2 py-1.5 rounded-none">
                   <GripVertical class="w-3.5 h-3.5 text-muted-foreground/50 cursor-grab shrink-0" />
-                  <BaseDropdown size="compact" class="flex-1 text-xs" :model-value="col" :options="columnOptions" placeholder="Select value..." @update:model-value="val => updateAxis('yAxis', idx, val)" />
+                  <ColumnSelectorDropdown size="compact" class="flex-1 text-xs" :model-value="col" :grouped-options="groupedColumnOptions" placeholder="Select value..." @update:model-value="val => updateAxis('yAxis', idx, val)" />
                   <button class="text-muted-foreground hover:text-destructive shrink-0" @click="removeAxis('yAxis', idx)"><X class="w-3.5 h-3.5" /></button>
                 </div>
               </template>
@@ -373,7 +389,7 @@ const handleClose = () => {
               <template v-if="localConfig.legend && (Array.isArray(localConfig.legend) ? localConfig.legend.length > 0 : true)">
                 <div v-for="(col, idx) in (Array.isArray(localConfig.legend) ? localConfig.legend : [localConfig.legend])" :key="idx" class="flex items-center gap-2 border border-border bg-card px-2 py-1.5 rounded-none">
                   <GripVertical class="w-3.5 h-3.5 text-muted-foreground/50 cursor-grab shrink-0" />
-                  <BaseDropdown size="compact" class="flex-1 text-xs" :model-value="col" :options="columnOptions" placeholder="Select column..." @update:model-value="val => updateAxis('legend', idx, val)" />
+                  <ColumnSelectorDropdown size="compact" class="flex-1 text-xs" :model-value="col" :grouped-options="groupedColumnOptions" placeholder="Select column..." @update:model-value="val => updateAxis('legend', idx, val)" />
                   <button class="text-muted-foreground hover:text-destructive shrink-0" @click="removeAxis('legend', idx)"><X class="w-3.5 h-3.5" /></button>
                 </div>
               </template>
@@ -391,7 +407,7 @@ const handleClose = () => {
               <template v-if="localConfig.tooltips && (Array.isArray(localConfig.tooltips) ? localConfig.tooltips.length > 0 : true)">
                 <div v-for="(col, idx) in (Array.isArray(localConfig.tooltips) ? localConfig.tooltips : [localConfig.tooltips])" :key="idx" class="flex items-center gap-2 border border-border bg-card px-2 py-1.5 rounded-none">
                   <GripVertical class="w-3.5 h-3.5 text-muted-foreground/50 cursor-grab shrink-0" />
-                  <BaseDropdown size="compact" class="flex-1 text-xs" :model-value="col" :options="columnOptions" placeholder="Select value..." @update:model-value="val => updateAxis('tooltips', idx, val)" />
+                  <ColumnSelectorDropdown size="compact" class="flex-1 text-xs" :model-value="col" :grouped-options="groupedColumnOptions" placeholder="Select value..." @update:model-value="val => updateAxis('tooltips', idx, val)" />
                   <button class="text-muted-foreground hover:text-destructive shrink-0" @click="removeAxis('tooltips', idx)"><X class="w-3.5 h-3.5" /></button>
                 </div>
               </template>
@@ -416,7 +432,7 @@ const handleClose = () => {
                     <button class="text-muted-foreground hover:text-destructive shrink-0" @click="removeFilter(idx)"><X class="w-3.5 h-3.5" /></button>
                   </div>
                   <div class="flex flex-col gap-1">
-                    <BaseDropdown size="compact" class="text-xs" :model-value="f.column" :options="columnOptions" placeholder="Select column..." @update:model-value="val => updateFilter(idx, 'column', val)" />
+                    <ColumnSelectorDropdown size="compact" class="text-xs" :model-value="f.column" :grouped-options="groupedColumnOptions" placeholder="Select column..." @update:model-value="val => updateFilter(idx, 'column', val)" />
                     <div class="flex gap-1">
                       <BaseDropdown
 size="compact" class="w-24 text-xs" :model-value="f.operator" :options="[
@@ -445,7 +461,7 @@ size="compact" class="w-24 text-xs" :model-value="f.operator" :options="[
           <div class="flex items-center gap-3">
             <span class="text-xs text-muted-foreground w-20">Sort by</span>
             <div class="flex-1">
-              <BaseDropdown size="compact" :model-value="localConfig.sortBy || ''" :options="columnOptions" placeholder="[Total Revenue]" @update:model-value="val => localConfig.sortBy = val" />
+              <ColumnSelectorDropdown size="compact" :model-value="localConfig.sortBy || ''" :grouped-options="groupedColumnOptions" placeholder="[Total Revenue]" @update:model-value="val => localConfig.sortBy = val" />
             </div>
           </div>
           <div class="flex items-center gap-3">
@@ -667,7 +683,7 @@ size="compact" class="w-24 text-xs" :model-value="f.operator" :options="[
                 <button class="text-muted-foreground hover:text-destructive shrink-0" @click="removeRule(idx)"><X class="w-3.5 h-3.5" /></button>
               </div>
               <div class="flex flex-col gap-1">
-                <BaseDropdown size="compact" class="text-xs" :model-value="rule.column" :options="columnOptions" placeholder="Columna..." @update:model-value="val => updateRule(idx, 'column', val)" />
+                <ColumnSelectorDropdown size="compact" class="text-xs" :model-value="rule.column" :grouped-options="groupedColumnOptions" placeholder="Columna..." @update:model-value="val => updateRule(idx, 'column', val)" />
                 <div class="flex gap-1 items-center">
                   <BaseDropdown
                     size="compact" class="w-16 text-xs" :model-value="rule.operator" :options="[
@@ -732,14 +748,14 @@ size="compact" class="w-24 text-xs" :model-value="f.operator" :options="[
             <div class="flex items-center justify-between">
               <span class="text-xs text-muted-foreground">K-Means Clustering</span>
             </div>
-            <BaseDropdown :model-value="localConfig.ml?.clusterCount || 'none'" @update:model-value="val => { localConfig.ml = localConfig.ml || {}; localConfig.ml.clusterCount = val; }" size="compact" :options="[{value:'none',label:'None'}, {value:'2',label:'2 Clusters'}, {value:'3',label:'3 Clusters'}, {value:'4',label:'4 Clusters'}, {value:'5',label:'5 Clusters'}]" placeholder="None" />
+            <BaseDropdown :model-value="localConfig.ml?.clusterCount || 'none'" size="compact" :options="[{value:'none',label:'None'}, {value:'2',label:'2 Clusters'}, {value:'3',label:'3 Clusters'}, {value:'4',label:'4 Clusters'}, {value:'5',label:'5 Clusters'}]" placeholder="None" @update:model-value="val => { localConfig.ml = localConfig.ml || {}; localConfig.ml.clusterCount = val; }" />
           </div>
 
           <div class="space-y-1">
             <div class="flex items-center justify-between">
               <span class="text-xs text-muted-foreground">Regression Line</span>
             </div>
-            <BaseDropdown :model-value="localConfig.ml?.regressionType || 'none'" @update:model-value="val => { localConfig.ml = localConfig.ml || {}; localConfig.ml.regressionType = val; }" size="compact" :options="[{value:'none',label:'None'}, {value:'linear',label:'Linear'}, {value:'exponential',label:'Exponential'}, {value:'polynomial',label:'Polynomial'}]" placeholder="None" />
+            <BaseDropdown :model-value="localConfig.ml?.regressionType || 'none'" size="compact" :options="[{value:'none',label:'None'}, {value:'linear',label:'Linear'}, {value:'exponential',label:'Exponential'}, {value:'polynomial',label:'Polynomial'}]" placeholder="None" @update:model-value="val => { localConfig.ml = localConfig.ml || {}; localConfig.ml.regressionType = val; }" />
           </div>
         </div>
 

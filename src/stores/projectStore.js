@@ -59,10 +59,10 @@ export const useProjectStore = defineStore('project', () => {
 
   const triggerAutoSave = () => {
     if (autosaveTimer) clearTimeout(autosaveTimer)
-    // Wait 2 seconds of inactivity before saving to avoid blocking UI
+    // Wait 30 seconds of inactivity before saving to avoid blocking UI with heavy serialization
     autosaveTimer = setTimeout(() => {
       autoSave()
-    }, 2000)
+    }, 30000)
   }
 
   const autoSave = async () => {

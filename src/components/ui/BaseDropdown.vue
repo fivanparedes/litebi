@@ -92,7 +92,7 @@ import { onMounted, onUnmounted, nextTick } from 'vue'
 const handleClickOutside = (event) => {
   if (dropdownRef.value && !dropdownRef.value.contains(event.target)) {
     // If the click is inside the teleported menu, don't close (handled by item clicks)
-    if (event.target.closest('.dropdown__menu')) return
+    if (event.target && typeof event.target.closest === 'function' && event.target.closest('.dropdown__menu')) return
     isOpen.value = false
     window.removeEventListener('scroll', updatePosition, true)
     window.removeEventListener('resize', updatePosition)

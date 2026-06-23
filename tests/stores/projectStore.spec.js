@@ -112,7 +112,9 @@ describe('projectStore', () => {
     const mockAnchor = { click: vi.fn() }
     vi.spyOn(document, 'createElement').mockReturnValue(mockAnchor)
 
-    await store.saveProject()
+    const savePromise = store.saveProject()
+    vi.runAllTimers()
+    await savePromise
 
     expect(mockAnchor.download).toBe('Proyecto sin título.litebi')
     expect(mockAnchor.click).toHaveBeenCalled()

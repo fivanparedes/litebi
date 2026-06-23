@@ -128,8 +128,6 @@ const handleEditWidget = (widgetId) => {
       <!-- Toolbar -->
       <div class="flex justify-between items-center px-4 py-3 bg-transparent border-b border-border [html.is-exporting_&]:hidden">
         <div class="flex items-center gap-4">
-          <span class="bg-muted text-muted-foreground px-3 py-1 rounded-full text-xs font-medium">{{ $t('dashboardView.dataset') }} {{ dataStore.activeDatasetMeta?.originalName }}</span>
-          
           <!-- Active Filters Bar -->
           <div v-if="dashboardStore.globalFilters.length > 0" class="flex items-center gap-2 flex-wrap">
             <span class="text-xs text-muted-foreground font-medium">{{ $t('dashboardView.activeFilters') }}</span>

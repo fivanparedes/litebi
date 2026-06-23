@@ -13,9 +13,10 @@ vi.mock('@duckdb/duckdb-wasm', async () => {
   const actual = await vi.importActual('@duckdb/duckdb-wasm')
   
   const queryMock = vi.fn().mockResolvedValue({
+    schema: { fields: [] },
     toArray: () => [
-      { toJSON: () => ({ name: 'id', type: 'INTEGER' }) },
-      { toJSON: () => ({ name: 'name', type: 'VARCHAR' }) }
+      { toJSON: () => ({ name: 'id', type: 'INTEGER', column_name: 'id', column_type: 'number' }) },
+      { toJSON: () => ({ name: 'name', type: 'VARCHAR', column_name: 'name', column_type: 'string' }) }
     ]
   })
   

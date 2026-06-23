@@ -1,6 +1,8 @@
-import { mount } from '@vue/test-utils'
+import { mount, config } from '@vue/test-utils'
 import { describe, it, expect, vi } from 'vitest'
 import BaseDropdown from '../../../src/components/ui/BaseDropdown.vue'
+
+config.global.stubs = { Teleport: true }
 
 describe('BaseDropdown.vue', () => {
   const options = [
@@ -11,7 +13,8 @@ describe('BaseDropdown.vue', () => {
 
   it('renders placeholder when no value is selected', () => {
     const wrapper = mount(BaseDropdown, {
-      props: { options, placeholder: 'Custom placeholder' }
+      props: { options, placeholder: 'Custom placeholder' },
+      global: { stubs: { Teleport: true } }
     })
     
     expect(wrapper.find('.dropdown__placeholder').text()).toBe('Custom placeholder')

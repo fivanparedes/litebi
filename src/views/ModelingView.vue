@@ -348,7 +348,8 @@ watch(() => datasets.value.length, (newLen, oldLen) => {
         <div class="form-row">
           <div class="form-col">
             <label>{{ $t('modeling.relationType', 'Tipo de Relación') }}</label>
-            <BaseDropdown v-model="newRel.type" :options="[
+            <BaseDropdown
+v-model="newRel.type" :options="[
               { value: '1:1', label: '1:1 (Uno a Uno)' },
               { value: '1:N', label: '1:N (Uno a Muchos)' },
               { value: 'N:M', label: 'N:M (Muchos a Muchos)' }
@@ -356,7 +357,8 @@ watch(() => datasets.value.length, (newLen, oldLen) => {
           </div>
           <div class="form-col">
             <label>{{ $t('modeling.crossFilter', 'Filtro Cruzado') }}</label>
-            <BaseDropdown v-model="newRel.crossFilter" :options="[
+            <BaseDropdown
+v-model="newRel.crossFilter" :options="[
               { value: 'single', label: 'Única (Single)' },
               { value: 'both', label: 'Ambas (Both)' },
               { value: 'none', label: 'Ninguna (None)' }

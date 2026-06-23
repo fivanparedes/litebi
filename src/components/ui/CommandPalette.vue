@@ -248,9 +248,9 @@ onUnmounted(() => {
           >
             <component :is="item.icon" class="item-icon" :size="18" />
             <span class="item-title">{{ item.title }}</span>
-            <span class="item-type-badge" v-if="item.type !== 'nav'">{{ item.type }}</span>
+            <span v-if="item.type !== 'nav'" class="item-type-badge">{{ item.type }}</span>
             
-            <div class="item-shortcut" v-if="item.id === 'action-new-dashboard'">
+            <div v-if="item.id === 'action-new-dashboard'" class="item-shortcut">
               <span class="shortcut-key">Ctrl+N</span>
             </div>
           </div>

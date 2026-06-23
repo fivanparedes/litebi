@@ -170,14 +170,35 @@ export const getDefaultStrategy = (baseOption, data, props, xAxisData, seriesDat
       type: 'category', 
       data: finalXAxisData, 
       show: showXAxis, 
-      axisLabel: { interval: 'auto', rotate: 30 },
+      axisLabel: { 
+        interval: 'auto', 
+        rotate: 30,
+        formatter: (value) => {
+          if (!isNaN(value) && Number(value) > 1000000000000 && String(value).length >= 13) {
+            const d = new Date(Number(value))
+            if (!isNaN(d.getTime())) return d.toLocaleDateString()
+          }
+          return value
+        }
+      },
       splitLine: { show: props.config.styles?.gridlines !== false }
     },
     yAxis: isHorizontal ? { 
       type: 'category', 
       data: finalXAxisData, 
       show: showYAxis, 
-      axisLabel: { interval: 'auto', width: 100, overflow: 'truncate' },
+      axisLabel: { 
+        interval: 'auto', 
+        width: 100, 
+        overflow: 'truncate',
+        formatter: (value) => {
+          if (!isNaN(value) && Number(value) > 1000000000000 && String(value).length >= 13) {
+            const d = new Date(Number(value))
+            if (!isNaN(d.getTime())) return d.toLocaleDateString()
+          }
+          return value
+        }
+      },
       splitLine: { show: props.config.styles?.gridlines !== false }
     } : { 
       type: 'value', 

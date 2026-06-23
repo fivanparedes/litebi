@@ -127,6 +127,8 @@ export const useDataStore = defineStore('data', () => {
       // Create table and insert data in Worker
       await sqlClient.createTable(safeName, targetData, schema)
       
+      await sqlClient.autoStandardizeDates(safeName)
+      
       const finalSchema = await sqlClient.getTableSchema(safeName)
       const countRes = await sqlClient.query(`SELECT COUNT(*) as "count" FROM "${safeName}"`)
       const finalRowCount = countRes[0]?.count || targetData.length
@@ -168,6 +170,7 @@ export const useDataStore = defineStore('data', () => {
       const safeName = name.replace(/[^a-zA-Z0-9_]/g, '_').toLowerCase()
       
       await sqlClient.createTableFromFile(safeName, file)
+      await sqlClient.autoStandardizeDates(safeName)
       
       const finalSchema = await sqlClient.getTableSchema(safeName)
       
@@ -204,6 +207,7 @@ export const useDataStore = defineStore('data', () => {
       const safeName = name.replace(/[^a-zA-Z0-9_]/g, '_').toLowerCase()
       
       await sqlClient.createTableFromRegisteredFile(safeName, tempFileName, selectedColumns)
+      await sqlClient.autoStandardizeDates(safeName)
       
       const countRes = await sqlClient.query(`SELECT COUNT(*) as "count" FROM "${safeName}"`)
       const rowCount = countRes[0]?.count || 0
@@ -395,11 +399,14 @@ export const useDataStore = defineStore('data', () => {
         )
         
         if (rel) {
-          if (rel.fromTable === baseTable) {
-            joinClause += ` LEFT JOIN "${actualTarget}" AS "${targetTable}" ON "${baseTable}"."${rel.fromColumn}" = "${targetTable}"."${rel.toColumn}"`
-          } else {
-            joinClause += ` LEFT JOIN "${actualTarget}" AS "${targetTable}" ON "${baseTable}"."${rel.toColumn}" = "${targetTable}"."${rel.fromColumn}"`
-          }
+          const leftCol = `"${baseTable}"."${rel.fromTable === baseTable ? rel.fromColumn : rel.toColumn}"`
+          const rightCol = `"${targetTable}"."${rel.toTable === targetTable ? rel.toColumn : rel.fromColumn}"`
+
+          joinClause += ` LEFT JOIN "${actualTarget}" AS "${targetTable}" ON (
+            ${leftCol} = ${rightCol} OR 
+            CAST(${leftCol} AS VARCHAR) = CAST(${rightCol} AS VARCHAR)
+          )`
+
         } else {
           Logger.warn('DataStore', `No se encontró relación entre ${baseTable} y ${targetTable}`)
         }

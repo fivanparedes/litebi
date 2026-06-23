@@ -334,13 +334,13 @@ const handleExportPDF = async () => {
         <div class="text-[11px] text-muted-foreground mb-0.5 flex items-center gap-1">
           LiteBI <span class="mx-1">/</span> 
           <template v-if="route.name === 'cleaning'">
-            {{ $t('nav.cleaning', 'Transforms') }} <span class="mx-1">/</span> {{ dataStore.activeDatasetMeta?.originalName || $t('header.dataset', 'Dataset') }}
+            {{ $t('nav.cleaning', 'Transforms') }}
           </template>
           <template v-else-if="route.name === 'formulas'">
             {{ $t('nav.modeling', 'Model') }} <span class="mx-1">/</span> {{ $t('formulas.measures', 'Measures') }}
           </template>
           <template v-else-if="route.name === 'profile'">
-            {{ $t('sidebar.nav.profile') }} <span class="mx-1">/</span> {{ dataStore.activeDatasetMeta?.originalName || $t('header.dataset') }}
+            {{ $t('sidebar.nav.profile') }}
           </template>
           <template v-else>
             {{ $t('header.workspace') }} <span v-if="viewTitle" class="mx-1">/</span> {{ viewTitle }}
@@ -370,7 +370,7 @@ v-else
           <!-- Transform Title -->
           <template v-else-if="route.name === 'cleaning'">
             <h1 class="text-base font-semibold tracking-tight truncate px-1 -mx-1">
-              Transform · {{ dataStore.activeDatasetName || 'New Pipeline' }}
+              Transform
             </h1>
           </template>
           <!-- Formulas Title -->

@@ -20,7 +20,19 @@ const uiStore = useUiStore()
 const { t } = useI18n()
 const router = useRouter()
 
-const hasData = computed(() => !!dataStore.activeDatasetName)
+const hasData = computed(() => dataStore.datasets.size > 0)
+const isPreviewLoading = ref(false)
+const selectedDatasetForTransform = computed({
+  get: () => dataStore.activeDatasetName,
+  set: (val) => dataStore.setActiveDataset(val)
+})
+
+const allDatasetsOptions = computed(() => {
+  return Array.from(dataStore.datasets.values()).map(ds => ({
+    value: ds.name,
+    label: ds.originalName
+  }))
+})
 
 const getIconForType = (type) => {
   if (!type) return Type
@@ -59,7 +71,9 @@ const transformOptions = computed(() => [
   { value: 'groupby', label: t('cleaningView.transforms.groupby') },
   { value: 'split', label: t('cleaningView.transforms.split') },
   { value: 'cast', label: t('cleaningView.transforms.cast') },
-  { value: 'add_formula', label: t('cleaningView.transforms.add_formula') }
+  { value: 'add_formula', label: t('cleaningView.transforms.add_formula') },
+  { value: 'parse_smart_date', label: 'Estandarizar Fecha' },
+  { value: 'truncate_date', label: 'Inicio/Fin de Mes (Truncar Fecha)' }
 ])
 
 const columnOptions = computed(() => {
@@ -68,15 +82,20 @@ const columnOptions = computed(() => {
 
 const updatePreview = async () => {
   if (pipeline.value) {
-    const result = await pipeline.value.executePipeline()
-    previewData.value = result.data
-    currentSchema.value = result.schema
-    pipelineSteps.value = [...pipeline.value.steps]
-    
-    const meta = dataStore.activeDatasetMeta
-    if (meta) {
-      meta.transformations = JSON.parse(JSON.stringify(pipeline.value.steps))
-      projectStore.markDirty()
+    isPreviewLoading.value = true
+    try {
+      const result = await pipeline.value.executePipeline(50)
+      previewData.value = result.data
+      currentSchema.value = result.schema
+      pipelineSteps.value = [...pipeline.value.steps]
+      
+      const meta = dataStore.activeDatasetMeta
+      if (meta) {
+        meta.transformations = JSON.parse(JSON.stringify(pipeline.value.steps))
+        projectStore.markDirty()
+      }
+    } finally {
+      isPreviewLoading.value = false
     }
   }
 }
@@ -301,10 +320,18 @@ const handleSelectColumn = (col) => {
               <h3 class="font-semibold text-sm tracking-tight text-foreground">{{ $t('cleaningView.pipeline') }}</h3>
               <p class="text-[10px] uppercase tracking-wider text-muted-foreground mt-0.5">{{ $t('cleaningView.pipelineDesc') }}</p>
             </div>
-            <BaseButton variant="outline" size="sm" @click="initNewStep">
-              <template #icon-left><Plus class="w-3.5 h-3.5" /></template>
-              {{ $t('cleaningView.addStep') }}
-            </BaseButton>
+            <div class="flex items-center gap-3">
+              <BaseDropdown
+                v-model="selectedDatasetForTransform"
+                :options="allDatasetsOptions"
+                :placeholder="$t('dashboardView.dataset', 'Dataset')"
+                class="w-48"
+              />
+              <BaseButton variant="outline" size="sm" @click="initNewStep">
+                <template #icon-left><Plus class="w-3.5 h-3.5" /></template>
+                {{ $t('cleaningView.addStep') }}
+              </BaseButton>
+            </div>
           </div>
           <div class="flex-1 overflow-y-auto bg-muted/10">
             <TransformPanel 
@@ -330,6 +357,9 @@ const handleSelectColumn = (col) => {
               :data="previewData" 
               :schema="currentSchema" 
             />
+            <div v-if="isPreviewLoading" class="absolute inset-0 z-10 bg-background/50 backdrop-blur-sm flex items-center justify-center">
+              <svg class="animate-spin h-8 w-8 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+            </div>
           </div>
         </div>
       </div>
@@ -536,6 +566,38 @@ v-model="stepConfig.castType" :options="[
               <div class="space-y-1.5">
                 <label class="text-xs font-medium text-muted-foreground">{{ $t('cleaningView.sqlExpression') }}</label>
                 <textarea v-model="stepConfig.expression" rows="3" class="w-full text-sm font-mono p-2 bg-background border border-border rounded-none focus:outline-none focus:border-primary" :placeholder="$t('cleaningView.placeholders.sqlExpression')"></textarea>
+              </div>
+            </template>
+            
+            <template v-if="selectedTransform === 'parse_smart_date'">
+              <div class="space-y-1.5 mt-2 bg-muted/30 p-3 border border-border rounded text-xs text-muted-foreground">
+                <p><strong>Transformación Inteligente</strong></p>
+                <p class="mt-1">Parsea y estandariza una columna con formatos mixtos, textos y números epoch hacia el formato DATE nativo.</p>
+              </div>
+            </template>
+            
+            <template v-if="selectedTransform === 'truncate_date'">
+              <div class="space-y-1.5 mt-2 bg-muted/30 p-3 border border-border rounded text-xs text-muted-foreground">
+                <p><strong>Truncar Fecha</strong></p>
+                <p class="mt-1">Agrupa fechas a nivel de inicio de mes, año o trimestre para usar en gráficos.</p>
+              </div>
+              <div class="space-y-1.5 mt-2">
+                <label class="text-xs font-medium text-muted-foreground">Columna de Fecha</label>
+                <BaseDropdown v-model="stepConfig.column" :options="columnOptions" placeholder="Selecciona la columna" />
+              </div>
+              <div class="space-y-1.5">
+                <label class="text-xs font-medium text-muted-foreground">Agrupar Por</label>
+                <BaseDropdown
+v-model="stepConfig.unit" :options="[
+                  {value:'month',label: 'Inicio de Mes' },
+                  {value:'year',label: 'Inicio de Año' },
+                  {value:'quarter',label: 'Inicio de Trimestre' },
+                  {value:'week',label: 'Inicio de Semana' }
+                ]" />
+              </div>
+              <div class="space-y-1.5">
+                <label class="text-xs font-medium text-muted-foreground">Nueva Columna</label>
+                <BaseInput v-model="stepConfig.newColumnName" placeholder="Ej: Mes (Fecha)" />
               </div>
             </template>
             

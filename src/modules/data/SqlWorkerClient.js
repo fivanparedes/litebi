@@ -117,18 +117,68 @@ class SqlClient {
     
     let result;
     try {
-      const sanitizeRow = (row) => {
-        return JSON.parse(safeStringify(row.toJSON()));
+      const getSanitizedRows = (arrowResult) => {
+        const fields = arrowResult.schema.fields
+        const dateCols = []
+        fields.forEach(f => {
+          const t = f.type.toString().toLowerCase()
+          if (t.includes('date') || t.includes('timestamp')) {
+            dateCols.push({ 
+              name: f.name, 
+              isDateDay: t.includes('dateday'),
+              isTimestampMicro: t.includes('microsecond'),
+              isTimestampNano: t.includes('nanosecond'),
+              isTimestampSec: t.includes('second') && !t.includes('microsecond') && !t.includes('nanosecond') && !t.includes('millisecond'),
+              isTimestampMilli: t.includes('millisecond')
+            })
+          }
+        })
+        
+        return arrowResult.toArray().map(row => {
+          const r = row.toJSON()
+          for (const colMeta of dateCols) {
+            const val = r[colMeta.name]
+            if (val !== null && val !== undefined) {
+              try {
+                let d;
+                if (typeof val === 'bigint' || typeof val === 'number') {
+                  const numVal = Number(val)
+                  let ms = numVal
+                  if (colMeta.isDateDay) ms = numVal * 86400000
+                  else if (colMeta.isTimestampMicro) ms = numVal / 1000
+                  else if (colMeta.isTimestampNano) ms = numVal / 1000000
+                  else if (colMeta.isTimestampSec) ms = numVal * 1000
+                  else if (colMeta.isTimestampMilli) ms = numVal
+                  else {
+                     if (numVal > 1e16) ms = numVal / 1000000
+                     else if (numVal > 1e14) ms = numVal / 1000
+                     else if (numVal < 1e11) ms = numVal * 1000
+                  }
+                  d = new Date(ms)
+                } else if (val instanceof Date) {
+                  d = val
+                }
+                
+                if (d && !isNaN(d.getTime())) {
+                  r[colMeta.name] = d.toISOString().split('T')[0]
+                }
+              } catch (e) {
+                // Keep original if parsing fails
+              }
+            }
+          }
+          return JSON.parse(safeStringify(r));
+        })
       }
 
       if (params && params.length > 0) {
         const stmt = await this.conn.prepare(finalSql)
         const arrowResult = await stmt.query(...params)
-        result = arrowResult.toArray().map(sanitizeRow)
+        result = getSanitizedRows(arrowResult)
         await stmt.close()
       } else {
         const arrowResult = await this.conn.query(finalSql)
-        result = arrowResult.toArray().map(sanitizeRow)
+        result = getSanitizedRows(arrowResult)
       }
     } catch (err) {
       throw new Error(`DuckDB Query Error: ${err.message}`)
@@ -337,6 +387,50 @@ class SqlClient {
     }
   }
 
+  async autoStandardizeDates(tableName) {
+    this.clearCache()
+    await this.initPromise
+    
+    try {
+      const schema = await this.getTableSchema(tableName)
+      let needsUpdate = false
+      
+      const selectParts = schema.map(col => {
+        const lowerName = col.name.toLowerCase()
+        // Determine if it's likely a date
+        const isDate = lowerName.includes('date') || lowerName.includes('fecha') || lowerName.includes('time') || 
+                       col.type === 'DATE' || col.originalType?.toLowerCase().includes('date') ||
+                       col.type === 'TIMESTAMP' || col.originalType?.toLowerCase().includes('timestamp')
+                       
+        if (isDate) {
+          needsUpdate = true
+          return `
+            COALESCE(
+              TRY_CAST("${col.name}" AS DATE), 
+              CAST(TRY_STRPTIME(CAST("${col.name}" AS VARCHAR), '%d-%m-%Y') AS DATE),
+              CAST(TRY_STRPTIME(CAST("${col.name}" AS VARCHAR), '%d/%m/%Y') AS DATE),
+              CAST(TRY_STRPTIME(CAST("${col.name}" AS VARCHAR), '%Y-%m-%d') AS DATE),
+              CAST(TRY_STRPTIME(CAST("${col.name}" AS VARCHAR), '%Y/%m/%d') AS DATE),
+              CAST(TRY_STRPTIME(CAST("${col.name}" AS VARCHAR), '%Y%m%d') AS DATE),
+              CASE WHEN TRY_CAST(TRY_CAST("${col.name}" AS DOUBLE) AS BIGINT) > 1000000000000 
+                   THEN CAST(epoch_ms(TRY_CAST(TRY_CAST("${col.name}" AS DOUBLE) AS BIGINT)) AS DATE)
+                   ELSE NULL END
+            ) AS "${col.name}"`
+        }
+        return `"${col.name}"`
+      })
+      
+      if (needsUpdate) {
+        const queryStr = `CREATE TABLE "${tableName}_tmp" AS SELECT ${selectParts.join(', ')} FROM "${tableName}"`
+        await this.conn.query(queryStr)
+        await this.dropTable(tableName)
+        await this.conn.query(`ALTER TABLE "${tableName}_tmp" RENAME TO "${tableName}"`)
+      }
+    } catch (e) {
+      console.warn('[SqlClient] Error auto-standardizing dates:', e)
+    }
+  }
+
   async insertIntoTable(name, data, schema = null) {
     this.clearCache()
     await this.initPromise
@@ -440,6 +534,35 @@ class SqlClient {
           Logger.warn('SqlClient', `Formula error:`, err)
         }
       }
+      else if (step.transformId === 'parse_smart_date') {
+        try {
+          const col = `"${step.config.column}"`
+          const smartDateCast = `
+            COALESCE(
+              TRY_CAST(${col} AS DATE),
+              CAST(TRY_STRPTIME(CAST(${col} AS VARCHAR), '%d-%m-%Y') AS DATE),
+              CAST(TRY_STRPTIME(CAST(${col} AS VARCHAR), '%d/%m/%Y') AS DATE),
+              CAST(TRY_STRPTIME(CAST(${col} AS VARCHAR), '%Y-%m-%d') AS DATE),
+              CAST(TRY_STRPTIME(CAST(${col} AS VARCHAR), '%Y/%m/%d') AS DATE),
+              CAST(TRY_STRPTIME(CAST(${col} AS VARCHAR), '%Y%m%d') AS DATE),
+              CAST(TRY_STRPTIME(CAST(${col} AS VARCHAR), '%m-%d-%Y') AS DATE),
+              CAST(TRY_STRPTIME(CAST(${col} AS VARCHAR), '%m/%d/%Y') AS DATE),
+              TRY_CAST(to_timestamp(TRY_CAST(${col} AS BIGINT) / 1000) AS DATE)
+            )
+          `
+          const selectList = currentColumns.map(c => {
+            if (c === step.config.column) {
+              return `${smartDateCast} AS "${c}"`
+            }
+            return `"${c}"`
+          }).join(', ')
+          await this.conn.query(`CREATE TABLE "${tempTableName}_tmp" AS SELECT ${selectList} FROM "${tempTableName}"`)
+          await this.dropTable(tempTableName)
+          await this.conn.query(`ALTER TABLE "${tempTableName}_tmp" RENAME TO "${tempTableName}"`)
+        } catch (err) {
+          Logger.warn('SqlClient', `Smart Date Parse error:`, err)
+        }
+      }
       else if (step.transformId === 'remove_nulls') {
         await this.conn.query(`DELETE FROM "${tempTableName}" WHERE "${step.config.column}" IS NULL OR "${step.config.column}" = ''`)
       }
@@ -486,6 +609,20 @@ class SqlClient {
         await this.conn.query(`CREATE TABLE "${tempTableName}_tmp" AS SELECT ${selectList} FROM "${tempTableName}"`)
         await this.dropTable(tempTableName)
         await this.conn.query(`ALTER TABLE "${tempTableName}_tmp" RENAME TO "${tempTableName}"`)
+      }
+
+      else if (step.transformId === 'truncate_date') {
+        const { column: col, unit, newColumnName } = step.config
+        const newCol = newColumnName || `${col}_${unit}`
+        const sqlUnit = unit || 'month'
+        
+        // Since we are assuming the user standardized it to DATE, we cast it to DATE just in case.
+        await this.conn.query(`CREATE TABLE "${tempTableName}_tmp" AS SELECT *, DATE_TRUNC('${sqlUnit}', TRY_CAST("${col}" AS DATE)) AS "${newCol}" FROM "${tempTableName}"`)
+        await this.dropTable(tempTableName)
+        await this.conn.query(`ALTER TABLE "${tempTableName}_tmp" RENAME TO "${tempTableName}"`)
+        if (!currentColumns.includes(newCol)) {
+          currentColumns.push(newCol)
+        }
       }
       else if (step.transformId === 'extract_date') {
         const { column, component, newColumnName } = step.config
